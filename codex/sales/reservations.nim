@@ -55,6 +55,7 @@ type
   ReservationId* = distinct array[32, byte]
   SomeStorableObject = Availability | Reservation
   SomeStorableId = AvailabilityId | ReservationId
+
   Availability* = ref object
     id* {.serialize.}: AvailabilityId
     totalSize* {.serialize.}: UInt256
@@ -62,15 +63,24 @@ type
     duration* {.serialize.}: UInt256
     minPrice* {.serialize.}: UInt256
     maxCollateral* {.serialize.}: UInt256
+    # 0 means non-restricted, otherwise contains timestamp until the Availability will be renewed
+    until* {.serialize.}: SecondsSince1970
+    # false means that the availability won't be immidiatelly considered for sale
+    enabled* {.serialize.}: bool
+
   Reservation* = ref object
     id* {.serialize.}: ReservationId
     availabilityId* {.serialize.}: AvailabilityId
-    size* {.serialize.}: UInt256
+    reservedSize* {.serialize.}: UInt256
+    totalSize* {.serialize.}: UInt256
     requestId* {.serialize.}: RequestId
     slotIndex* {.serialize.}: UInt256
+
   Reservations* = ref object
     repo: RepoStore
+    clock: Clock
     onAvailabilityAdded: ?OnAvailabilityAdded
+
   GetNext* = proc(): Future[?seq[byte]] {.upraises: [], gcsafe, closure.}
   OnAvailabilityAdded* = proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
   StorableIter* = ref object
@@ -91,9 +101,10 @@ const
   ReservationsKey = (SalesKey / "reservations").tryGet
 
 proc new*(T: type Reservations,
-          repo: RepoStore): Reservations =
+          repo: RepoStore,
+          clock: Clock): Reservations =
 
-  T(repo: repo)
+  T(repo: repo, clock: clock)
 
 proc init*(
   _: type Availability,
@@ -110,14 +121,15 @@ proc init*(
 proc init*(
   _: type Reservation,
   availabilityId: AvailabilityId,
-  size: UInt256,
+  totalSize: UInt256,
+  reservedSize: UInt256,
   requestId: RequestId,
   slotIndex: UInt256
 ): Reservation =
 
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
-  Reservation(id: ReservationId(id), availabilityId: availabilityId, size: size, requestId: requestId, slotIndex: slotIndex)
+  Reservation(id: ReservationId(id), availabilityId: availabilityId, totalSize: totalSize, reservedSize: reservedSize, requestId: requestId, slotIndex: slotIndex)
 
 func toArray(id: SomeStorableId): array[32, byte] =
   array[32, byte](id)
@@ -168,8 +180,7 @@ proc exists*(
   self: Reservations,
   key: Key): Future[bool] {.async.} =
 
-  let exists = await self.repo.metaDs.contains(key)
-  return exists
+  return await self.repo.metaDs.contains(key)
 
 proc getImpl(
   self: Reservations,
@@ -280,17 +291,17 @@ proc deleteReservation*(
     else:
       return failure(error)
 
-  if reservation.size > 0.u256:
+  without availabilityKey =? availabilityId.key, error:
+    return failure(error)
+
+  without var availability =? await self.get(availabilityKey, Availability), error:
+    return failure(error)
+
+  if reservation.reservedSize > 0.u256:
     trace "returning remaining reservation bytes to availability",
-      size = reservation.size
+      size = reservation.reservedSize
 
-    without availabilityKey =? availabilityId.key, error:
-      return failure(error)
-
-    without var availability =? await self.get(availabilityKey, Availability), error:
-      return failure(error)
-
-    availability.freeSize += reservation.size
+    availability.freeSize += reservation.reservedSize
 
     if updateErr =? (await self.update(availability)).errorOption:
       return failure(updateErr)
@@ -305,12 +316,14 @@ proc createAvailability*(
   size: UInt256,
   duration: UInt256,
   minPrice: UInt256,
-  maxCollateral: UInt256): Future[?!Availability] {.async.} =
+  maxCollateral: UInt256,
+  until: SecondsSince1970 = 0,
+  enabled = true): Future[?!Availability] {.async.} =
 
   trace "creating availability", size, duration, minPrice, maxCollateral
 
   let availability = Availability.init(
-    size, size, duration, minPrice, maxCollateral
+    size, size, duration, minPrice, maxCollateral, until, enabled
   )
   let bytes = availability.freeSize.truncate(uint)
 
@@ -327,7 +340,8 @@ proc createAvailability*(
 
     return failure(updateErr)
 
-  if onAvailabilityAdded =? self.onAvailabilityAdded:
+  # we won't trigger the callback if the availability is not enabled
+  if enabled and onAvailabilityAdded =? self.onAvailabilityAdded:
     try:
       await onAvailabilityAdded(availability)
     except CancelledError as error:
@@ -350,7 +364,7 @@ proc createReservation*(
 
   trace "creating reservation", availabilityId, slotSize, requestId, slotIndex
 
-  let reservation = Reservation.init(availabilityId, slotSize, requestId, slotIndex)
+  let reservation = Reservation.init(availabilityId, slotSize, slotSize, requestId, slotIndex)
 
   without availabilityKey =? availabilityId.key, error:
     return failure(error)
@@ -399,7 +413,6 @@ proc returnBytesToAvailability*(
     reservationId
     availabilityId
 
-
   without key =? key(reservationId, availabilityId), error:
     return failure(error)
 
@@ -408,7 +421,7 @@ proc returnBytesToAvailability*(
 
   # We are ignoring bytes that are still present in the Reservation because
   # they will be returned to Availability through `deleteReservation`.
-  let bytesToBeReturned = bytes - reservation.size
+  let bytesToBeReturned = bytes - reservation.reservedSize
 
   if bytesToBeReturned == 0:
     trace "No bytes are returned", requestSizeBytes = bytes, returningBytes = bytesToBeReturned
@@ -461,7 +474,7 @@ proc release*(
   without var reservation =? (await self.get(key, Reservation)), error:
     return failure(error)
 
-  if reservation.size < bytes.u256:
+  if reservation.reservedSize < bytes.u256:
     let error = newException(
       BytesOutOfBoundsError,
       "trying to release an amount of bytes that is greater than the total size of the Reservation")
@@ -470,7 +483,7 @@ proc release*(
   if releaseErr =? (await self.repo.release(bytes)).errorOption:
     return failure(releaseErr.toErr(ReleaseFailedError))
 
-  reservation.size -= bytes.u256
+  reservation.reservedSize -= bytes.u256
 
   # persist partially used Reservation with updated size
   if err =? (await self.update(reservation)).errorOption:

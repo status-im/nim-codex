@@ -46,6 +46,27 @@ logScope:
 declareCounter(codex_api_uploads, "codex API uploads")
 declareCounter(codex_api_downloads, "codex API downloads")
 
+proc getLongestRequestEnd(node: CodexNodeRef, availabilityId: AvailabilityId): ?!SecondsSince1970 =
+  without contracts =? node.contracts.host:
+    return failure("Sales unavailable")
+
+  let
+    reservations = contracts.sales.context.reservations
+    market = contracts.sales.context.market
+    requestEndFutures = reservations.all(Reservation, availabilityId).mapIt(market.getRequestEnd(it.requestId))
+
+  if len(requestEndFutures) == 0:
+    return success(0)
+
+  try:
+    let requestEnds = await allFutures(requestEndFutures)
+
+    return success(requestEnds.reduce(max))
+  except CancelledError as exc:
+      raise exc
+  except CatchableError as exc:
+      return failure(exc.msg)
+
 proc validate(
   pattern: string,
   value: string): int
@@ -275,6 +296,9 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
         if restAv.totalSize == 0:
           return RestApiResponse.error(Http400, "Total size must be larger then zero")
 
+        if restAv.until < 0:
+          return RestApiResponse.error(Http400, "Until parameter has to be positive integer")
+
         if not reservations.hasAvailable(restAv.totalSize.truncate(uint)):
           return RestApiResponse.error(Http422, "Not enough storage quota")
 
@@ -283,7 +307,9 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
             restAv.totalSize,
             restAv.duration,
             restAv.minPrice,
-            restAv.maxCollateral)
+            restAv.maxCollateral,
+            restAv.until,
+            restAv.enabled |? true)
           ), error:
           return RestApiResponse.error(Http500, error.msg)
 
@@ -348,6 +374,19 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 
         if maxCollateral =? restAv.maxCollateral:
           availability.maxCollateral = maxCollateral
+
+        if enabled =? restAv.enabled:
+          availability.enabled = enabled
+
+        if until =? restAv.until:
+          if until < 0:
+            return RestApiResponse.error(Http400, "Until parameter must be greater or equal 0. Got: " & $until)
+
+          let longestRequestEnd = node.getLongestRequestEnd(id)
+          if until != 0 && until < longestRequestEnd:
+            return RestApiResponse.error(Http400, "Until parameter must be greater or equal the current longest request. Longest request ends at: " & $longestRequestEnd)
+
+          availability.until = until
 
         if err =? (await reservations.update(availability)).errorOption:
           return RestApiResponse.error(Http500, err.msg)

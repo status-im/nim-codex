@@ -28,10 +28,12 @@ type
 
   RestAvailability* = object
     totalSize* {.serialize.}: UInt256
+    freeSize* {.serialize.}: ?UInt256
     duration* {.serialize.}: UInt256
     minPrice* {.serialize.}: UInt256
     maxCollateral* {.serialize.}: UInt256
-    freeSize* {.serialize.}: ?UInt256
+    until* {.serialize.}: int64
+    enabled* {.serialize.}: ?bool
 
   RestSalesAgent* = object
     state* {.serialize.}: string

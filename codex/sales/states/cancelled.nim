@@ -28,6 +28,6 @@ method run*(state: SaleCancelled, machine: Machine): Future[?State] {.async.} =
     onClear(request, data.slotIndex)
 
   if onCleanUp =? agent.onCleanUp:
-    await onCleanUp(returnBytes = true)
+    await onCleanUp()
 
   warn "Sale cancelled due to timeout",  requestId = data.requestId, slotIndex = data.slotIndex

@@ -30,5 +30,5 @@ method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
     onClear(request, data.slotIndex)
 
   if onCleanUp =? agent.onCleanUp:
-    await onCleanUp(returnBytes = true)
+    await onCleanUp()
 

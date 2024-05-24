@@ -72,4 +72,11 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
     return some State(SaleErrored(error: err))
 
   trace "Download complete"
+
+  if updatedReservation =? await reservations.get(reservation.id, Reservation):
+    if updatedReservation.size != 0:
+      error "After downloading the data there is unused capacity in Reservation"
+  else:
+    error "Couldn't get updated reservation"
+
   return some State(SaleInitialProving())

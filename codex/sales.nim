@@ -90,7 +90,7 @@ func new*(_: type Sales,
           repo: RepoStore,
           simulateProofFailures: int): Sales =
 
-  let reservations = Reservations.new(repo)
+  let reservations = Reservations.new(repo, clock)
   Sales(
     context: SalesContext(
       market: market,
@@ -110,7 +110,6 @@ proc remove(sales: Sales, agent: SalesAgent) {.async.} =
 
 proc cleanUp(sales: Sales,
              agent: SalesAgent,
-             returnBytes: bool,
              processing: Future[void]) {.async.} =
 
   let data = agent.data
@@ -120,20 +119,6 @@ proc cleanUp(sales: Sales,
     slotIndex = data.slotIndex,
     reservationId = data.reservation.?id |? ReservationId.default,
     availabilityId = data.reservation.?availabilityId |? AvailabilityId.default
-
-  # if reservation for the SalesAgent was not created, then it means
-  # that the cleanUp was called before the sales process really started, so
-  # there are not really any bytes to be returned
-  if returnBytes and request =? data.request and reservation =? data.reservation:
-    if returnErr =? (await sales.context.reservations.returnBytesToAvailability(
-                        reservation.availabilityId,
-                        reservation.id,
-                        request.ask.slotSize
-                      )).errorOption:
-          error "failure returning bytes",
-            error = returnErr.msg,
-            availabilityId = reservation.availabilityId,
-            bytes = request.ask.slotSize
 
   # delete reservation and return reservation bytes back to the availability
   if reservation =? data.reservation and
@@ -176,8 +161,8 @@ proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
     none StorageRequest
   )
 
-  agent.onCleanUp = proc (returnBytes = false) {.async.} =
-    await sales.cleanUp(agent, returnBytes, done)
+  agent.onCleanUp = proc () {.async.} =
+    await sales.cleanUp(agent, done)
 
   agent.onFilled = some proc(request: StorageRequest, slotIndex: UInt256) =
     sales.filled(request, slotIndex, done)
@@ -241,9 +226,9 @@ proc load*(sales: Sales) {.async.} =
       slot.slotIndex,
       some slot.request)
 
-    agent.onCleanUp = proc(returnBytes = false) {.async.} =
+    agent.onCleanUp = proc() {.async.} =
       let done = newFuture[void]("onCleanUp_Dummy")
-      await sales.cleanUp(agent, returnBytes, done)
+      await sales.cleanUp(agent, done)
       await done # completed in sales.cleanUp
 
     agent.start(SaleUnknown())
