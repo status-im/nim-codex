@@ -4,6 +4,8 @@ include "build.nims"
 import std/os
 const currentDir = currentSourcePath()[0 .. ^(len("config.nims") + 1)]
 
+--d:chronosClosureDurationMetric
+
 when getEnv("NIMBUS_BUILD_SYSTEM") == "yes" and
    # BEWARE
    # In Nim 1.6, config files are evaluated with a working directory
