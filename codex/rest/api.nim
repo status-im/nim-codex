@@ -17,6 +17,7 @@ import std/sequtils
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronos
+import pkg/chroprof
 import pkg/presto except toJson
 import pkg/metrics except toJson
 import pkg/stew/base10
@@ -35,7 +36,6 @@ import ../contracts
 import ../erasure/erasure
 import ../manifest
 import ../streams/asyncstreamwrapper
-import ../utils/asyncprofiler
 import ../stores
 import ../utils/options
 
@@ -805,18 +805,6 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500, headers = headers)
-
-  when chronosProfiling:
-    router.api(
-      MethodGet,
-      "/api/codex/v1/debug/performance") do () -> RestApiResponse:
-        # Returns profiling information, highest execTime first
-
-        without metrics =? sortBy(%(getMetrics().totals),
-          "execTime").catch, error:
-            return RestApiResponse.error(Http500, error.msg)
-
-        RestApiResponse.response($(metrics), contentType="application/json")
 
 proc initRestApi*(
   node: CodexNodeRef,

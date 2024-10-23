@@ -18,6 +18,8 @@ import std/typetraits
 import pkg/chronos
 import pkg/chronicles/helpers
 import pkg/chronicles/topics_registry
+import pkg/chroprof
+import pkg/chroprof/collector
 import pkg/confutils/defs
 import pkg/confutils/std/net
 import pkg/toml_serialization
@@ -671,6 +673,9 @@ proc setupLogging*(conf: CodexConf) =
     quit QuitFailure
 
 proc setupMetrics*(config: CodexConf) =
+  when chronosProfiling:
+    enableProfiling()
+
   if config.metricsEnabled:
     let metricsAddress = config.metricsAddress
     notice "Starting metrics HTTP server",
@@ -681,3 +686,6 @@ proc setupMetrics*(config: CodexConf) =
       raiseAssert exc.msg
     except Exception as exc:
       raiseAssert exc.msg # TODO fix metrics
+
+    when chronosProfiling:
+      enableProfilerMetrics(k = config.profilerMaxMetrics)

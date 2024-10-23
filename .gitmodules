@@ -218,3 +218,8 @@
 [submodule "vendor/nim-zippy"]
 	path = vendor/nim-zippy
 	url = https://github.com/status-im/nim-zippy.git
+[submodule "vendor/nim-chroprof"]
+	path = vendor/nim-chroprof
+	url = https://github.com/codex-storage/nim-chroprof.git
+	ignore = untracked
+	branch = master

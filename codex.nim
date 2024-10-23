@@ -23,7 +23,6 @@ import ./codex/codex
 import ./codex/logutils
 import ./codex/units
 import ./codex/utils/keyutils
-import ./codex/utils/asyncprofiler
 import ./codex/codextypes
 
 export codex, conf, libp2p, chronos, logutils
@@ -55,12 +54,6 @@ when isMainModule:
   )
   config.setupLogging()
   config.setupMetrics()
-
-  # TODO this should not be here, but currently can't have it in setupMetrics
-  #   or we get a circular import.
-  when chronosProfiling:
-    enableProfiling()
-    AsyncProfilerInfo.initDefault(k = config.profilerMaxMetrics)
 
   if config.nat == ValidIpAddress.init(IPv4_any()):
     error "`--nat` cannot be set to the any (`0.0.0.0`) address"
