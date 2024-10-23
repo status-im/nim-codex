@@ -45,8 +45,9 @@ proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
       let
         data = await conn.readLp(MaxMessageSize.int)
         msg = Message.protobufDecode(data).mapFailure().tryGet()
-      trace "Got message for peer", peer = b.id
       await b.handler(b, msg)
+  except CancelledError:
+    trace "Read loop cancelled"
   except CatchableError as err:
     warn "Exception in blockexc read loop", msg = err.msg
   finally:
@@ -64,10 +65,9 @@ proc send*(b: NetworkPeer, msg: Message) {.async.} =
   let conn = await b.connect()
 
   if isNil(conn):
-    trace "Unable to get send connection for peer message not sent", peer = b.id
+    warn "Unable to get send connection for peer message not sent", peer = b.id
     return
 
-  trace "Sending message to remote", peer = b.id
   await conn.writeLp(protobufEncode(msg))
 
 proc broadcast*(b: NetworkPeer, msg: Message) =
@@ -75,7 +75,7 @@ proc broadcast*(b: NetworkPeer, msg: Message) =
     try:
       await b.send(msg)
     except CatchableError as exc:
-      trace "Exception broadcasting message to peer", peer = b.id, exc = exc.msg
+      warn "Exception broadcasting message to peer", peer = b.id, exc = exc.msg
 
   asyncSpawn sendAwaiter()
 

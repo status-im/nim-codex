@@ -18,6 +18,10 @@ type
     timeout*: UInt256 # mark proofs as missing before the timeout (in seconds)
     downtime*: uint8 # ignore this much recent blocks for proof requirements
     zkeyHash*: string # hash of the zkey file which is linked to the verifier
+    # Ensures the pointer does not remain in downtime for many consecutive
+    # periods. For each period increase, move the pointer `pointerProduct`
+    # blocks. Should be a prime number to ensure there are no cycles.
+    downtimeProduct*: uint8
 
 
 func fromTuple(_: type ProofConfig, tupl: tuple): ProofConfig =
@@ -25,7 +29,8 @@ func fromTuple(_: type ProofConfig, tupl: tuple): ProofConfig =
     period: tupl[0],
     timeout: tupl[1],
     downtime: tupl[2],
-    zkeyHash: tupl[3]
+    zkeyHash: tupl[3],
+    downtimeProduct: tupl[4]
   )
 
 func fromTuple(_: type CollateralConfig, tupl: tuple): CollateralConfig =

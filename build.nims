@@ -1,5 +1,6 @@
 mode = ScriptMode.Verbose
 
+import std/os except commandLineParams
 
 ### Helper functions
 proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
@@ -14,7 +15,11 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
     for i in 2..<paramCount():
       extra_params &= " " & paramStr(i)
 
-  let cmd = "nim " & lang & " --out:build/" & name & " " & extra_params & " " & srcDir & name & ".nim"
+  let
+    # Place build output in 'build' folder, even if name includes a longer path.
+    outName = os.lastPathPart(name)
+    cmd = "nim " & lang & " --out:build/" & outName & " " & extra_params & " " & srcDir & name & ".nim"
+
   exec(cmd)
 
 proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
@@ -24,14 +29,17 @@ proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
 task codex, "build codex binary":
   buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
+task toolsCirdl, "build tools/cirdl binary":
+  buildBinary "tools/cirdl/cirdl"
+
 task testCodex, "Build & run Codex tests":
-  test "testCodex", params = "-d:codex_enable_proof_failures=true -d:codex_use_hardhat=true"
+  test "testCodex", params = "-d:codex_enable_proof_failures=true"
 
 task testContracts, "Build & run Codex Contract tests":
   test "testContracts"
 
 task testIntegration, "Run integration tests":
-  buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:codex_enable_proof_failures=true -d:codex_use_hardhat=true"
+  buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:codex_enable_proof_failures=true"
   test "testIntegration"
 
 task build, "build codex binary":
@@ -40,10 +48,15 @@ task build, "build codex binary":
 task test, "Run tests":
   testCodexTask()
 
+task testTools, "Run Tools tests":
+  toolsCirdlTask()
+  test "testTools"
+
 task testAll, "Run all tests (except for Taiko L2 tests)":
   testCodexTask()
   testContractsTask()
   testIntegrationTask()
+  testToolsTask()
 
 task testTaiko, "Run Taiko L2 tests":
   codexTask()
@@ -75,7 +88,7 @@ task coverage, "generates code coverage report":
     if f.endswith(".nim"): nimSrcs.add " " & f.absolutePath.quoteShell()
 
   echo "======== Running Tests ======== "
-  test "coverage", srcDir = "tests/", params = " --nimcache:nimcache/coverage -d:release -d:codex_enable_proof_failures=true -d:codex_use_hardhat=true"
+  test "coverage", srcDir = "tests/", params = " --nimcache:nimcache/coverage -d:release -d:codex_enable_proof_failures=true"
   exec("rm nimcache/coverage/*.c")
   rmDir("coverage"); mkDir("coverage")
   echo " ======== Running LCOV ======== "

@@ -35,6 +35,8 @@ proc update(clock: OnChainClock) {.async.} =
   try:
     if latest =? (await clock.provider.getBlock(BlockTag.latest)):
       clock.update(latest)
+  except CancelledError as error:
+    raise error
   except CatchableError as error:
     debug "error updating clock: ", error=error.msg
     discard

@@ -18,9 +18,9 @@ import pkg/codex/contracts/requests
 import pkg/codex/contracts
 import pkg/codex/merkletree
 import pkg/codex/stores/cachestore
-
 import pkg/codex/slots/types
 import pkg/codex/slots/sampler/utils
+import pkg/codex/utils/json
 
 import ../backends/helpers
 import ../../helpers
@@ -38,7 +38,7 @@ asyncchecksuite "Test proof sampler utils":
 
   setup:
     inputData = readFile("tests/circuits/fixtures/input.json")
-    inputJson = parseJson(inputData)
+    inputJson = !JsonNode.parse(inputData)
     proofInput = Poseidon2Hash.jsonToProofInput(inputJson)
 
   test "Extract low bits":

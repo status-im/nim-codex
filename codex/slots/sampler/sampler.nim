@@ -9,12 +9,12 @@
 
 import std/sugar
 
-import pkg/chronicles
 import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/arrayops
 
+import ../../logutils
 import ../../market
 import ../../blocktype as bt
 import ../../merkletree
@@ -38,7 +38,7 @@ type
 func getCell*[T, H](
   self: DataSampler[T, H],
   blkBytes: seq[byte],
-  blkCellIdx: Natural): seq[byte] =
+  blkCellIdx: Natural): seq[H] =
 
   let
     cellSize = self.builder.cellSize.uint64
@@ -47,7 +47,7 @@ func getCell*[T, H](
 
   doAssert (dataEnd - dataStart) == cellSize, "Invalid cell size"
 
-  toInputData[H](blkBytes[dataStart ..< dataEnd])
+  blkBytes[dataStart ..< dataEnd].elements(H).toSeq()
 
 proc getSample*[T, H](
   self: DataSampler[T, H],

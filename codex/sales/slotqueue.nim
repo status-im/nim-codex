@@ -36,6 +36,7 @@ type
     reward: UInt256
     collateral: UInt256
     expiry: UInt256
+    seen: bool
 
   # don't need to -1 to prevent overflow when adding 1 (to always allow push)
   # because AsyncHeapQueue size is of type `int`, which is larger than `uint16`
@@ -48,12 +49,12 @@ type
     running: bool
     workers: AsyncQueue[SlotQueueWorker]
     trackedFutures: TrackedFutures
+    unpaused: AsyncEvent
 
   SlotQueueError = object of CodexError
   SlotQueueItemExistsError* = object of SlotQueueError
   SlotQueueItemNotExistsError* = object of SlotQueueError
   SlotsOutOfRangeError* = object of SlotQueueError
-  NoMatchingAvailabilityError* = object of SlotQueueError
   QueueNotRunningError* = object of SlotQueueError
 
 # Number of concurrent workers used for processing SlotQueueItems
@@ -83,6 +84,9 @@ proc `<`*(a, b: SlotQueueItem): bool =
   proc addIf(score: var uint8, condition: bool, addition: int) =
     if condition:
       score += 1'u8 shl addition
+
+  scoreA.addIf(a.seen < b.seen, 4)
+  scoreB.addIf(a.seen > b.seen, 4)
 
   scoreA.addIf(a.profitability > b.profitability, 3)
   scoreB.addIf(a.profitability < b.profitability, 3)
@@ -117,12 +121,13 @@ proc new*(_: type SlotQueue,
     # temporarily. After push (and sort), the bottom-most item will be deleted
     queue: newAsyncHeapQueue[SlotQueueItem](maxSize.int + 1),
     running: false,
-    trackedFutures: TrackedFutures.new()
+    trackedFutures: TrackedFutures.new(),
+    unpaused: newAsyncEvent()
   )
   # avoid instantiating `workers` in constructor to avoid side effects in
   # `newAsyncQueue` procedure
 
-proc init*(_: type SlotQueueWorker): SlotQueueWorker =
+proc init(_: type SlotQueueWorker): SlotQueueWorker =
   SlotQueueWorker(
     doneProcessing: newFuture[void]("slotqueue.worker.processing")
   )
@@ -131,7 +136,8 @@ proc init*(_: type SlotQueueItem,
           requestId: RequestId,
           slotIndex: uint16,
           ask: StorageAsk,
-          expiry: UInt256): SlotQueueItem =
+          expiry: UInt256,
+          seen = false): SlotQueueItem =
 
   SlotQueueItem(
     requestId: requestId,
@@ -140,7 +146,8 @@ proc init*(_: type SlotQueueItem,
     duration: ask.duration,
     reward: ask.reward,
     collateral: ask.collateral,
-    expiry: expiry
+    expiry: expiry,
+    seen: seen
   )
 
 proc init*(_: type SlotQueueItem,
@@ -184,12 +191,15 @@ proc slotSize*(self: SlotQueueItem): UInt256 = self.slotSize
 proc duration*(self: SlotQueueItem): UInt256 = self.duration
 proc reward*(self: SlotQueueItem): UInt256 = self.reward
 proc collateral*(self: SlotQueueItem): UInt256 = self.collateral
+proc seen*(self: SlotQueueItem): bool = self.seen
 
 proc running*(self: SlotQueue): bool = self.running
 
 proc len*(self: SlotQueue): int = self.queue.len
 
 proc size*(self: SlotQueue): int = self.queue.size - 1
+
+proc paused*(self: SlotQueue): bool = not self.unpaused.isSet
 
 proc `$`*(self: SlotQueue): string = $self.queue
 
@@ -204,6 +214,14 @@ proc activeWorkers*(self: SlotQueue): int =
 
 proc contains*(self: SlotQueue, item: SlotQueueItem): bool =
   self.queue.contains(item)
+
+proc pause*(self: SlotQueue) =
+  # set unpaused flag to false -- coroutines will block on unpaused.wait()
+  self.unpaused.clear()
+
+proc unpause*(self: SlotQueue) =
+  # set unpaused flag to true -- unblocks coroutines waiting on unpaused.wait()
+  self.unpaused.fire()
 
 proc populateItem*(self: SlotQueue,
                    requestId: RequestId,
@@ -226,8 +244,12 @@ proc populateItem*(self: SlotQueue,
 
 proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
 
-  trace "pushing item to queue",
-    requestId = item.requestId, slotIndex = item.slotIndex
+  logScope:
+    requestId = item.requestId
+    slotIndex = item.slotIndex
+    seen = item.seen
+
+  trace "pushing item to queue"
 
   if not self.running:
     let err = newException(QueueNotRunningError, "queue not running")
@@ -245,6 +267,13 @@ proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
     self.queue.del(self.queue.size - 1)
 
   doAssert self.queue.len <= self.queue.size - 1
+
+  # when slots are pushed to the queue, the queue should be unpaused if it was
+  # paused
+  if self.paused and not item.seen:
+    trace "unpausing queue after new slot pushed"
+    self.unpause()
+
   return success()
 
 proc push*(self: SlotQueue, items: seq[SlotQueueItem]): ?!void =
@@ -295,6 +324,7 @@ proc addWorker(self: SlotQueue): ?!void =
 
   let worker = SlotQueueWorker.init()
   try:
+    discard worker.doneProcessing.track(self)
     self.workers.addLastNoWait(worker)
   except AsyncQueueFullError:
     return failure("failed to add worker, worker queue full")
@@ -314,6 +344,7 @@ proc dispatch(self: SlotQueue,
 
   if onProcessSlot =? self.onProcessSlot:
     try:
+      discard worker.doneProcessing.track(self)
       await onProcessSlot(item, worker.doneProcessing)
       await worker.doneProcessing
 
@@ -331,6 +362,23 @@ proc dispatch(self: SlotQueue,
       # we don't have any insight into types of errors that `onProcessSlot` can
       # throw because it is caller-defined
       warn "Unknown error processing slot in worker", error = e.msg
+
+proc clearSeenFlags*(self: SlotQueue) =
+  # Enumerate all items in the queue, overwriting each item with `seen = false`.
+  # To avoid issues with new queue items being pushed to the queue while all
+  # items are being iterated (eg if a new storage request comes in and pushes
+  # new slots to the queue), this routine must remain synchronous.
+
+  if self.queue.empty:
+    return
+
+  for item in self.queue.mitems:
+    item.seen = false # does not maintain the heap invariant
+
+  # force heap reshuffling to maintain the heap invariant
+  doAssert self.queue.update(self.queue[0]), "slot queue failed to reshuffle"
+
+  trace "all 'seen' flags cleared"
 
 proc start*(self: SlotQueue) {.async.} =
   if self.running:
@@ -351,12 +399,40 @@ proc start*(self: SlotQueue) {.async.} =
 
   while self.running:
     try:
+      if self.paused:
+        trace "Queue is paused, waiting for new slots or availabilities to be modified/added"
+
+      # block until unpaused is true/fired, ie wait for queue to be unpaused
+      await self.unpaused.wait()
+
       let worker = await self.workers.popFirst().track(self) # if workers saturated, wait here for new workers
       let item = await self.queue.pop().track(self) # if queue empty, wait here for new items
+
+      logScope:
+        reqId = item.requestId
+        slotIdx = item.slotIndex
+        seen = item.seen
 
       if not self.running: # may have changed after waiting for pop
         trace "not running, exiting"
         break
+
+      # If, upon processing a slot, the slot item already has a `seen` flag set,
+      # the queue should be paused.
+      if item.seen:
+        trace "processing already seen item, pausing queue",
+          reqId = item.requestId, slotIdx = item.slotIndex
+        self.pause()
+        # put item back in queue so that if other items are pushed while paused,
+        # it will be sorted accordingly. Otherwise, this item would be processed
+        # immediately (with priority over other items) once unpaused
+        trace "readding seen item back into the queue"
+        discard self.push(item) # on error, drop the item and continue
+        worker.doneProcessing.complete()
+        await sleepAsync(1.millis) # poll
+        continue
+
+      trace "processing item"
 
       self.dispatch(worker, item)
         .track(self)
@@ -364,11 +440,10 @@ proc start*(self: SlotQueue) {.async.} =
           error "Unknown error dispatching worker", error = e.msg
         )
 
-      discard worker.doneProcessing.track(self)
-
       await sleepAsync(1.millis) # poll
     except CancelledError:
-      discard
+      trace "slot queue cancelled"
+      return
     except CatchableError as e: # raised from self.queue.pop() or self.workers.pop()
       warn "slot queue error encountered during processing", error = e.msg
 

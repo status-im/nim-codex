@@ -14,6 +14,8 @@ push: {.upraises: [].}
 import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
+import pkg/stew/byteutils
+import pkg/serde/json
 
 import ../../units
 import ../../errors
@@ -100,3 +102,18 @@ proc decode*(_: type CodexProof, data: seq[byte]): ?!CodexProof =
       nodes.add node
 
   CodexProof.init(mcodec, index.int, nleaves.int, nodes)
+
+proc fromJson*(
+  _: type CodexProof,
+  json: JsonNode
+): ?!CodexProof =
+  expectJsonKind(Cid, JString, json)
+  var bytes: seq[byte]
+  try:
+    bytes = hexToSeqByte(json.str)
+  except ValueError as err:
+    return failure(err)
+
+  CodexProof.decode(bytes)
+
+func `%`*(proof: CodexProof): JsonNode = % byteutils.toHex(proof.encode())

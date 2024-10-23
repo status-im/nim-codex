@@ -47,7 +47,7 @@
 
 
 ## Slim
- 1. Build the image using `docker build -t status-im/codexsetup:latest -f codex.Dockerfile ..`
+ 1. Build the image using `docker build -t codexstorage/codexsetup:latest -f codex.Dockerfile ..`
  2. The docker image can then be minified using [slim](https://github.com/slimtoolkit/slim). Install slim on your path and then run:
     ```shell
     slim # brings up interactive prompt

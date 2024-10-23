@@ -9,17 +9,14 @@
 
 {.push raises: [].}
 
-import std/sequtils
+import std/sugar
 
 import pkg/chronos
 import pkg/questionable/results
 import pkg/circomcompat
-import pkg/poseidon2/io
 
 import ../../types
 import ../../../stores
-import ../../../merkletree
-import ../../../codextypes
 import ../../../contracts
 
 import ./converters
@@ -39,6 +36,41 @@ type
     backendCfg    : ptr CircomBn254Cfg
     vkp*          : ptr CircomKey
 
+  NormalizedProofInputs*[H] {.borrow: `.`.} = distinct ProofInputs[H]
+
+func normalizeInput*[H](self: CircomCompat, input: ProofInputs[H]):
+    NormalizedProofInputs[H] =
+  ## Parameters in CIRCOM circuits are statically sized and must be properly
+  ## padded before they can be passed onto the circuit. This function takes
+  ## variable length parameters and performs that padding.
+  ##
+  ## The output from this function can be JSON-serialized and used as direct
+  ## inputs to the CIRCOM circuit for testing and debugging when one wishes
+  ## to bypass the Rust FFI.
+
+  let normSamples = collect:
+    for sample in input.samples:
+      var merklePaths = sample.merklePaths
+      merklePaths.setLen(self.slotDepth)
+      Sample[H](
+        cellData: sample.cellData,
+        merklePaths: merklePaths
+      )
+
+  var normSlotProof = input.slotProof
+  normSlotProof.setLen(self.datasetDepth)
+
+  NormalizedProofInputs[H] ProofInputs[H](
+    entropy: input.entropy,
+    datasetRoot: input.datasetRoot,
+    slotIndex: input.slotIndex,
+    slotRoot: input.slotRoot,
+    nCellsPerSlot: input.nCellsPerSlot,
+    nSlotsPerDataSet: input.nSlotsPerDataSet,
+    slotProof: normSlotProof,
+    samples: normSamples
+  )
+
 proc release*(self: CircomCompat) =
   ## Release the ctx
   ##
@@ -49,27 +81,20 @@ proc release*(self: CircomCompat) =
   if not isNil(self.vkp):
     self.vkp.unsafeAddr.release_key()
 
-proc prove*[H](
+proc prove[H](
   self: CircomCompat,
-  input: ProofInputs[H]): ?!CircomProof =
-  ## Encode buffers using a ctx
-  ##
+  input: NormalizedProofInputs[H]): ?!CircomProof =
 
-  # NOTE: All inputs are statically sized per circuit
-  # and adjusted accordingly right before being passed
-  # to the circom ffi - `setLen` is used to adjust the
-  # sequence length to the correct size which also 0 pads
-  # to the correct length
   doAssert input.samples.len == self.numSamples,
     "Number of samples does not match"
 
   doAssert input.slotProof.len <= self.datasetDepth,
-    "Number of slot proofs does not match"
+    "Slot proof is too deep - dataset has more slots than what we can handle?"
 
   doAssert input.samples.allIt(
     block:
       (it.merklePaths.len <= self.slotDepth + self.blkDepth and
-      it.cellData.len <= self.cellElms * 32)), "Merkle paths length does not match"
+      it.cellData.len == self.cellElms)), "Merkle paths too deep or cells too big for circuit"
 
   # TODO: All parameters should match circom's static parametter
   var
@@ -116,8 +141,7 @@ proc prove*[H](
   var
     slotProof = input.slotProof.mapIt( it.toBytes ).concat
 
-  slotProof.setLen(self.datasetDepth) # zero pad inputs to correct size
-
+  doAssert(slotProof.len == self.datasetDepth)
   # arrays are always flattened
   if ctx.pushInputU256Array(
     "slotProof".cstring,
@@ -128,16 +152,14 @@ proc prove*[H](
   for s in input.samples:
     var
       merklePaths = s.merklePaths.mapIt( it.toBytes )
-      data = s.cellData
+      data = s.cellData.mapIt( @(it.toBytes) ).concat
 
-    merklePaths.setLen(self.slotDepth) # zero pad inputs to correct size
     if ctx.pushInputU256Array(
       "merklePaths".cstring,
       merklePaths[0].addr,
       uint (merklePaths[0].len * merklePaths.len)) != ERR_OK:
         return failure("Failed to push merkle paths")
 
-    data.setLen(self.cellElms * 32) # zero pad inputs to correct size
     if ctx.pushInputU256Array(
       "cellData".cstring,
       data[0].addr,
@@ -161,6 +183,12 @@ proc prove*[H](
         proofPtr.addr.releaseProof()
 
   success proof
+
+proc prove*[H](
+  self: CircomCompat,
+  input: ProofInputs[H]): ?!CircomProof =
+
+  self.prove(self.normalizeInput(input))
 
 proc verify*[H](
   self: CircomCompat,

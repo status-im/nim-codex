@@ -7,6 +7,7 @@ import pkg/codex/contracts/requests
 import pkg/codex/logutils
 import pkg/codex/purchasing/purchaseid
 import pkg/codex/units
+import pkg/codex/utils/json
 import pkg/libp2p/cid
 import pkg/libp2p/multiaddress
 import pkg/questionable
@@ -61,8 +62,8 @@ checksuite "Test logging output":
     outputLines.contains(toFind)
 
   template loggedJson(prop, expected): auto =
-    let json = $ parseJson(outputJson){prop}
-    json == expected
+    let jsonVal = !JsonNode.parse(outputJson)
+    $ jsonVal{prop} == expected
 
   template log(val) =
     testlines.trace "test", val

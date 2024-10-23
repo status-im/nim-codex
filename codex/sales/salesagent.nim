@@ -25,7 +25,7 @@ type
     onCleanUp*: OnCleanUp
     onFilled*: ?OnFilled
 
-  OnCleanUp* = proc (returnBytes = false): Future[void] {.gcsafe, upraises: [].}
+  OnCleanUp* = proc (returnBytes = false, reprocessSlot = false): Future[void] {.gcsafe, upraises: [].}
   OnFilled* = proc(request: StorageRequest,
                    slotIndex: UInt256) {.gcsafe, upraises: [].}
 
@@ -72,8 +72,11 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
     without request =? data.request:
       return
 
+    let market = agent.context.market
+    let expiry = await market.requestExpiresAt(data.requestId)
+
     while true:
-      let deadline = max(clock.now, request.expiry.truncate(int64)) + 1
+      let deadline = max(clock.now, expiry) + 1
       trace "Waiting for request to be cancelled", now=clock.now, expiry=deadline
       await clock.waitUntil(deadline)
 

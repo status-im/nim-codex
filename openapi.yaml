@@ -20,6 +20,17 @@ components:
       description: Peer Identity reference as specified at https://docs.libp2p.io/concepts/fundamentals/peers/
       example: QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N
 
+    Id:
+      type: string
+      description: 32bits identifier encoded in hex-decimal string.
+      minLength: 66
+      maxLength: 66
+      example: 0x...
+
+    BigInt:
+      type: string
+      description: Integer represented as decimal string
+
     Cid:
       type: string
       description: Content Identifier as specified at https://github.com/multiformats/cid
@@ -56,22 +67,21 @@ components:
       description: A timestamp as seconds since unix epoch at which this request expires if the Request does not find requested amount of nodes to host the data.
       default: 10 minutes
 
-    ErasureParameters:
-      type: object
-      properties:
-        totalChunks:
-          type: number
+    SPR:
+      type: string
+      description: Signed Peer Record (libp2p)
 
-    PoRParameters:
-      description: Parameters for Proof of Retrievability
+    SPRRead:
       type: object
       properties:
-        u:
-          type: string
-        publicKey:
-          type: string
-        name:
-          type: string
+        spr:
+          $ref: "#/components/schemas/SPR"
+
+    PeerIdRead:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/PeerId"
 
     Content:
       type: object
@@ -79,10 +89,6 @@ components:
       properties:
         cid:
           $ref: "#/components/schemas/Cid"
-        erasure:
-          $ref: "#/components/schemas/ErasureParameters"
-        por:
-          $ref: "#/components/schemas/PoRParameters"
 
     DebugInfo:
       type: object
@@ -97,29 +103,42 @@ components:
           type: string
           description: Path of the data repository where all nodes data are stored
         spr:
-          type: string
-          description: Signed Peer Record to advertise DHT connection information
+          $ref: "#/components/schemas/SPR"
 
     SalesAvailability:
       type: object
-      required:
-        - size
-        - minPrice
       properties:
         id:
+          $ref: "#/components/schemas/Id"
+        totalSize:
           type: string
-          description: Hexadecimal identifier of the availability
-        size:
-          type: string
-          description: Size of available storage in bytes as decimal string
+          description: Total size of availability's storage in bytes as decimal string
         duration:
           $ref: "#/components/schemas/Duration"
         minPrice:
           type: string
-          description: Minimum price to be paid (in amount of tokens) as decimal string
+          description: Minimal price paid (in amount of tokens) for the whole hosted request's slot for the request's duration as decimal string
         maxCollateral:
           type: string
           description: Maximum collateral user is willing to pay per filled Slot (in amount of tokens) as decimal string
+
+    SalesAvailabilityREAD:
+      allOf:
+        - $ref: "#/components/schemas/SalesAvailability"
+        - type: object
+          properties:
+            freeSize:
+              type: string
+              description: Unused size of availability's storage in bytes as decimal string
+
+    SalesAvailabilityCREATE:
+      allOf:
+        - $ref: "#/components/schemas/SalesAvailability"
+        - required:
+            - totalSize
+            - minPrice
+            - maxCollateral
+            - duration
 
     Slot:
       type: object
@@ -130,7 +149,54 @@ components:
           $ref: "#/components/schemas/StorageRequest"
         slotIndex:
           type: string
-          description: Slot Index as hexadecimal string
+          description: Slot Index as decimal string
+
+    SlotAgent:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/SlotId"
+        slotIndex:
+          type: string
+          description: Slot Index as decimal string
+        requestId:
+          $ref: "#/components/schemas/Id"
+        request:
+          $ref: "#/components/schemas/StorageRequest"
+        reservation:
+          $ref: "#/components/schemas/Reservation"
+        state:
+          type: string
+          description: Description of the slot's
+          enum:
+            - SaleCancelled
+            - SaleDownloading
+            - SaleErrored
+            - SaleFailed
+            - SaleFilled
+            - SaleFilling
+            - SaleFinished
+            - SaleIgnored
+            - SaleInitialProving
+            - SalePayout
+            - SalePreparing
+            - SaleProving
+            - SaleUnknown
+
+    Reservation:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/Id"
+        availabilityId:
+          $ref: "#/components/schemas/Id"
+        size:
+          $ref: "#/components/schemas/BigInt"
+        requestId:
+          $ref: "#/components/schemas/Id"
+        slotIndex:
+          type: string
+          description: Slot Index as decimal string
 
     StorageRequestCreation:
       type: object
@@ -148,28 +214,27 @@ components:
         proofProbability:
           $ref: "#/components/schemas/ProofProbability"
         nodes:
-          type: number
           description: Minimal number of nodes the content should be stored on
+          type: integer
           default: 1
         tolerance:
-          type: number
           description: Additional number of nodes on top of the `nodes` property that can be lost before pronouncing the content lost
+          type: integer
           default: 0
         collateral:
           type: string
           description: Number as decimal string that represents how much collateral is asked from hosts that wants to fill a slots
         expiry:
           type: string
-          description: Number as decimal string that represents expiry time of the request (in unix timestamp)
-
+          description: Number as decimal string that represents expiry threshold in seconds from when the Request is submitted. When the threshold is reached and the Request does not find requested amount of nodes to host the data, the Request is voided. The number of seconds can not be higher then the Request's duration itself.
     StorageAsk:
       type: object
       required:
         - reward
       properties:
         slots:
-          type: number
           description: Number of slots (eq. hosts) that the Request want to have the content spread over
+          type: integer
         slotSize:
           type: string
           description: Amount of storage per slot (in bytes) as decimal string
@@ -180,7 +245,7 @@ components:
         reward:
           $ref: "#/components/schemas/Reward"
         maxSlotLoss:
-          type: number
+          type: integer
           description: Max slots that can be lost without data considered to be lost
 
     StorageRequest:
@@ -207,6 +272,15 @@ components:
         state:
           type: string
           description: Description of the Request's state
+          enum:
+            - cancelled
+            - error
+            - failed
+            - finished
+            - pending
+            - started
+            - submitted
+            - unknown
         error:
           type: string
           description: If Request failed, then here is presented the error message
@@ -236,10 +310,11 @@ components:
           $ref: "#/components/schemas/Cid"
           description: "Root hash of the content"
         originalBytes:
-          type: number
+          type: integer
+          format: int64
           description: "Length of original content in bytes"
         blockSize:
-          type: number
+          type: integer
           description: "Size of blocks"
         protected:
           type: boolean
@@ -249,17 +324,21 @@ components:
       type: object
       properties:
         totalBlocks:
-          type: number
           description: "Number of blocks stored by the node"
+          type: integer
+          format: int64
         quotaMaxBytes:
-          type: number
-          description: "Maximum storage space used by the node"
+          type: integer
+          format: int64
+          description: "Maximum storage space (in bytes) available for the node in Codex's local repository."
         quotaUsedBytes:
-          type: number
-          description: "Amount of storage space currently in use"
+          type: integer
+          format: int64
+          description: "Amount of storage space (in bytes) currently used for storing files in Codex's local repository."
         quotaReservedBytes:
-          type: number
-          description: "Amount of storage space reserved"
+          type: integer
+          format: int64
+          description: "Amount of storage reserved (in bytes) in the Codex's local repository for future use when storage requests will be picked up and hosted by the node using node's availabilities. This does not include the storage currently in use."
 
 servers:
   - url: "http://localhost:8080/api/codex/v1"
@@ -319,9 +398,8 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/DataList"
+                $ref: "#/components/schemas/DataList"
+
         "400":
           description: Invalid CID is specified
         "404":
@@ -377,10 +455,36 @@ paths:
           description: Well it was bad-bad
 
   "/data/{cid}/network":
+    post:
+      summary: "Download a file from the network to the local node if it's not available locally. Note: Download is performed async. Call can return before download is completed."
+      tags: [ Data ]
+      operationId: downloadNetwork
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+              $ref: "#/components/schemas/Cid"
+          description: "File to be downloaded."
+      responses:
+        "200":
+          description: Manifest information for download that has been started.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataItem"
+        "400":
+          description: Invalid CID is specified
+        "404":
+          description: Failed to download dataset manifest
+        "500":
+          description: Well it was bad-bad
+
+  "/data/{cid}/network/stream":
     get:
       summary: "Download a file from the network in a streaming manner. If the file is not available locally, it will be retrieved from other nodes in the network if able."
       tags: [ Data ]
-      operationId: downloadNetwork
+      operationId: downloadNetworkStream
       parameters:
         - in: path
           name: cid
@@ -400,6 +504,32 @@ paths:
           description: Invalid CID is specified
         "404":
           description: Content specified by the CID is not found
+        "500":
+          description: Well it was bad-bad
+
+  "/data/{cid}/network/manifest":
+    get:
+      summary: "Download only the dataset manifest from the network to the local node if it's not available locally."
+      tags: [ Data ]
+      operationId: downloadNetworkManifest
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+              $ref: "#/components/schemas/Cid"
+          description: "File for which the manifest is to be downloaded."
+      responses:
+        "200":
+          description: Manifest information.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataItem"
+        "400":
+          description: Invalid CID is specified
+        "404":
+          description: Failed to download dataset manifest
         "500":
           description: Well it was bad-bad
 
@@ -435,7 +565,7 @@ paths:
                   $ref: "#/components/schemas/Slot"
 
         "503":
-          description: Sales are unavailable
+          description: Persistence is not enabled
 
   "/sales/slots/{slotId}":
     get:
@@ -455,7 +585,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Slot"
+                $ref: "#/components/schemas/SlotAgent"
 
         "400":
           description: Invalid or missing SlotId
@@ -464,13 +594,13 @@ paths:
           description: Host is not in an active sale for the slot
 
         "503":
-          description: Sales are unavailable
+          description: Persistence is not enabled
 
   "/sales/availability":
     get:
       summary: "Returns storage that is for sale"
       tags: [ Marketplace ]
-      operationId: getOfferedStorage
+      operationId: getAvailabilities
       responses:
         "200":
           description: Retrieved storage availabilities of the node
@@ -479,11 +609,11 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/SalesAvailability"
+                  $ref: "#/components/schemas/SalesAvailabilityREAD"
         "500":
           description: Error getting unused availabilities
         "503":
-          description: Sales are unavailable
+          description: Persistence is not enabled
 
     post:
       summary: "Offers storage for sale"
@@ -493,18 +623,86 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SalesAvailability"
+              $ref: "#/components/schemas/SalesAvailabilityCREATE"
       responses:
-        "200":
+        "201":
           description: Created storage availability
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SalesAvailability"
+                $ref: "#/components/schemas/SalesAvailabilityREAD"
+        "400":
+          description: Invalid data input
+        "422":
+          description: Not enough node's storage quota available
         "500":
-          description: Error reserving availablility
+          description: Error reserving availability
         "503":
-          description: Sales are unavailable
+          description: Persistence is not enabled
+  "/sales/availability/{id}":
+    patch:
+      summary: "Updates availability"
+      description: |
+        The new parameters will be only considered for new requests.
+        Existing Requests linked to this Availability will continue as is.
+      operationId: updateOfferedStorage
+      tags: [ Marketplace ]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: ID of Availability
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SalesAvailability"
+      responses:
+        "204":
+          description: Availability successfully updated
+        "400":
+          description: Invalid data input
+        "404":
+          description: Availability not found
+        "422":
+          description: Not enough node's storage quota available
+        "500":
+          description: Error reserving availability
+        "503":
+          description: Persistence is not enabled
+
+  "/sales/availability/{id}/reservations":
+    get:
+      summary: "Get availability's reservations"
+      description: Return's list of Reservations for ongoing Storage Requests that the node hosts.
+      operationId: getReservations
+      tags: [ Marketplace ]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: ID of Availability
+      responses:
+        "200":
+          description: Retrieved storage availabilities of the node
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reservation"
+        "400":
+          description: Invalid Availability ID
+        "404":
+          description: Availability not found
+        "500":
+          description: Error getting reservations
+        "503":
+          description: Persistence is not enabled
 
   "/storage/request/{cid}":
     post:
@@ -526,12 +724,16 @@ paths:
       responses:
         "200":
           description: Returns the Request ID as decimal string
+          content:
+            text/plain:
+              schema:
+                type: string
         "400":
           description: Invalid or missing Request ID
         "404":
           description: Request ID not found
         "503":
-          description: Purchasing is unavailable
+          description: Persistence is not enabled
 
   "/storage/purchases":
     get:
@@ -548,7 +750,7 @@ paths:
                 items:
                   type: string
         "503":
-          description: Purchasing is unavailable
+          description: Persistence is not enabled
 
   "/storage/purchases/{id}":
     get:
@@ -574,7 +776,41 @@ paths:
         "404":
           description: Purchase not found
         "503":
-          description: Purchasing is unavailable
+          description: Persistence is not enabled
+
+  "/spr":
+    get:
+      summary: "Get Node's SPR"
+      operationId: getSPR
+      tags: [ Node ]
+      responses:
+        "200":
+          description: Node's SPR
+          content:
+            plain/text:
+              schema:
+                $ref: "#/components/schemas/SPR"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SPRRead"
+        "503":
+          description: Node SPR not ready, try again later
+
+  "/peerid":
+    get:
+      summary: "Get Node's PeerID"
+      operationId: getPeerId
+      tags: [ Node ]
+      responses:
+        "200":
+          description: Node's Peer ID
+          content:
+            plain/text:
+              schema:
+                $ref: "#/components/schemas/PeerId"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeerIdRead"
 
   "/debug/chronicles/loglevel":
     post:

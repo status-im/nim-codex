@@ -35,6 +35,9 @@ method prove*(
       return
     debug "Submitting proof", currentPeriod = currentPeriod, slotId = slot.id
     await market.submitProof(slot.id, proof)
+  except CancelledError as error:
+    trace "Submitting proof cancelled"
+    raise error
   except CatchableError as e:
     error "Submitting proof failed", msg = e.msgDetail
 

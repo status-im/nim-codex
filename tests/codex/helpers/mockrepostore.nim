@@ -8,6 +8,7 @@
 ## those terms.
 
 import std/sequtils
+import std/sugar
 import pkg/chronos
 import pkg/libp2p
 import pkg/questionable
@@ -24,33 +25,28 @@ type
 
     testBlockExpirations*: seq[BlockExpiration]
     getBlockExpirationsThrows*: bool
-    iteratorIndex: int
 
 method delBlock*(self: MockRepoStore, cid: Cid): Future[?!void] {.async.} =
   self.delBlockCids.add(cid)
   self.testBlockExpirations = self.testBlockExpirations.filterIt(it.cid != cid)
-  dec self.iteratorIndex
   return success()
 
-method getBlockExpirations*(self: MockRepoStore, maxNumber: int, offset: int): Future[?!AsyncIter[?BlockExpiration]] {.async.} =
+method getBlockExpirations*(self: MockRepoStore, maxNumber: int, offset: int): Future[?!AsyncIter[BlockExpiration]] {.async.} =
   if self.getBlockExpirationsThrows:
     raise new CatchableError
 
   self.getBeMaxNumber = maxNumber
   self.getBeOffset = offset
 
-  var iter = AsyncIter[?BlockExpiration]()
+  let
+    testBlockExpirationsCpy = @(self.testBlockExpirations)
+    limit = min(offset + maxNumber, len(testBlockExpirationsCpy))
 
-  self.iteratorIndex = offset
-  var numberLeft = maxNumber
-  proc next(): Future[?BlockExpiration] {.async.} =
-    if numberLeft > 0 and self.iteratorIndex >= 0 and self.iteratorIndex < len(self.testBlockExpirations):
-      dec numberLeft
-      let selectedBlock = self.testBlockExpirations[self.iteratorIndex]
-      inc self.iteratorIndex
-      return selectedBlock.some
-    iter.finish
-    return BlockExpiration.none
+  let
+    iter1 = AsyncIter[int].new(offset..<limit)
+    iter2 = map[int, BlockExpiration](iter1,
+        proc (i: int): Future[BlockExpiration] {.async.} =
+          testBlockExpirationsCpy[i]
+      )
 
-  iter.next = next
-  return success iter
+  success(iter2)

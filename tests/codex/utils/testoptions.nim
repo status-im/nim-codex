@@ -1,5 +1,5 @@
 import std/unittest
-import codex/utils/optionalcast
+import codex/utils/options
 import ../helpers
 
 checksuite "optional casts":
@@ -28,3 +28,22 @@ checksuite "optional casts":
     check 42.some as int == some 42
     check 42.some as string == string.none
     check int.none as int == int.none
+
+checksuite "Optionalize":
+  test "does not except non-object types":
+    static:
+      doAssert not compiles(Optionalize(int))
+
+  test "converts object fields to option":
+    type BaseType = object
+      a: int
+      b: bool
+      c: string
+      d: Option[string]
+
+    type OptionalizedType = Optionalize(BaseType)
+
+    check OptionalizedType.a is Option[int]
+    check OptionalizedType.b is Option[bool]
+    check OptionalizedType.c is Option[string]
+    check OptionalizedType.d is Option[string]

@@ -59,7 +59,7 @@ proc deleteExpiredBlock(self: BlockMaintainer, cid: Cid): Future[void] {.async.}
     trace "Unable to delete block from repoStore"
 
 proc processBlockExpiration(self: BlockMaintainer, be: BlockExpiration): Future[void] {.async} =
-  if be.expiration < self.clock.now:
+  if be.expiry < self.clock.now:
     await self.deleteExpiredBlock(be.cid)
   else:
     inc self.offset
@@ -75,11 +75,11 @@ proc runBlockCheck(self: BlockMaintainer): Future[void] {.async.} =
     return
 
   var numberReceived = 0
-  for maybeBeFuture in iter:
-    if be =? await maybeBeFuture:
-      inc numberReceived
-      await self.processBlockExpiration(be)
-      await sleepAsync(50.millis)
+  for beFut in iter:
+    let be = await beFut
+    inc numberReceived
+    await self.processBlockExpiration(be)
+    await sleepAsync(1.millis) # cooperative scheduling
 
   # If we received fewer blockExpirations from the iterator than we asked for,
   # We're at the end of the dataset and should start from 0 next time.
@@ -90,6 +90,8 @@ proc start*(self: BlockMaintainer) =
   proc onTimer(): Future[void] {.async.} =
     try:
       await self.runBlockCheck()
+    except CancelledError as error:
+      raise error
     except CatchableError as exc:
       error "Unexpected exception in BlockMaintainer.onTimer(): ", msg=exc.msg
 

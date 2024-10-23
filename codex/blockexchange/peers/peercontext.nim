@@ -25,9 +25,6 @@ import ../../logutils
 
 export payments, nitro
 
-logScope:
-  topics = "codex peercontext"
-
 type
   BlockExcPeerCtx* = ref object of RootObj
     id*: PeerId
@@ -66,5 +63,4 @@ func price*(self: BlockExcPeerCtx, addresses: seq[BlockAddress]): UInt256 =
     self.blocks.withValue(a, precense):
       price += precense[].price
 
-  trace "Blocks price", price
   price

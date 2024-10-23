@@ -7,22 +7,12 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/sugar
 import std/bitops
-import std/sequtils
 
 import pkg/questionable/results
-import pkg/poseidon2
-import pkg/poseidon2/io
-
 import pkg/constantine/math/arithmetic
 
-import pkg/constantine/math/io/io_fields
-
 import ../../merkletree
-
-func toInputData*[H](data: seq[byte]): seq[byte] =
-  return toSeq(data.elements(H)).mapIt( @(it.toBytes) ).concat
 
 func extractLowBits*[n: static int](elm: BigInt[n], k: int): uint64 =
   doAssert( k > 0 and k <= 64 )
@@ -39,6 +29,7 @@ func extractLowBits(fld: Poseidon2Hash, k: int): uint64 =
   return extractLowBits(elm, k);
 
 func floorLog2*(x : int) : int =
+  doAssert ( x > 0 )
   var k = -1
   var y = x
   while (y > 0):
@@ -47,10 +38,8 @@ func floorLog2*(x : int) : int =
   return k
 
 func ceilingLog2*(x : int) : int =
-  if (x == 0):
-    return -1
-  else:
-    return (floorLog2(x-1) + 1)
+  doAssert ( x > 0 )
+  return (floorLog2(x - 1) + 1)
 
 func toBlkInSlot*(cell: Natural, numCells: Natural): Natural =
   let log2 = ceilingLog2(numCells)
@@ -80,7 +69,7 @@ func cellIndices*(
   numCells: Natural, nSamples: Natural): seq[Natural] =
 
   var indices: seq[Natural]
-  while (indices.len < nSamples):
-    let idx = cellIndex(entropy, slotRoot, numCells, indices.len + 1)
-    indices.add(idx.Natural)
+  for i in 1..nSamples:
+    indices.add(cellIndex(entropy, slotRoot, numCells, i))
+
   indices

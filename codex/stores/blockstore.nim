@@ -29,7 +29,9 @@ type
   BlockType* {.pure.} = enum
     Manifest, Block, Both
 
+  CidCallback* = proc(cid: Cid): Future[void] {.gcsafe, raises:[].}
   BlockStore* = ref object of RootObj
+    onBlockStored*: ?CidCallback
 
 method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
   ## Get a block from the blockstore

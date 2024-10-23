@@ -15,6 +15,7 @@ import pkg/codex/utils
 
 import ../../asynctest
 import ../helpers
+import ../examples
 
 type
   StoreProvider* = proc(): BlockStore {.gcsafe.}
@@ -55,6 +56,16 @@ proc commonBlockStoreTests*(name: string,
     test "putBlock":
       (await store.putBlock(newBlock1)).tryGet()
       check (await store.hasBlock(newBlock1.cid)).tryGet()
+
+    test "putBlock raises onBlockStored":
+      var storedCid = Cid.example
+      proc onStored(cid: Cid) {.async.} = 
+        storedCid = cid
+      store.onBlockStored = onStored.some()
+
+      (await store.putBlock(newBlock1)).tryGet()
+
+      check storedCid == newBlock1.cid
 
     test "getBlock":
       (await store.putBlock(newBlock)).tryGet()

@@ -78,13 +78,13 @@ proc onProve*(sales: Sales): ?OnProve = sales.context.onProve
 
 proc onExpiryUpdate*(sales: Sales): ?OnExpiryUpdate = sales.context.onExpiryUpdate
 
-func new*(_: type Sales,
+proc new*(_: type Sales,
           market: Market,
           clock: Clock,
           repo: RepoStore): Sales =
   Sales.new(market, clock, repo, 0)
 
-func new*(_: type Sales,
+proc new*(_: type Sales,
           market: Market,
           clock: Clock,
           repo: RepoStore,
@@ -111,15 +111,19 @@ proc remove(sales: Sales, agent: SalesAgent) {.async.} =
 proc cleanUp(sales: Sales,
              agent: SalesAgent,
              returnBytes: bool,
+             reprocessSlot: bool,
              processing: Future[void]) {.async.} =
 
   let data = agent.data
 
-  trace "cleaning up sales agent",
-    requestId = data.requestId,
-    slotIndex = data.slotIndex,
-    reservationId = data.reservation.?id |? ReservationId.default,
+  logScope:
+    topics = "sales cleanUp"
+    requestId = data.requestId
+    slotIndex = data.slotIndex
+    reservationId = data.reservation.?id |? ReservationId.default
     availabilityId = data.reservation.?availabilityId |? AvailabilityId.default
+
+  trace "cleaning up sales agent"
 
   # if reservation for the SalesAgent was not created, then it means
   # that the cleanUp was called before the sales process really started, so
@@ -132,7 +136,6 @@ proc cleanUp(sales: Sales,
                       )).errorOption:
           error "failure returning bytes",
             error = returnErr.msg,
-            availabilityId = reservation.availabilityId,
             bytes = request.ask.slotSize
 
   # delete reservation and return reservation bytes back to the availability
@@ -141,10 +144,21 @@ proc cleanUp(sales: Sales,
                     reservation.id,
                     reservation.availabilityId
                   )).errorOption:
-      error "failure deleting reservation",
-        error = deleteErr.msg,
-        reservationId = reservation.id,
-        availabilityId = reservation.availabilityId
+      error "failure deleting reservation", error = deleteErr.msg
+
+  # Re-add items back into the queue to prevent small availabilities from
+  # draining the queue. Seen items will be ordered last.
+  if reprocessSlot and request =? data.request:
+    let queue = sales.context.slotQueue
+    var seenItem = SlotQueueItem.init(data.requestId,
+                                      data.slotIndex.truncate(uint16),
+                                      data.ask,
+                                      request.expiry,
+                                      seen = true)
+    trace "pushing ignored item to queue, marked as seen"
+    if err =? queue.push(seenItem).errorOption:
+      error "failed to readd slot to queue",
+        errorType = $(type err), error = err.msg
 
   await sales.remove(agent)
 
@@ -166,7 +180,7 @@ proc filled(
     processing.complete()
 
 proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
-  debug "processing slot from queue", requestId = item.requestId,
+  debug "Processing slot from queue", requestId = item.requestId,
     slot = item.slotIndex
 
   let agent = newSalesAgent(
@@ -176,8 +190,8 @@ proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
     none StorageRequest
   )
 
-  agent.onCleanUp = proc (returnBytes = false) {.async.} =
-    await sales.cleanUp(agent, returnBytes, done)
+  agent.onCleanUp = proc (returnBytes = false, reprocessSlot = false) {.async.} =
+    await sales.cleanUp(agent, returnBytes, reprocessSlot, done)
 
   agent.onFilled = some proc(request: StorageRequest, slotIndex: UInt256) =
     sales.filled(request, slotIndex, done)
@@ -188,13 +202,17 @@ proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
 proc deleteInactiveReservations(sales: Sales, activeSlots: seq[Slot]) {.async.} =
   let reservations = sales.context.reservations
   without reservs =? await reservations.all(Reservation):
-    info "no unused reservations found for deletion"
+    return
 
   let unused = reservs.filter(r => (
     let slotId = slotId(r.requestId, r.slotIndex)
     not activeSlots.any(slot => slot.id == slotId)
   ))
-  info "found unused reservations for deletion", unused = unused.len
+
+  if unused.len == 0:
+    return
+
+  info "Found unused reservations for deletion", unused = unused.len
 
   for reservation in unused:
 
@@ -205,9 +223,9 @@ proc deleteInactiveReservations(sales: Sales, activeSlots: seq[Slot]) {.async.} 
     if err =? (await reservations.deleteReservation(
       reservation.id, reservation.availabilityId
     )).errorOption:
-      error "failed to delete unused reservation", error = err.msg
+      error "Failed to delete unused reservation", error = err.msg
     else:
-      trace "deleted unused reservation"
+      trace "Deleted unused reservation"
 
 proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
   let market = sales.context.market
@@ -222,7 +240,6 @@ proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
   return slots
 
 proc activeSale*(sales: Sales, slotId: SlotId): Future[?SalesAgent] {.async.} =
-  let market = sales.context.market
   for agent in sales.agents:
     if slotId(agent.data.requestId, agent.data.slotIndex) == slotId:
       return some agent
@@ -241,59 +258,29 @@ proc load*(sales: Sales) {.async.} =
       slot.slotIndex,
       some slot.request)
 
-    agent.onCleanUp = proc(returnBytes = false) {.async.} =
-      let done = newFuture[void]("onCleanUp_Dummy")
-      await sales.cleanUp(agent, returnBytes, done)
-      await done # completed in sales.cleanUp
+    agent.onCleanUp = proc(returnBytes = false, reprocessSlot = false) {.async.} =
+      # since workers are not being dispatched, this future has not been created
+      # by a worker. Create a dummy one here so we can call sales.cleanUp
+      let done: Future[void] = nil
+      await sales.cleanUp(agent, returnBytes, reprocessSlot, done)
+
+    # There is no need to assign agent.onFilled as slots loaded from `mySlots`
+    # are inherently already filled and so assigning agent.onFilled would be
+    # superfluous.
 
     agent.start(SaleUnknown())
     sales.agents.add agent
 
 proc onAvailabilityAdded(sales: Sales, availability: Availability) {.async.} =
-  ## Query last 256 blocks for new requests, adding them to the queue. `push`
-  ## checks for availability before adding to the queue. If processed, the
-  ## sales agent will check if the slot is free.
-  let context = sales.context
-  let market = context.market
-  let queue = context.slotQueue
+  ## When availabilities are modified or added, the queue should be unpaused if
+  ## it was paused and any slots in the queue should have their `seen` flag
+  ## cleared.
+  let queue = sales.context.slotQueue
 
-  logScope:
-    topics = "marketplace sales onAvailabilityAdded callback"
-
-  trace "availability added, querying past storage requests to add to queue"
-
-  try:
-    let events = await market.queryPastStorageRequests(256)
-
-    if events.len == 0:
-      trace "no storage request events found in recent past"
-      return
-
-    let requests = events.map(event =>
-      SlotQueueItem.init(event.requestId, event.ask, event.expiry)
-    )
-
-    trace "found past storage requested events to add to queue",
-      events = events.len
-
-    for slots in requests:
-      for slot in slots:
-        if err =? queue.push(slot).errorOption:
-          # continue on error
-          if err of QueueNotRunningError:
-            warn "cannot push items to queue, queue is not running"
-          elif err of NoMatchingAvailabilityError:
-            info "slot in queue had no matching availabilities, ignoring"
-          elif err of SlotsOutOfRangeError:
-            warn "Too many slots, cannot add to queue"
-          elif err of SlotQueueItemExistsError:
-            trace "item already exists, ignoring"
-            discard
-          else: raise err
-
-  except CatchableError as e:
-    warn "Error adding request to SlotQueue", error = e.msg
-    discard
+  queue.clearSeenFlags()
+  if queue.paused:
+    trace "unpausing queue after new availability added"
+    queue.unpause()
 
 proc onStorageRequested(sales: Sales,
                         requestId: RequestId,
@@ -320,9 +307,7 @@ proc onStorageRequested(sales: Sales,
   for item in items:
     # continue on failure
     if err =? slotQueue.push(item).errorOption:
-      if err of NoMatchingAvailabilityError:
-        info "slot in queue had no matching availabilities, ignoring"
-      elif err of SlotQueueItemExistsError:
+      if err of SlotQueueItemExistsError:
         error "Failed to push item to queue becaue it already exists"
       elif err of QueueNotRunningError:
         warn "Failed to push item to queue becaue queue is not running"
@@ -363,9 +348,7 @@ proc onSlotFreed(sales: Sales,
   addSlotToQueue()
     .track(sales)
     .catch(proc(err: ref CatchableError) =
-      if err of NoMatchingAvailabilityError:
-        info "slot in queue had no matching availabilities, ignoring"
-      elif err of SlotQueueItemExistsError:
+      if err of SlotQueueItemExistsError:
         error "Failed to push item to queue becaue it already exists"
       elif err of QueueNotRunningError:
         warn "Failed to push item to queue becaue queue is not running"
@@ -385,6 +368,8 @@ proc subscribeRequested(sales: Sales) {.async.} =
   try:
     let sub = await market.subscribeRequests(onStorageRequested)
     sales.subscriptions.add(sub)
+  except CancelledError as error:
+    raise error
   except CatchableError as e:
     error "Unable to subscribe to storage request events", msg = e.msg
 
@@ -400,6 +385,8 @@ proc subscribeCancellation(sales: Sales) {.async.} =
   try:
     let sub = await market.subscribeRequestCancelled(onCancelled)
     sales.subscriptions.add(sub)
+  except CancelledError as error:
+    raise error
   except CatchableError as e:
     error "Unable to subscribe to cancellation events", msg = e.msg
 
@@ -418,6 +405,8 @@ proc subscribeFulfilled*(sales: Sales) {.async.} =
   try:
     let sub = await market.subscribeFulfillment(onFulfilled)
     sales.subscriptions.add(sub)
+  except CancelledError as error:
+    raise error
   except CatchableError as e:
     error "Unable to subscribe to storage fulfilled events", msg = e.msg
 
@@ -436,6 +425,8 @@ proc subscribeFailure(sales: Sales) {.async.} =
   try:
     let sub = await market.subscribeRequestFailed(onFailed)
     sales.subscriptions.add(sub)
+  except CancelledError as error:
+    raise error
   except CatchableError as e:
     error "Unable to subscribe to storage failure events", msg = e.msg
 
@@ -454,6 +445,8 @@ proc subscribeSlotFilled(sales: Sales) {.async.} =
   try:
     let sub = await market.subscribeSlotFilled(onSlotFilled)
     sales.subscriptions.add(sub)
+  except CancelledError as error:
+    raise error
   except CatchableError as e:
     error "Unable to subscribe to slot filled events", msg = e.msg
 
@@ -467,8 +460,27 @@ proc subscribeSlotFreed(sales: Sales) {.async.} =
   try:
     let sub = await market.subscribeSlotFreed(onSlotFreed)
     sales.subscriptions.add(sub)
+  except CancelledError as error:
+    raise error
   except CatchableError as e:
     error "Unable to subscribe to slot freed events", msg = e.msg
+
+proc subscribeSlotReservationsFull(sales: Sales) {.async.} =
+  let context = sales.context
+  let market = context.market
+  let queue = context.slotQueue
+
+  proc onSlotReservationsFull(requestId: RequestId, slotIndex: UInt256) =
+    trace "reservations for slot full, removing from slot queue", requestId, slotIndex
+    queue.delete(requestId, slotIndex.truncate(uint16))
+
+  try:
+    let sub = await market.subscribeSlotReservationsFull(onSlotReservationsFull)
+    sales.subscriptions.add(sub)
+  except CancelledError as error:
+    raise error
+  except CatchableError as e:
+    error "Unable to subscribe to slot filled events", msg = e.msg
 
 proc startSlotQueue(sales: Sales) {.async.} =
   let slotQueue = sales.context.slotQueue
@@ -476,6 +488,7 @@ proc startSlotQueue(sales: Sales) {.async.} =
 
   slotQueue.onProcessSlot =
     proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+      trace "processing slot queue item", reqId = item.requestId, slotIdx = item.slotIndex
       sales.processSlot(item, done)
 
   asyncSpawn slotQueue.start()
@@ -492,11 +505,14 @@ proc subscribe(sales: Sales) {.async.} =
   await sales.subscribeSlotFilled()
   await sales.subscribeSlotFreed()
   await sales.subscribeCancellation()
+  await sales.subscribeSlotReservationsFull()
 
 proc unsubscribe(sales: Sales) {.async.} =
   for sub in sales.subscriptions:
     try:
       await sub.unsubscribe()
+    except CancelledError as error:
+      raise error
     except CatchableError as e:
       error "Unable to unsubscribe from subscription", error = e.msg
 

@@ -1,5 +1,6 @@
 import std/sequtils
 import std/sugar
+import std/cpuinfo
 
 import pkg/chronos
 import pkg/datastore
@@ -12,9 +13,11 @@ import pkg/codex/blocktype as bt
 import pkg/codex/rng
 import pkg/codex/utils
 import pkg/codex/indexingstrategy
+import pkg/taskpools
 
 import ../asynctest
 import ./helpers
+import ./examples
 
 suite "Erasure encode/decode":
   const BlockSize = 1024'nb
@@ -25,16 +28,24 @@ suite "Erasure encode/decode":
   var manifest: Manifest
   var store: BlockStore
   var erasure: Erasure
+  var taskpool: Taskpool
+  let repoTmp = TempLevelDb.new()
+  let metaTmp = TempLevelDb.new()
 
   setup:
     let
-      repoDs = SQLiteDatastore.new(Memory).tryGet()
-      metaDs = SQLiteDatastore.new(Memory).tryGet()
+      repoDs = repoTmp.newDb()
+      metaDs = metaTmp.newDb()
     rng = Rng.instance()
     chunker = RandomChunker.new(rng, size = dataSetSize, chunkSize = BlockSize)
     store = RepoStore.new(repoDs, metaDs)
-    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+    taskpool = Taskpool.new(num_threads = countProcessors())
+    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
     manifest = await storeDataGetManifest(store, chunker)
+
+  teardown:
+    await repoTmp.destroyDb()
+    await metaTmp.destroyDb()
 
   proc encode(buffers, parity: int): Future[Manifest] {.async.} =
     let
@@ -222,3 +233,41 @@ suite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     discard (await erasure.decode(encoded)).tryGet()
+
+  test "Should handle verifiable manifests":
+    const
+      buffers = 20
+      parity = 10
+
+    let
+      encoded = await encode(buffers, parity)
+      slotCids = collect(newSeq):
+        for i in 0..<encoded.numSlots: Cid.example
+
+      verifiable = Manifest.new(encoded, Cid.example, slotCids).tryGet()
+
+      decoded = (await erasure.decode(verifiable)).tryGet()
+
+    check:
+      decoded.treeCid == manifest.treeCid
+      decoded.treeCid == verifiable.originalTreeCid
+      decoded.blocksCount == verifiable.originalBlocksCount
+
+  for i in 1..5:
+    test "Should encode/decode using various parameters " & $i & "/5":
+      let
+        blockSize   = rng.sample(@[1, 2, 4, 8, 16, 32, 64].mapIt(it.KiBs))
+        datasetSize = 1.MiBs
+        ecK         = 10.Natural
+        ecM         = 10.Natural
+
+      let
+        chunker = RandomChunker.new(rng, size = datasetSize, chunkSize = blockSize)
+        manifest = await storeDataGetManifest(store, chunker)
+        encoded = (await erasure.encode(manifest, ecK, ecM)).tryGet()
+        decoded = (await erasure.decode(encoded)).tryGet()
+
+      check:
+        decoded.treeCid == manifest.treeCid
+        decoded.treeCid == encoded.originalTreeCid
+        decoded.blocksCount == encoded.originalBlocksCount

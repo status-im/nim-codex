@@ -6,7 +6,7 @@ on:
 
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
-  nim_version: v1.6.14, v1.6.16, v1.6.18
+  nim_version: pinned
 
 jobs:
   matrix:
@@ -20,7 +20,7 @@ jobs:
       uses: fabiocaccamo/create-matrix-action@v4
       with:
         matrix: |
-          os {linux}, cpu {amd64}, builder {ubuntu-latest}, tests {all}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {linux}, cpu {amd64}, builder {ubuntu-20.04}, tests {all}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
 
   build:
     needs: matrix

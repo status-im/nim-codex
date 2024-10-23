@@ -16,25 +16,6 @@ export requests
 
 type
   Marketplace* = ref object of Contract
-  StorageRequested* = object of Event
-    requestId*: RequestId
-    ask*: StorageAsk
-    expiry*: UInt256
-  SlotFilled* = object of Event
-    requestId* {.indexed.}: RequestId
-    slotIndex*: UInt256
-  SlotFreed* = object of Event
-    requestId* {.indexed.}: RequestId
-    slotIndex*: UInt256
-  RequestFulfilled* = object of Event
-    requestId* {.indexed.}: RequestId
-  RequestCancelled* = object of Event
-    requestId* {.indexed.}: RequestId
-  RequestFailed* = object of Event
-    requestId* {.indexed.}: RequestId
-  ProofSubmitted* = object of Event
-    id*: SlotId
-
 
 proc config*(marketplace: Marketplace): MarketplaceConfig {.contract, view.}
 proc token*(marketplace: Marketplace): Address {.contract, view.}
@@ -42,10 +23,12 @@ proc slashMisses*(marketplace: Marketplace): UInt256 {.contract, view.}
 proc slashPercentage*(marketplace: Marketplace): UInt256 {.contract, view.}
 proc minCollateralThreshold*(marketplace: Marketplace): UInt256 {.contract, view.}
 
-proc requestStorage*(marketplace: Marketplace, request: StorageRequest) {.contract.}
-proc fillSlot*(marketplace: Marketplace, requestId: RequestId, slotIndex: UInt256, proof: Groth16Proof) {.contract.}
-proc withdrawFunds*(marketplace: Marketplace, requestId: RequestId) {.contract.}
-proc freeSlot*(marketplace: Marketplace, id: SlotId) {.contract.}
+proc requestStorage*(marketplace: Marketplace, request: StorageRequest): ?TransactionResponse {.contract.}
+proc fillSlot*(marketplace: Marketplace, requestId: RequestId, slotIndex: UInt256, proof: Groth16Proof): ?TransactionResponse {.contract.}
+proc withdrawFunds*(marketplace: Marketplace, requestId: RequestId): ?TransactionResponse {.contract.}
+proc withdrawFunds*(marketplace: Marketplace, requestId: RequestId, withdrawAddress: Address): ?TransactionResponse {.contract.}
+proc freeSlot*(marketplace: Marketplace, id: SlotId): ?TransactionResponse {.contract.}
+proc freeSlot*(marketplace: Marketplace, id: SlotId, rewardRecipient: Address, collateralRecipient: Address): ?TransactionResponse {.contract.}
 proc getRequest*(marketplace: Marketplace, id: RequestId): StorageRequest {.contract, view.}
 proc getHost*(marketplace: Marketplace, id: SlotId): Address {.contract, view.}
 proc getActiveSlot*(marketplace: Marketplace, id: SlotId): Slot {.contract, view.}
@@ -55,6 +38,7 @@ proc mySlots*(marketplace: Marketplace): seq[SlotId] {.contract, view.}
 proc requestState*(marketplace: Marketplace, requestId: RequestId): RequestState {.contract, view.}
 proc slotState*(marketplace: Marketplace, slotId: SlotId): SlotState {.contract, view.}
 proc requestEnd*(marketplace: Marketplace, requestId: RequestId): SecondsSince1970 {.contract, view.}
+proc requestExpiry*(marketplace: Marketplace, requestId: RequestId): SecondsSince1970 {.contract, view.}
 
 proc proofTimeout*(marketplace: Marketplace): UInt256 {.contract, view.}
 
@@ -65,5 +49,8 @@ proc willProofBeRequired*(marketplace: Marketplace, id: SlotId): bool {.contract
 proc getChallenge*(marketplace: Marketplace, id: SlotId): array[32, byte] {.contract, view.}
 proc getPointer*(marketplace: Marketplace, id: SlotId): uint8 {.contract, view.}
 
-proc submitProof*(marketplace: Marketplace, id: SlotId, proof: Groth16Proof) {.contract.}
-proc markProofAsMissing*(marketplace: Marketplace, id: SlotId, period: UInt256) {.contract.}
+proc submitProof*(marketplace: Marketplace, id: SlotId, proof: Groth16Proof): ?TransactionResponse {.contract.}
+proc markProofAsMissing*(marketplace: Marketplace, id: SlotId, period: UInt256): ?TransactionResponse {.contract.}
+
+proc reserveSlot*(marketplace: Marketplace, requestId: RequestId, slotIndex: UInt256): ?TransactionResponse {.contract.}
+proc canReserveSlot*(marketplace: Marketplace, requestId: RequestId, slotIndex: UInt256): bool {.contract, view.}

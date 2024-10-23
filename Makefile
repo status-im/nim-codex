@@ -5,6 +5,30 @@
 # at your option. This file may not be copied, modified, or distributed except
 # according to those terms.
 
+# This is the Nim version used locally and in regular CI builds.
+# Can be a specific version tag, a branch name, or a commit hash.
+# Can be overridden by setting the NIM_COMMIT environment variable
+# before calling make.
+#
+# For readability in CI, if NIM_COMMIT is set to "pinned",
+# this will also default to the version pinned here.
+#
+# If NIM_COMMIT is set to "nimbusbuild", this will use the
+# version pinned by nimbus-build-system.
+PINNED_NIM_VERSION := 38640664088251bbc88917b4bacfd86ec53014b8 # 1.6.21
+
+ifeq ($(NIM_COMMIT),)
+NIM_COMMIT := $(PINNED_NIM_VERSION)
+else ifeq ($(NIM_COMMIT),pinned)
+NIM_COMMIT := $(PINNED_NIM_VERSION)
+endif
+
+ifeq ($(NIM_COMMIT),nimbusbuild)
+undefine NIM_COMMIT
+else
+export NIM_COMMIT
+endif
+
 SHELL := bash # the shell used internally by Make
 
 # used inside the included makefiles
@@ -49,6 +73,11 @@ else # "variables.mk" was included. Business as usual until the end of this file
 all: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim codex $(NIM_PARAMS) build.nims
+
+# Build tools/cirdl
+cirdl: | deps
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim toolsCirdl $(NIM_PARAMS) build.nims
 
 # must be included after the default target
 -include $(BUILD_SYSTEM_DIR)/makefiles/targets.mk
@@ -100,7 +129,12 @@ testAll: | build deps
 # Builds and runs Taiko L2 tests
 testTaiko: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim testTaiko $(NIM_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim testTaiko $(NIM_PARAMS) build.nims
+
+# Builds and runs tool tests
+testTools: | cirdl
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim testTools $(NIM_PARAMS) build.nims
 
 # nim-libbacktrace
 LIBBACKTRACE_MAKE_FLAGS := -C vendor/nim-libbacktrace --no-print-directory BUILD_CXX_LIB=0

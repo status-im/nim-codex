@@ -47,15 +47,12 @@ func contains*(self: PeerCtxStore, peerId: PeerId): bool =
   peerId in self.peers
 
 func add*(self: PeerCtxStore, peer: BlockExcPeerCtx) =
-  trace "Adding peer to peer context store", peer = peer.id
   self.peers[peer.id] = peer
 
 func remove*(self: PeerCtxStore, peerId: PeerId) =
-  trace "Removing peer from peer context store", peer = peerId
   self.peers.del(peerId)
 
 func get*(self: PeerCtxStore, peerId: PeerId): BlockExcPeerCtx =
-  trace "Retrieving peer from peer context store", peer = peerId
   self.peers.getOrDefault(peerId, nil)
 
 func len*(self: PeerCtxStore): int =

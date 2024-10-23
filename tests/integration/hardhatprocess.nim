@@ -3,6 +3,7 @@ import pkg/questionable/results
 import pkg/confutils
 import pkg/chronicles
 import pkg/chronos
+import pkg/chronos/asyncproc
 import pkg/stew/io2
 import std/os
 import std/sets
@@ -71,6 +72,8 @@ method start*(node: HardhatProcess) {.async.} =
       options = poptions,
       stdoutHandle = AsyncProcess.Pipe
     )
+  except CancelledError as error:
+    raise error
   except CatchableError as e:
     error "failed to start hardhat process", error = e.msg
 

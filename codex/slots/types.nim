@@ -9,7 +9,7 @@
 
 type
   Sample*[H] = object
-    cellData*: seq[byte]
+    cellData*: seq[H]
     merklePaths*: seq[H]
 
   PublicInputs*[H] = object
@@ -24,5 +24,5 @@ type
     slotRoot*: H
     nCellsPerSlot*: Natural
     nSlotsPerDataSet*: Natural
-    slotProof*: seq[H]
-    samples*: seq[Sample[H]]
+    slotProof*: seq[H]       # inclusion proof that shows that the slot root (leaf) is part of the dataset (root)
+    samples*: seq[Sample[H]] # inclusion proofs which show that the selected cells (leafs) are part of the slot (roots)

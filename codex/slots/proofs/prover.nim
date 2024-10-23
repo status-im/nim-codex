@@ -21,11 +21,13 @@ import ../../merkletree
 import ../../stores
 import ../../market
 import ../../utils/poseidon2digest
+import ../../conf
 
 import ../builder
 import ../sampler
 
 import ./backends
+import ./backendfactory
 import ../types
 
 export backends
@@ -34,7 +36,6 @@ logScope:
   topics = "codex prover"
 
 type
-  AnyBackend* = CircomCompat
   AnyProof* = CircomProof
 
   AnySampler* = Poseidon2Sampler
@@ -86,7 +87,6 @@ proc verify*(
   inputs: AnyProofInputs): Future[?!bool] {.async.} =
   ## Prove a statement using backend.
   ## Returns a future that resolves to a proof.
-
   self.backend.verify(proof, inputs)
 
 proc new*(
@@ -96,6 +96,6 @@ proc new*(
   nSamples: int): Prover =
 
   Prover(
-    backend: backend,
     store: store,
+    backend: backend,
     nSamples: nSamples)

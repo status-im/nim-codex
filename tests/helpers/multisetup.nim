@@ -2,8 +2,9 @@ import pkg/chronos
 
 # Allow multiple setups and teardowns in a test suite
 template asyncmultisetup* =
-  var setups: seq[proc: Future[void] {.gcsafe.}]
-  var teardowns: seq[proc: Future[void] {.gcsafe.}]
+  var setups: seq[proc: Future[void].Raising([AsyncExceptionError]) {.gcsafe.}]
+  var teardowns: seq[
+    proc: Future[void].Raising([AsyncExceptionError]) {.gcsafe.}]
 
   setup:
     for setup in setups:
@@ -14,10 +15,12 @@ template asyncmultisetup* =
       await teardown()
 
   template setup(setupBody) {.inject, used.} =
-    setups.add(proc {.async.} = setupBody)
+    setups.add(proc {.async: (
+      handleException: true, raises: [AsyncExceptionError]).} = setupBody)
 
   template teardown(teardownBody) {.inject, used.} =
-    teardowns.insert(proc {.async.} = teardownBody)
+    teardowns.insert(proc {.async: (
+      handleException: true, raises: [AsyncExceptionError]).} = teardownBody)
 
 template multisetup* =
   var setups: seq[proc() {.gcsafe.}]
@@ -32,7 +35,8 @@ template multisetup* =
       teardown()
 
   template setup(setupBody) {.inject, used.} =
-    setups.add(proc = setupBody)
+    let setupProc = proc = setupBody
+    setups.add(setupProc)
 
   template teardown(teardownBody) {.inject, used.} =
     teardowns.insert(proc = teardownBody)

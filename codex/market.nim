@@ -5,6 +5,7 @@ import pkg/ethers/erc20
 import ./contracts/requests
 import ./contracts/proofs
 import ./clock
+import ./errors
 import ./periods
 
 export chronos
@@ -16,6 +17,7 @@ export periods
 
 type
   Market* = ref object of RootObj
+  MarketError* = object of CodexError
   Subscription* = ref object of RootObj
   OnRequest* = proc(id: RequestId,
                     ask: StorageAsk,
@@ -23,14 +25,35 @@ type
   OnFulfillment* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
   OnSlotFilled* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises:[].}
   OnSlotFreed* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises: [].}
+  OnSlotReservationsFull* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises: [].}
   OnRequestCancelled* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnProofSubmitted* = proc(id: SlotId) {.gcsafe, upraises:[].}
-  PastStorageRequest* = object
+  ProofChallenge* = array[32, byte]
+
+  # Marketplace events -- located here due to the Market abstraction
+  MarketplaceEvent* = Event
+  StorageRequested* = object of MarketplaceEvent
     requestId*: RequestId
     ask*: StorageAsk
     expiry*: UInt256
-  ProofChallenge* = array[32, byte]
+  SlotFilled* = object of MarketplaceEvent
+    requestId* {.indexed.}: RequestId
+    slotIndex*: UInt256
+  SlotFreed* = object of MarketplaceEvent
+    requestId* {.indexed.}: RequestId
+    slotIndex*: UInt256
+  SlotReservationsFull* = object of MarketplaceEvent
+    requestId* {.indexed.}: RequestId
+    slotIndex*: UInt256
+  RequestFulfilled* = object of MarketplaceEvent
+    requestId* {.indexed.}: RequestId
+  RequestCancelled* = object of MarketplaceEvent
+    requestId* {.indexed.}: RequestId
+  RequestFailed* = object of MarketplaceEvent
+    requestId* {.indexed.}: RequestId
+  ProofSubmitted* = object of MarketplaceEvent
+    id*: SlotId
 
 method getZkeyHash*(market: Market): Future[?string] {.base, async.} =
   raiseAssert("not implemented")
@@ -79,6 +102,10 @@ method slotState*(market: Market,
   raiseAssert("not implemented")
 
 method getRequestEnd*(market: Market,
+                      id: RequestId): Future[SecondsSince1970] {.base, async.} =
+  raiseAssert("not implemented")
+
+method requestExpiresAt*(market: Market,
                       id: RequestId): Future[SecondsSince1970] {.base, async.} =
   raiseAssert("not implemented")
 
@@ -138,6 +165,20 @@ method canProofBeMarkedAsMissing*(market: Market,
                                   period: Period): Future[bool] {.base, async.} =
   raiseAssert("not implemented")
 
+method reserveSlot*(
+  market: Market,
+  requestId: RequestId,
+  slotIndex: UInt256) {.base, async.} =
+
+  raiseAssert("not implemented")
+
+method canReserveSlot*(
+  market: Market,
+  requestId: RequestId,
+  slotIndex: UInt256): Future[bool] {.base, async.} =
+
+  raiseAssert("not implemented")
+
 method subscribeFulfillment*(market: Market,
                              callback: OnFulfillment):
                             Future[Subscription] {.base, async.} =
@@ -164,6 +205,12 @@ method subscribeSlotFilled*(market: Market,
 method subscribeSlotFreed*(market: Market,
                            callback: OnSlotFreed):
                           Future[Subscription] {.base, async.} =
+  raiseAssert("not implemented")
+
+method subscribeSlotReservationsFull*(
+  market: Market,
+  callback: OnSlotReservationsFull): Future[Subscription] {.base, async.} =
+
   raiseAssert("not implemented")
 
 method subscribeRequestCancelled*(market: Market,
@@ -196,7 +243,8 @@ method subscribeProofSubmission*(market: Market,
 method unsubscribe*(subscription: Subscription) {.base, async, upraises:[].} =
   raiseAssert("not implemented")
 
-method queryPastStorageRequests*(market: Market,
-                                 blocksAgo: int):
-                                Future[seq[PastStorageRequest]] {.base, async.} =
+method queryPastEvents*[T: MarketplaceEvent](
+  market: Market,
+  _: type T,
+  blocksAgo: int): Future[seq[T]] {.base, async.} =
   raiseAssert("not implemented")

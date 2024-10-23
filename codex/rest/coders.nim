@@ -84,7 +84,7 @@ proc decodeString*(_: type array[32, byte],
   except ValueError as e:
     err e.msg.cstring
 
-proc decodeString*[T: PurchaseId | RequestId | Nonce | SlotId](_: type T,
+proc decodeString*[T: PurchaseId | RequestId | Nonce | SlotId | AvailabilityId](_: type T,
                   value: string): Result[T, cstring] =
   array[32, byte].decodeString(value).map(id => T(id))
 

@@ -41,19 +41,7 @@ method run*(state: MockErrorState, machine: Machine): Future[?State] {.async.} =
   raise newException(ValueError, "failure")
 
 asyncchecksuite "Sales agent":
-  var request = StorageRequest(
-    ask: StorageAsk(
-      slots: 4,
-      slotSize: 100.u256,
-      duration: 60.u256,
-      reward: 10.u256,
-    ),
-    content: StorageContent(
-      cid: "some cid"
-    ),
-    expiry: (getTime() + initDuration(hours=1)).toUnix.u256
-  )
-
+  let request = StorageRequest.example
   var agent: SalesAgent
   var context: SalesContext
   var slotIndex: UInt256
@@ -62,6 +50,7 @@ asyncchecksuite "Sales agent":
 
   setup:
     market = MockMarket.new()
+    market.requestExpiry[request.id] = getTime().toUnix() + request.expiry.truncate(int64)
     clock = MockClock.new()
     context = SalesContext(market: market, clock: clock)
     slotIndex = 0.u256
@@ -109,7 +98,7 @@ asyncchecksuite "Sales agent":
     agent.start(MockState.new())
     await agent.subscribe()
     market.requestState[request.id] = RequestState.Cancelled
-    clock.set(request.expiry.truncate(int64) + 1)
+    clock.set(market.requestExpiry[request.id] + 1)
     check eventually onCancelCalled
 
   for requestState in {RequestState.New, Started, Finished, Failed}:
@@ -117,7 +106,7 @@ asyncchecksuite "Sales agent":
       agent.start(MockState.new())
       await agent.subscribe()
       market.requestState[request.id] = requestState
-      clock.set(request.expiry.truncate(int64) + 1)
+      clock.set(market.requestExpiry[request.id] + 1)
       await sleepAsync(100.millis)
       check not onCancelCalled
 
@@ -126,7 +115,7 @@ asyncchecksuite "Sales agent":
       agent.start(MockState.new())
       await agent.subscribe()
       market.requestState[request.id] = requestState
-      clock.set(request.expiry.truncate(int64) + 1)
+      clock.set(market.requestExpiry[request.id] + 1)
       check eventually agent.data.cancelled.finished
 
   test "cancelled future is finished (cancelled) when onFulfilled called":

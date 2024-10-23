@@ -23,6 +23,8 @@ import ../helpers/mockclock
 import ../examples
 import ./commonstoretests
 
+import ./repostore/testcoders
+
 checksuite "Test RepoStore start/stop":
 
   var
@@ -34,24 +36,24 @@ checksuite "Test RepoStore start/stop":
     metaDs = SQLiteDatastore.new(Memory).tryGet()
 
   test "Should set started flag once started":
-    let repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+    let repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200'nb)
     await repo.start()
     check repo.started
 
   test "Should set started flag to false once stopped":
-    let repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+    let repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200'nb)
     await repo.start()
     await repo.stop()
     check not repo.started
 
   test "Should allow start to be called multiple times":
-    let repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+    let repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200'nb)
     await repo.start()
     await repo.start()
     check repo.started
 
   test "Should allow stop to be called multiple times":
-    let repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+    let repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200'nb)
     await repo.stop()
     await repo.stop()
     check not repo.started
@@ -73,7 +75,7 @@ asyncchecksuite "RepoStore":
     mockClock = MockClock.new()
     mockClock.set(now)
 
-    repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes = 200)
+    repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes = 200'nb)
 
   teardown:
     (await repoDs.close()).tryGet
@@ -85,117 +87,107 @@ asyncchecksuite "RepoStore":
   test "Should update current used bytes on block put":
     let blk = createTestBlock(200)
 
-    check repo.quotaUsedBytes == 0
+    check repo.quotaUsedBytes == 0'nb
     (await repo.putBlock(blk)).tryGet
 
     check:
-      repo.quotaUsedBytes == 200
-      uint64.fromBytesBE((await metaDs.get(QuotaUsedKey)).tryGet) == 200'u
+      repo.quotaUsedBytes == 200'nb
 
   test "Should update current used bytes on block delete":
     let blk = createTestBlock(100)
 
-    check repo.quotaUsedBytes == 0
+    check repo.quotaUsedBytes == 0'nb
     (await repo.putBlock(blk)).tryGet
-    check repo.quotaUsedBytes == 100
+    check repo.quotaUsedBytes == 100'nb
 
     (await repo.delBlock(blk.cid)).tryGet
 
     check:
-      repo.quotaUsedBytes == 0
-      uint64.fromBytesBE((await metaDs.get(QuotaUsedKey)).tryGet) == 0'u
+      repo.quotaUsedBytes == 0'nb
 
   test "Should not update current used bytes if block exist":
     let blk = createTestBlock(100)
 
-    check repo.quotaUsedBytes == 0
+    check repo.quotaUsedBytes == 0'nb
     (await repo.putBlock(blk)).tryGet
-    check repo.quotaUsedBytes == 100
+    check repo.quotaUsedBytes == 100'nb
 
     # put again
     (await repo.putBlock(blk)).tryGet
-    check repo.quotaUsedBytes == 100
-
-    check:
-      uint64.fromBytesBE((await metaDs.get(QuotaUsedKey)).tryGet) == 100'u
+    check repo.quotaUsedBytes == 100'nb
 
   test "Should fail storing passed the quota":
     let blk = createTestBlock(300)
 
-    check repo.totalUsed == 0
-    expect QuotaUsedError:
+    check repo.totalUsed == 0'nb
+    expect QuotaNotEnoughError:
       (await repo.putBlock(blk)).tryGet
 
   test "Should reserve bytes":
     let blk = createTestBlock(100)
 
-    check repo.totalUsed == 0
+    check repo.totalUsed == 0'nb
     (await repo.putBlock(blk)).tryGet
-    check repo.totalUsed == 100
+    check repo.totalUsed == 100'nb
 
-    (await repo.reserve(100)).tryGet
+    (await repo.reserve(100'nb)).tryGet
 
     check:
-      repo.totalUsed == 200
-      repo.quotaUsedBytes == 100
-      repo.quotaReservedBytes == 100
-      uint64.fromBytesBE((await metaDs.get(QuotaReservedKey)).tryGet) == 100'u
+      repo.totalUsed == 200'nb
+      repo.quotaUsedBytes == 100'nb
+      repo.quotaReservedBytes == 100'nb
 
   test "Should not reserve bytes over max quota":
     let blk = createTestBlock(100)
 
-    check repo.totalUsed == 0
+    check repo.totalUsed == 0'nb
     (await repo.putBlock(blk)).tryGet
-    check repo.totalUsed == 100
+    check repo.totalUsed == 100'nb
 
     expect QuotaNotEnoughError:
-      (await repo.reserve(101)).tryGet
+      (await repo.reserve(101'nb)).tryGet
 
     check:
-      repo.totalUsed == 100
-      repo.quotaUsedBytes == 100
-      repo.quotaReservedBytes == 0
-
-    expect DatastoreKeyNotFound:
-      discard (await metaDs.get(QuotaReservedKey)).tryGet
+      repo.totalUsed == 100'nb
+      repo.quotaUsedBytes == 100'nb
+      repo.quotaReservedBytes == 0'nb
 
   test "Should release bytes":
     discard createTestBlock(100)
 
-    check repo.totalUsed == 0
-    (await repo.reserve(100)).tryGet
-    check repo.totalUsed == 100
+    check repo.totalUsed == 0'nb
+    (await repo.reserve(100'nb)).tryGet
+    check repo.totalUsed == 100'nb
 
-    (await repo.release(100)).tryGet
+    (await repo.release(100'nb)).tryGet
 
     check:
-      repo.totalUsed == 0
-      repo.quotaUsedBytes == 0
-      repo.quotaReservedBytes == 0
-      uint64.fromBytesBE((await metaDs.get(QuotaReservedKey)).tryGet) == 0'u
+      repo.totalUsed == 0'nb
+      repo.quotaUsedBytes == 0'nb
+      repo.quotaReservedBytes == 0'nb
 
   test "Should not release bytes less than quota":
-    check repo.totalUsed == 0
-    (await repo.reserve(100)).tryGet
-    check repo.totalUsed == 100
+    check repo.totalUsed == 0'nb
+    (await repo.reserve(100'nb)).tryGet
+    check repo.totalUsed == 100'nb
 
-    expect CatchableError:
-      (await repo.release(101)).tryGet
+    expect RangeDefect:
+      (await repo.release(101'nb)).tryGet
 
     check:
-      repo.totalUsed == 100
-      repo.quotaUsedBytes == 0
-      repo.quotaReservedBytes == 100
-      uint64.fromBytesBE((await metaDs.get(QuotaReservedKey)).tryGet) == 100'u
+      repo.totalUsed == 100'nb
+      repo.quotaUsedBytes == 0'nb
+      repo.quotaReservedBytes == 100'nb
 
-  proc queryMetaDs(key: Key): Future[seq[QueryResponse]] {.async.} =
-    let
-      query = Query.init(key)
-      responseIter = (await metaDs.query(query)).tryGet
-      response = (await allFinished(toSeq(responseIter)))
-        .mapIt(it.read.tryGet)
-        .filterIt(it.key.isSome)
-    return response
+  proc getExpirations(): Future[seq[BlockExpiration]] {.async.} =
+    let iter = (await repo.getBlockExpirations(100, 0)).tryGet()
+
+    var res = newSeq[BlockExpiration]()
+    for fut in iter:
+      let be = await fut
+      res.add(be)
+
+    res
 
   test "Should store block expiration timestamp":
     let
@@ -203,49 +195,40 @@ asyncchecksuite "RepoStore":
       blk = createTestBlock(100)
 
     let
-      expectedExpiration: SecondsSince1970 = 123 + 10
-      expectedKey = Key.init("meta/ttl/" & $blk.cid).tryGet
+      expectedExpiration = BlockExpiration(cid: blk.cid, expiry: now + 10)
 
     (await repo.putBlock(blk, duration.some)).tryGet
 
-    let response = await queryMetaDs(expectedKey)
+    let expirations = await getExpirations()
 
     check:
-      response.len == 1
-      !response[0].key == expectedKey
-      response[0].data == expectedExpiration.toBytes
+      expectedExpiration in expirations
 
   test "Should store block with default expiration timestamp when not provided":
     let
       blk = createTestBlock(100)
 
     let
-      expectedExpiration: SecondsSince1970 = 123 + DefaultBlockTtl.seconds
-      expectedKey = Key.init("meta/ttl/" & $blk.cid).tryGet
+      expectedExpiration = BlockExpiration(cid: blk.cid, expiry: now + DefaultBlockTtl.seconds)
 
     (await repo.putBlock(blk)).tryGet
 
-    let response = await queryMetaDs(expectedKey)
+    let expirations = await getExpirations()
 
     check:
-      response.len == 1
-      !response[0].key == expectedKey
-      response[0].data == expectedExpiration.toBytes
+      expectedExpiration in expirations
 
   test "Should refuse update expiry with negative timestamp":
     let
       blk = createTestBlock(100)
-      expectedExpiration: SecondsSince1970 = now + 10
-      expectedKey = Key.init((BlocksTtlKey / $blk.cid).tryGet).tryGet
+      expectedExpiration = BlockExpiration(cid: blk.cid, expiry: now + 10)
 
     (await repo.putBlock(blk, some 10.seconds)).tryGet
 
-    var response = await queryMetaDs(expectedKey)
+    let expirations = await getExpirations()
 
     check:
-      response.len == 1
-      !response[0].key == expectedKey
-      response[0].data == expectedExpiration.toBytes
+      expectedExpiration in expirations
 
     expect ValueError:
       (await repo.ensureExpiry(blk.cid, -1)).tryGet
@@ -262,56 +245,45 @@ asyncchecksuite "RepoStore":
 
   test "Should update block expiration timestamp when new expiration is farther":
     let
-      duration = 10
       blk = createTestBlock(100)
-      expectedExpiration: SecondsSince1970 = now + duration
-      updatedExpectedExpiration: SecondsSince1970 = expectedExpiration + 10
-      expectedKey = Key.init((BlocksTtlKey / $blk.cid).tryGet).tryGet
+      expectedExpiration = BlockExpiration(cid: blk.cid, expiry: now + 10)
+      updatedExpectedExpiration = BlockExpiration(cid: blk.cid, expiry: now + 20)
 
-    (await repo.putBlock(blk, some duration.seconds)).tryGet
+    (await repo.putBlock(blk, some 10.seconds)).tryGet
 
-    var response = await queryMetaDs(expectedKey)
-
-    check:
-      response.len == 1
-      !response[0].key == expectedKey
-      response[0].data == expectedExpiration.toBytes
-
-    (await repo.ensureExpiry(blk.cid, updatedExpectedExpiration)).tryGet
-
-    response = await queryMetaDs(expectedKey)
+    let expirations = await getExpirations()
 
     check:
-      response.len == 1
-      !response[0].key == expectedKey
-      response[0].data == updatedExpectedExpiration.toBytes
+      expectedExpiration in expirations
+
+    (await repo.ensureExpiry(blk.cid, now + 20)).tryGet
+
+    let updatedExpirations = await getExpirations()
+
+    check:
+      expectedExpiration notin updatedExpirations
+      updatedExpectedExpiration in updatedExpirations
 
   test "Should not update block expiration timestamp when current expiration is farther then new one":
     let
-      duration = 10
       blk = createTestBlock(100)
-      expectedExpiration: SecondsSince1970 = now + duration
-      updatedExpectedExpiration: SecondsSince1970 = expectedExpiration - 10
-      expectedKey = Key.init((BlocksTtlKey / $blk.cid).tryGet).tryGet
+      expectedExpiration = BlockExpiration(cid: blk.cid, expiry: now + 10)
+      updatedExpectedExpiration = BlockExpiration(cid: blk.cid, expiry: now + 5)
 
+    (await repo.putBlock(blk, some 10.seconds)).tryGet
 
-    (await repo.putBlock(blk, some duration.seconds)).tryGet
-
-    var response = await queryMetaDs(expectedKey)
+    let expirations = await getExpirations()
 
     check:
-      response.len == 1
-      !response[0].key == expectedKey
-      response[0].data == expectedExpiration.toBytes
+      expectedExpiration in expirations
 
-    (await repo.ensureExpiry(blk.cid, updatedExpectedExpiration)).tryGet
+    (await repo.ensureExpiry(blk.cid, now + 5)).tryGet
 
-    response = await queryMetaDs(expectedKey)
+    let updatedExpirations = await getExpirations()
 
     check:
-      response.len == 1
-      !response[0].key == expectedKey
-      response[0].data == expectedExpiration.toBytes
+      expectedExpiration in updatedExpirations
+      updatedExpectedExpiration notin updatedExpirations
 
   test "delBlock should remove expiration metadata":
     let
@@ -321,19 +293,19 @@ asyncchecksuite "RepoStore":
     (await repo.putBlock(blk, 10.seconds.some)).tryGet
     (await repo.delBlock(blk.cid)).tryGet
 
-    let response = await queryMetaDs(expectedKey)
+    let expirations = await getExpirations()
 
     check:
-      response.len == 0
+      expirations.len == 0
 
   test "Should retrieve block expiration information":
-    proc unpack(beIter: Future[?!AsyncIter[?BlockExpiration]]): Future[seq[BlockExpiration]] {.async.} =
+    proc unpack(beIter: Future[?!AsyncIter[BlockExpiration]]): Future[seq[BlockExpiration]] {.async.} =
       var expirations = newSeq[BlockExpiration](0)
       without iter =? (await beIter), err:
         return expirations
-      for be in toSeq(iter):
-        if value =? (await be):
-          expirations.add(value)
+      for beFut in toSeq(iter):
+        let value = await beFut
+        expirations.add(value)
       return expirations
 
     let
@@ -343,12 +315,12 @@ asyncchecksuite "RepoStore":
       blk3 = createTestBlock(12)
 
     let
-      expectedExpiration: SecondsSince1970 = 123 + 10
+      expectedExpiration: SecondsSince1970 = now + 10
 
     proc assertExpiration(be: BlockExpiration, expectedBlock: bt.Block) =
       check:
         be.cid == expectedBlock.cid
-        be.expiration == expectedExpiration
+        be.expiry == expectedExpiration
 
 
     (await repo.putBlock(blk1, duration.some)).tryGet

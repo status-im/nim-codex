@@ -26,12 +26,13 @@ jobs:
 
     name: '${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}-${{ matrix.tests }}'
     runs-on: ${{ matrix.builder }}
-    timeout-minutes: 80
+    timeout-minutes: 100
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup Nimbus Build System
         uses: ./.github/actions/nimbus-build-system
@@ -52,7 +53,7 @@ jobs:
           node-version: 18.15
 
       - name: Start Ethereum node with Codex contracts
-        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'all'
+        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'tools' || matrix.tests == 'all'
         working-directory: vendor/codex-contracts-eth
         env:
           MSYS2_PATH_TYPE: inherit
@@ -77,6 +78,11 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}-integration-tests-logs
           path: tests/integration/logs/
           retention-days: 1
+
+      ## Part 4 Tools ##
+      - name: Tools tests
+        if: matrix.tests == 'tools' || matrix.tests == 'all'
+        run: make -j${ncpu} testTools
 
   status:
     if: always()

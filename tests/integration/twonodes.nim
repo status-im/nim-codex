@@ -40,9 +40,9 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         "--listen-addrs=/ip4/127.0.0.1/tcp/0",
         "persistence",
         "prover",
-        "--circom-r1cs=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs",
-        "--circom-wasm=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.wasm",
-        "--circom-zkey=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.zkey",
+        "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
+        "--circom-wasm=tests/circuits/fixtures/proof_main.wasm",
+        "--circom-zkey=tests/circuits/fixtures/proof_main.zkey",
         "--eth-account=" & $account1
       ]
 
@@ -52,7 +52,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
       node1 = startNode(node1Args, debug = debug1)
       node1.waitUntilStarted()
 
-      let bootstrap = client1.info()["spr"].getStr()
+      let bootstrap = (!client1.info()["spr"]).getStr()
 
       var node2Args = @[
         "--api-port=8081",
@@ -64,9 +64,9 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         "--bootstrap-node=" & bootstrap,
         "persistence",
         "prover",
-        "--circom-r1cs=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs",
-        "--circom-wasm=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.wasm",
-        "--circom-zkey=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.zkey",
+        "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
+        "--circom-wasm=tests/circuits/fixtures/proof_main.wasm",
+        "--circom-zkey=tests/circuits/fixtures/proof_main.zkey",
         "--eth-account=" & $account2
       ]
 
@@ -75,6 +75,9 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
 
       node2 = startNode(node2Args, debug = debug2)
       node2.waitUntilStarted()
+
+      # ensure that we have a recent block with a fresh timestamp
+      discard await send(ethProvider, "evm_mine")
 
     teardown:
       client1.close()

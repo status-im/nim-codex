@@ -19,6 +19,10 @@ const knownAddresses = {
  # Taiko Alpha-3 Testnet
  "167005": {
   "Marketplace": Address.init("0x948CF9291b77Bd7ad84781b9047129Addf1b894F")
+ }.toTable,
+ # Codex Testnet - Oct 21 2024 07:31:50 AM (+00:00 UTC)
+ "789987": {
+  "Marketplace": Address.init("0x3F9Cf3F40F0e87d804B776D8403e3d29F85211f4")
  }.toTable
 }.toTable
 

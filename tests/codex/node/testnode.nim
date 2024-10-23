@@ -4,15 +4,18 @@ import std/math
 import std/times
 import std/sequtils
 import std/importutils
+import std/cpuinfo
 
 import pkg/chronos
 import pkg/stew/byteutils
 import pkg/datastore
+import pkg/datastore/typedds
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
 import pkg/poseidon2
 import pkg/poseidon2/io
+import pkg/taskpools
 
 import pkg/nitro
 import pkg/codexdht/discv5/protocol as discv5
@@ -46,6 +49,9 @@ privateAccess(CodexNodeRef) # enable access to private fields
 asyncchecksuite "Test Node - Basic":
   setupAndTearDown()
 
+  setup:
+    await node.start()
+
   test "Fetch Manifest":
     let
       manifest = await storeDataGetManifest(localStore, chunker)
@@ -61,6 +67,21 @@ asyncchecksuite "Test Node - Basic":
 
     check:
       fetched == manifest
+
+  test "Should not lookup non-existing blocks twice":
+    # https://github.com/codex-storage/nim-codex/issues/699
+    let
+      cstore = CountingStore.new(engine, localStore)
+      node = CodexNodeRef.new(switch, cstore, engine, blockDiscovery)
+      missingCid = Cid.init(
+        "zDvZRwzmCvtiyubW9AecnxgLnXK8GrBvpQJBDzToxmzDN6Nrc2CZ").get()
+
+    engine.blockFetchTimeout = timer.milliseconds(100)
+
+    discard await node.retrieve(missingCid, local = false)
+
+    let lookupCount = cstore.lookups.getOrDefault(missingCid)
+    check lookupCount == 1
 
   test "Block Batching":
     let manifest = await storeDataGetManifest(localStore, chunker)
@@ -120,7 +141,7 @@ asyncchecksuite "Test Node - Basic":
 
   test "Setup purchase request":
     let
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
       manifest = await storeDataGetManifest(localStore, chunker)
       manifestBlock = bt.Block.new(
         manifest.encode().tryGet(),

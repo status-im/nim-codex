@@ -11,6 +11,7 @@ import std/sequtils
 import std/strutils
 import std/os
 import std/tables
+import std/cpuinfo
 
 import pkg/chronos
 import pkg/presto
@@ -23,6 +24,7 @@ import pkg/stew/shims/net as stewnet
 import pkg/datastore
 import pkg/ethers except Rng
 import pkg/stew/io2
+import pkg/taskpools
 
 import ./node
 import ./conf
@@ -53,17 +55,20 @@ type
     codexNode: CodexNodeRef
     repoStore: RepoStore
     maintenance: BlockMaintainer
+    taskpool: Taskpool
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
   EthWallet = ethers.Wallet
 
 proc waitForSync(provider: Provider): Future[void] {.async.} =
   var sleepTime = 1
+  trace "Checking sync state of Ethereum provider..."
   while await provider.isSyncing:
     notice "Waiting for Ethereum provider to sync..."
     await sleepAsync(sleepTime.seconds)
     if sleepTime < 10:
       inc sleepTime
+  trace "Ethereum provider is synced."
 
 proc bootstrapInteractions(
   s: CodexServer): Future[void] {.async.} =
@@ -105,7 +110,7 @@ proc bootstrapInteractions(
       quit QuitFailure
 
     let marketplace = Marketplace.new(marketplaceAddress, signer)
-    let market = OnChainMarket.new(marketplace)
+    let market = OnChainMarket.new(marketplace, config.rewardRecipient)
     let clock = OnChainClock.new(provider)
 
     var client: ?ClientInteractions
@@ -117,25 +122,30 @@ proc bootstrapInteractions(
     else:
       s.codexNode.clock = SystemClock()
 
-    if config.persistence:
-      # This is used for simulation purposes. Normal nodes won't be compiled with this flag
-      # and hence the proof failure will always be 0.
-      when codex_enable_proof_failures:
-        let proofFailures = config.simulateProofFailures
-        if proofFailures > 0:
-          warn "Enabling proof failure simulation!"
-      else:
-        let proofFailures = 0
-        if config.simulateProofFailures > 0:
-          warn "Proof failure simulation is not enabled for this build! Configuration ignored"
+    # This is used for simulation purposes. Normal nodes won't be compiled with this flag
+    # and hence the proof failure will always be 0.
+    when codex_enable_proof_failures:
+      let proofFailures = config.simulateProofFailures
+      if proofFailures > 0:
+        warn "Enabling proof failure simulation!"
+    else:
+      let proofFailures = 0
+      if config.simulateProofFailures > 0:
+        warn "Proof failure simulation is not enabled for this build! Configuration ignored"
 
-      let purchasing = Purchasing.new(market, clock)
-      let sales = Sales.new(market, clock, repo, proofFailures)
-      client = some ClientInteractions.new(clock, purchasing)
-      host = some HostInteractions.new(clock, sales)
+    let purchasing = Purchasing.new(market, clock)
+    let sales = Sales.new(market, clock, repo, proofFailures)
+    client = some ClientInteractions.new(clock, purchasing)
+    host = some HostInteractions.new(clock, sales)
 
     if config.validator:
-      let validation = Validation.new(clock, market, config.validatorMaxSlots)
+      without validationConfig =? ValidationConfig.init(
+        config.validatorMaxSlots,
+        config.validatorGroups,
+        config.validatorGroupIndex), err:
+          error "Invalid validation parameters", err = err.msg
+          quit QuitFailure
+      let validation = Validation.new(clock, market, validationConfig)
       validator = some ValidatorInteractions.new(clock, validation)
 
     s.codexNode.contracts = (client, host, validator)
@@ -180,6 +190,10 @@ proc start*(s: CodexServer) {.async.} =
 proc stop*(s: CodexServer) {.async.} =
   notice "Stopping codex node"
 
+
+  s.taskpool.syncAll()
+  s.taskpool.shutdown()
+
   await allFuturesThrowing(
     s.restServer.stop(),
     s.codexNode.switch.stop(),
@@ -223,7 +237,7 @@ proc new*(
 
   let
     discoveryStore = Datastore(
-      SQLiteDatastore.new(config.dataDir / CodexDhtProvidersNamespace)
+      LevelDbDatastore.new(config.dataDir / CodexDhtProvidersNamespace)
       .expect("Should create discovery datastore!"))
 
     discovery = Discovery.new(
@@ -242,12 +256,14 @@ proc new*(
                   .expect("Should create repo file data store!"))
                 of repoSQLite: Datastore(SQLiteDatastore.new($config.dataDir)
                   .expect("Should create repo SQLite data store!"))
+                of repoLevelDb: Datastore(LevelDbDatastore.new($config.dataDir)
+                  .expect("Should create repo LevelDB data store!"))
 
     repoStore = RepoStore.new(
       repoDs = repoData,
-      metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace)
-        .expect("Should create meta data store!"),
-      quotaMaxBytes = config.storageQuota.uint,
+      metaDs = LevelDbDatastore.new(config.dataDir / CodexMetaNamespace)
+        .expect("Should create metadata store!"),
+      quotaMaxBytes = config.storageQuota,
       blockTtl = config.blockTtl)
 
     maintenance = BlockMaintainer.new(
@@ -257,48 +273,28 @@ proc new*(
 
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
+    advertiser = Advertiser.new(repoStore, discovery)
     blockDiscovery = DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
-    engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
+    engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, advertiser, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, repoStore)
     prover = if config.prover:
-      if not fileAccessible($config.circomR1cs, {AccessFlags.Read}) and
-        endsWith($config.circomR1cs, ".r1cs"):
-        error "Circom R1CS file not accessible"
-        raise (ref Defect)(
-          msg: "r1cs file not readable, doesn't exist or wrong extension (.r1cs)")
-
-      if not fileAccessible($config.circomWasm, {AccessFlags.Read}) and
-        endsWith($config.circomWasm, ".wasm"):
-        error "Circom wasm file not accessible"
-        raise (ref Defect)(
-          msg: "wasm file not readable, doesn't exist or wrong extension (.wasm)")
-
-      let zkey = if not config.circomNoZkey:
-          if not fileAccessible($config.circomZkey, {AccessFlags.Read}) and
-            endsWith($config.circomZkey, ".zkey"):
-            error "Circom zkey file not accessible"
-            raise (ref Defect)(
-              msg: "zkey file not readable, doesn't exist or wrong extension (.zkey)")
-
-          $config.circomZkey
-        else: ""
-
-      some Prover.new(
-        store,
-        CircomCompat.init($config.circomR1cs, $config.circomWasm, zkey),
-        config.numProofSamples)
+      let backend = config.initializeBackend().expect("Unable to create prover backend.")
+      some Prover.new(store, backend, config.numProofSamples)
     else:
       none Prover
+
+    taskpool = Taskpool.new(num_threads = countProcessors())
 
     codexNode = CodexNodeRef.new(
       switch = switch,
       networkStore = store,
       engine = engine,
       prover = prover,
-      discovery = discovery)
+      discovery = discovery,
+      taskpool = taskpool)
 
     restServer = RestServerRef.new(
-      codexNode.initRestApi(config, repoStore),
+      codexNode.initRestApi(config, repoStore, config.apiCorsAllowedOrigin),
       initTAddress(config.apiBindAddress , config.apiPort),
       bufferSize = (1024 * 64),
       maxRequestBodySize = int.high)
@@ -311,4 +307,5 @@ proc new*(
     codexNode: codexNode,
     restServer: restServer,
     repoStore: repoStore,
-    maintenance: maintenance)
+    maintenance: maintenance,
+    taskpool: taskpool)

@@ -2,7 +2,7 @@ import std/sequtils
 import std/sugar
 import std/times
 import pkg/chronos
-import pkg/datastore
+import pkg/datastore/typedds
 import pkg/questionable
 import pkg/questionable/results
 import pkg/codex/sales
@@ -22,7 +22,10 @@ import ../examples
 import ./helpers/periods
 
 asyncchecksuite "Sales - start":
-  let proof = Groth16Proof.example
+  let
+    proof = Groth16Proof.example
+    repoTmp = TempLevelDb.new()
+    metaTmp = TempLevelDb.new()
 
   var request: StorageRequest
   var sales: Sales
@@ -50,8 +53,8 @@ asyncchecksuite "Sales - start":
 
     market = MockMarket.new()
     clock = MockClock.new()
-    let repoDs = SQLiteDatastore.new(Memory).tryGet()
-    let metaDs = SQLiteDatastore.new(Memory).tryGet()
+    let repoDs = repoTmp.newDb()
+    let metaDs = metaTmp.newDb()
     repo = RepoStore.new(repoDs, metaDs)
     await repo.start()
     sales = Sales.new(market, clock, repo)
@@ -73,6 +76,8 @@ asyncchecksuite "Sales - start":
   teardown:
     await sales.stop()
     await repo.stop()
+    await repoTmp.destroyDb()
+    await metaTmp.destroyDb()
 
   proc fillSlot(slotIdx: UInt256 = 0.u256) {.async.} =
     let address = await market.getSigner()
@@ -113,7 +118,10 @@ asyncchecksuite "Sales - start":
     check sales.agents.any(agent => agent.data.requestId == request.id and agent.data.slotIndex == 1.u256)
 
 asyncchecksuite "Sales":
-  let proof = Groth16Proof.example
+  let
+    proof = Groth16Proof.example
+    repoTmp = TempLevelDb.new()
+    metaTmp = TempLevelDb.new()
 
   var availability: Availability
   var request: StorageRequest
@@ -127,7 +135,8 @@ asyncchecksuite "Sales":
 
   setup:
     availability = Availability(
-      size: 100.u256,
+      totalSize: 100.u256,
+      freeSize: 100.u256,
       duration: 60.u256,
       minPrice: 600.u256,
       maxCollateral: 400.u256
@@ -153,8 +162,8 @@ asyncchecksuite "Sales":
     market.requestEnds[request.id] = request.expiry.toSecondsSince1970
 
     clock = MockClock.new()
-    let repoDs = SQLiteDatastore.new(Memory).tryGet()
-    let metaDs = SQLiteDatastore.new(Memory).tryGet()
+    let repoDs = repoTmp.newDb()
+    let metaDs = metaTmp.newDb()
     repo = RepoStore.new(repoDs, metaDs)
     await repo.start()
     sales = Sales.new(market, clock, repo)
@@ -176,6 +185,8 @@ asyncchecksuite "Sales":
   teardown:
     await sales.stop()
     await repo.stop()
+    await repoTmp.destroyDb()
+    await metaTmp.destroyDb()
 
   proc allowRequestToStart {.async.} =
     # wait until we're in initialproving state
@@ -189,7 +200,7 @@ asyncchecksuite "Sales":
 
   proc createAvailability() =
     let a = waitFor reservations.createAvailability(
-      availability.size,
+      availability.totalSize,
       availability.duration,
       availability.minPrice,
       availability.maxCollateral
@@ -224,7 +235,7 @@ asyncchecksuite "Sales":
   proc wasIgnored(): bool =
     let run = proc(): Future[bool] {.async.} =
       always (
-        getAvailability().size == availability.size and
+        getAvailability().freeSize == availability.freeSize and
         (waitFor reservations.all(Reservation)).get.len == 0
       )
     waitFor run()
@@ -259,6 +270,12 @@ asyncchecksuite "Sales":
     let expected = SlotQueueItem.init(request1, 1'u16)
     check always (not itemsProcessed.contains(expected))
 
+  test "removes slot index from slot queue once SlotReservationsFull emitted":
+    let request1 = await addRequestToSaturatedQueue()
+    market.emitSlotReservationsFull(request1.id, 1.u256)
+    let expected = SlotQueueItem.init(request1, 1'u16)
+    check always (not itemsProcessed.contains(expected))
+
   test "adds slot index to slot queue once SlotFreed emitted":
     queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
       itemsProcessed.add item
@@ -271,36 +288,52 @@ asyncchecksuite "Sales":
     let expected = SlotQueueItem.init(request, 2.uint16)
     check eventually itemsProcessed.contains(expected)
 
-  test "adds past requests to queue once availability added":
-    var itemsProcessed: seq[SlotQueueItem] = @[]
-
-    # ignore all
-    queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
-      done.complete()
-
+  test "items in queue are readded (and marked seen) once ignored":
     await market.requestStorage(request)
-    await sleepAsync(10.millis)
+    let items = SlotQueueItem.init(request)
+    await sleepAsync(10.millis) # queue starts paused, allow items to be added to the queue
+    check eventually queue.paused
+    # The first processed item will be will have been re-pushed with `seen =
+    # true`. Then, once this item is processed by the queue, its 'seen' flag
+    # will be checked, at which point the queue will be paused. This test could
+    # check item existence in the queue, but that would require inspecting
+    # onProcessSlot to see which item was first, and overridding onProcessSlot
+    # will prevent the queue working as expected in the Sales module.
+    check eventually queue.len == 4
 
-    # check how many slots were processed by the queue
-    queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
-      itemsProcessed.add item
-      done.complete()
+    for item in items:
+      check queue.contains(item)
 
-    # now add matching availability
-    createAvailability()
-    check eventually itemsProcessed.len == request.ask.slots.int
+    for i in 0..<queue.len:
+      check queue[i].seen
+
+  test "queue is paused once availability is insufficient to service slots in queue":
+    createAvailability() # enough to fill a single slot
+    await market.requestStorage(request)
+    let items = SlotQueueItem.init(request)
+    await sleepAsync(10.millis) # queue starts paused, allow items to be added to the queue
+    check eventually queue.paused
+    # The first processed item/slot will be filled (eventually). Subsequent
+    # items will be processed and eventually re-pushed with `seen = true`. Once
+    # a "seen" item is processed by the queue, the queue is paused. In the
+    # meantime, the other items that are process, marked as seen, and re-added
+    # to the queue may be processed simultaneously as the queue pausing.
+    # Therefore, there should eventually be 3 items remaining in the queue, all
+    # seen.
+    check eventually queue.len == 3
+    for i in 0..<queue.len:
+      check queue[i].seen
 
   test "availability size is reduced by request slot size when fully downloaded":
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
                          onBatch: BatchProc): Future[?!void] {.async.} =
       let blk = bt.Block.new( @[1.byte] ).get
-      onBatch( blk.repeat(request.ask.slotSize.truncate(int)) )
-      return success()
+      await onBatch( blk.repeat(request.ask.slotSize.truncate(int)) )
 
     createAvailability()
     await market.requestStorage(request)
-    check eventually getAvailability().size == availability.size - request.ask.slotSize
+    check eventually getAvailability().freeSize == availability.freeSize - request.ask.slotSize
 
   test "non-downloaded bytes are returned to availability once finished":
     var slotIndex = 0.u256
@@ -309,14 +342,14 @@ asyncchecksuite "Sales":
                          onBatch: BatchProc): Future[?!void] {.async.} =
       slotIndex = slot
       let blk = bt.Block.new( @[1.byte] ).get
-      onBatch(@[ blk ])
-      return success()
+      await onBatch(@[ blk ])
+
     let sold = newFuture[void]()
     sales.onSale = proc(request: StorageRequest, slotIndex: UInt256) =
       sold.complete()
 
     createAvailability()
-    let origSize = availability.size
+    let origSize = availability.freeSize
     await market.requestStorage(request)
     await allowRequestToStart()
     await sold
@@ -325,7 +358,7 @@ asyncchecksuite "Sales":
     market.slotState[request.slotId(slotIndex)] = SlotState.Finished
     clock.advance(request.ask.duration.truncate(int64))
 
-    check eventually getAvailability().size == origSize - 1
+    check eventually getAvailability().freeSize == origSize - 1
 
   test "ignores download when duration not long enough":
     availability.duration = request.ask.duration - 1
@@ -334,7 +367,7 @@ asyncchecksuite "Sales":
     check wasIgnored()
 
   test "ignores request when slot size is too small":
-    availability.size = request.ask.slotSize - 1
+    availability.totalSize = request.ask.slotSize - 1
     createAvailability()
     await market.requestStorage(request)
     check wasIgnored()
@@ -399,7 +432,7 @@ asyncchecksuite "Sales":
       return failure(error)
     createAvailability()
     await market.requestStorage(request)
-    check getAvailability().size == availability.size
+    check getAvailability().freeSize == availability.freeSize
 
   test "generates proof of storage":
     var provingRequest: StorageRequest
@@ -472,7 +505,10 @@ asyncchecksuite "Sales":
     check eventually (await reservations.all(Availability)).get == @[availability]
 
   test "makes storage available again when request expires":
-    let origSize = availability.size
+    let expiry = getTime().toUnix() + 10
+    market.requestExpiry[request.id] = expiry
+
+    let origSize = availability.freeSize
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
                          onBatch: BatchProc): Future[?!void] {.async.} =
@@ -485,12 +521,19 @@ asyncchecksuite "Sales":
     # would otherwise not set the timeout early enough as it uses `clock.now` in the deadline calculation.
     await sleepAsync(chronos.milliseconds(100))
     market.requestState[request.id]=RequestState.Cancelled
-    clock.set(request.expiry.truncate(int64)+1)
+    clock.set(expiry + 1)
     check eventually (await reservations.all(Availability)).get == @[availability]
-    check getAvailability().size == origSize
+    check getAvailability().freeSize == origSize
 
   test "verifies that request is indeed expired from onchain before firing onCancelled":
-    let origSize = availability.size
+    let expiry = getTime().toUnix() + 10
+    # ensure only one slot, otherwise once bytes are returned to the
+    # availability, the queue will be unpaused and availability will be consumed
+    # by other slots
+    request.ask.slots = 1.uint64
+    market.requestExpiry[request.id] = expiry
+
+    let origSize = availability.freeSize
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
                          onBatch: BatchProc): Future[?!void] {.async.} =
@@ -503,11 +546,11 @@ asyncchecksuite "Sales":
     # If we would not await, then the `clock.set` would run "too fast" as the `subscribeCancellation()`
     # would otherwise not set the timeout early enough as it uses `clock.now` in the deadline calculation.
     await sleepAsync(chronos.milliseconds(100))
-    clock.set(request.expiry.truncate(int64)+1)
-    check getAvailability().size == 0
+    clock.set(expiry + 1)
+    check getAvailability().freeSize == 0
 
     market.requestState[request.id]=RequestState.Cancelled # Now "on-chain" is also expired
-    check eventually getAvailability().size == origSize
+    check eventually getAvailability().freeSize == origSize
 
   test "loads active slots from market":
     let me = await market.getSigner()
@@ -556,4 +599,4 @@ asyncchecksuite "Sales":
     check (await reservations.all(Reservation)).get.len == 1
     await sales.load()
     check (await reservations.all(Reservation)).get.len == 0
-    check getAvailability().size == availability.size # was restored
+    check getAvailability().freeSize == availability.freeSize # was restored

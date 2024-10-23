@@ -1,4 +1,5 @@
 import ./proofs/backends
 import ./proofs/prover
+import ./proofs/backendfactory
 
-export circomcompat, prover
+export circomcompat, prover, backendfactory

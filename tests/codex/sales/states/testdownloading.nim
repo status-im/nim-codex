@@ -1,8 +1,9 @@
 import std/unittest
 import pkg/questionable
 import pkg/codex/contracts/requests
-import pkg/codex/sales/states/downloading
 import pkg/codex/sales/states/cancelled
+import pkg/codex/sales/states/downloading
+import pkg/codex/sales/states/errored
 import pkg/codex/sales/states/failed
 import pkg/codex/sales/states/filled
 import ../../examples

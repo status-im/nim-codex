@@ -15,11 +15,11 @@ import std/sugar
 
 import pkg/libp2p
 import pkg/chronos
-import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 import pkg/constantine/math/io/io_fields
 
+import ../../logutils
 import ../../utils
 import ../../stores
 import ../../manifest

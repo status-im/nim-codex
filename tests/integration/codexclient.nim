@@ -4,6 +4,7 @@ import std/strutils
 from pkg/libp2p import Cid, `$`, init
 import pkg/stint
 import pkg/questionable/results
+import pkg/chronos/apps/http/[httpserver, shttpserver, httpclient]
 import pkg/codex/logutils
 import pkg/codex/rest/json
 import pkg/codex/purchasing
@@ -15,13 +16,20 @@ export purchasing
 type CodexClient* = ref object
   http: HttpClient
   baseurl: string
+  session: HttpSessionRef
+
+type CodexClientError* = object of CatchableError
 
 proc new*(_: type CodexClient, baseurl: string): CodexClient =
-  CodexClient(http: newHttpClient(), baseurl: baseurl)
+  CodexClient(
+    http: newHttpClient(),
+    baseurl: baseurl,
+    session: HttpSessionRef.new({HttpClientFlag.Http11Pipeline})
+  )
 
-proc info*(client: CodexClient): JsonNode =
+proc info*(client: CodexClient): ?!JsonNode =
   let url = client.baseurl & "/debug/info"
-  client.http.getContent(url).parseJson()
+  JsonNode.parse( client.http.getContent(url) )
 
 proc setLogLevel*(client: CodexClient, level: string) =
   let url = client.baseurl & "/debug/chronicles/loglevel?level=" & level
@@ -38,22 +46,58 @@ proc download*(client: CodexClient, cid: Cid, local = false): ?!string =
   let
     response = client.http.get(
       client.baseurl & "/data/" & $cid &
-      (if local: "" else: "/network"))
+      (if local: "" else: "/network/stream"))
 
   if response.status != "200 OK":
     return failure(response.status)
 
   success response.body
 
-proc list*(client: CodexClient): ?!seq[RestContent] =
+proc downloadManifestOnly*(client: CodexClient, cid: Cid): ?!string =
+  let
+    response = client.http.get(
+      client.baseurl & "/data/" & $cid & "/network/manifest")
+
+  if response.status != "200 OK":
+    return failure(response.status)
+
+  success response.body
+
+proc downloadNoStream*(client: CodexClient, cid: Cid): ?!string =
+  let
+    response = client.http.post(
+      client.baseurl & "/data/" & $cid & "/network")
+
+  if response.status != "200 OK":
+    return failure(response.status)
+
+  success response.body
+
+proc downloadBytes*(
+  client: CodexClient,
+  cid: Cid,
+  local = false): Future[?!seq[byte]] {.async.} =
+
+  let uri = parseUri(
+    client.baseurl & "/data/" & $cid &
+    (if local: "" else: "/network/stream")
+  )
+
+  let (status, bytes) = await client.session.fetch(uri)
+
+  if status != 200:
+    return failure("fetch failed with status " & $status)
+
+  success bytes
+
+proc list*(client: CodexClient): ?!RestContentList =
   let url = client.baseurl & "/data"
   let response = client.http.get(url)
 
   if response.status != "200 OK":
     return failure(response.status)
 
-  let json = ? parseJson(response.body).catch
-  seq[RestContent].fromJson(json)
+  RestContentList.fromJson(response.body)
 
 proc space*(client: CodexClient): ?!RestRepoStore =
   let url = client.baseurl & "/space"
@@ -62,8 +106,7 @@ proc space*(client: CodexClient): ?!RestRepoStore =
   if response.status != "200 OK":
     return failure(response.status)
 
-  let json = ? parseJson(response.body).catch
-  RestRepoStore.fromJson(json)
+  RestRepoStore.fromJson(response.body)
 
 proc requestStorageRaw*(
     client: CodexClient,
@@ -72,9 +115,9 @@ proc requestStorageRaw*(
     reward: UInt256,
     proofProbability: UInt256,
     collateral: UInt256,
-    expiry: UInt256 = 0.u256,
-    nodes: uint = 1,
-    tolerance: uint = 0
+    expiry: uint = 0,
+    nodes: uint = 3,
+    tolerance: uint = 1
 ): Response =
 
   ## Call request storage REST endpoint
@@ -90,7 +133,7 @@ proc requestStorageRaw*(
     }
 
   if expiry != 0:
-    json["expiry"] = %expiry
+    json["expiry"] = %($expiry)
 
   return client.http.post(url, $json)
 
@@ -100,10 +143,10 @@ proc requestStorage*(
     duration: UInt256,
     reward: UInt256,
     proofProbability: UInt256,
-    expiry: UInt256,
+    expiry: uint,
     collateral: UInt256,
-    nodes: uint = 1,
-    tolerance: uint = 0
+    nodes: uint = 3,
+    tolerance: uint = 1
 ): ?!PurchaseId =
   ## Call request storage REST endpoint
   ##
@@ -116,8 +159,7 @@ proc getPurchase*(client: CodexClient, purchaseId: PurchaseId): ?!RestPurchase =
   let url = client.baseurl & "/storage/purchases/" & purchaseId.toHex
   try:
     let body = client.http.getContent(url)
-    let json = ? parseJson(body).catch
-    return RestPurchase.fromJson(json)
+    return RestPurchase.fromJson(body)
   except CatchableError as e:
     return failure e.msg
 
@@ -125,39 +167,80 @@ proc getSalesAgent*(client: CodexClient, slotId: SlotId): ?!RestSalesAgent =
   let url = client.baseurl & "/sales/slots/" & slotId.toHex
   try:
     let body = client.http.getContent(url)
-    let json = ? parseJson(body).catch
-    return RestSalesAgent.fromJson(json)
+    return RestSalesAgent.fromJson(body)
   except CatchableError as e:
     return failure e.msg
 
 proc getSlots*(client: CodexClient): ?!seq[Slot] =
   let url = client.baseurl & "/sales/slots"
   let body = client.http.getContent(url)
-  let json = ? parseJson(body).catch
-  seq[Slot].fromJson(json)
+  seq[Slot].fromJson(body)
 
 proc postAvailability*(
     client: CodexClient,
-    size, duration, minPrice, maxCollateral: UInt256
+    totalSize, duration, minPrice, maxCollateral: UInt256
 ): ?!Availability =
   ## Post sales availability endpoint
   ##
   let url = client.baseurl & "/sales/availability"
   let json = %*{
-    "size": size,
+    "totalSize": totalSize,
     "duration": duration,
     "minPrice": minPrice,
     "maxCollateral": maxCollateral,
   }
   let response = client.http.post(url, $json)
-  doAssert response.status == "200 OK", "expected 200 OK, got " & response.status & ", body: " & response.body
-  Availability.fromJson(response.body.parseJson)
+  doAssert response.status == "201 Created", "expected 201 Created, got " & response.status & ", body: " & response.body
+  Availability.fromJson(response.body)
+
+proc patchAvailabilityRaw*(
+    client: CodexClient,
+    availabilityId: AvailabilityId,
+    totalSize, freeSize, duration, minPrice, maxCollateral: ?UInt256 = UInt256.none
+): Response =
+  ## Updates availability
+  ##
+  let url = client.baseurl & "/sales/availability/" & $availabilityId
+
+  # TODO: Optionalize macro does not keep `serialize` pragmas so we can't use `Optionalize(RestAvailability)` here.
+  var json = %*{}
+
+  if totalSize =? totalSize:
+    json["totalSize"] = %totalSize
+
+  if freeSize =? freeSize:
+    json["freeSize"] = %freeSize
+
+  if duration =? duration:
+    json["duration"] = %duration
+
+  if minPrice =? minPrice:
+    json["minPrice"] = %minPrice
+
+  if maxCollateral =? maxCollateral:
+    json["maxCollateral"] = %maxCollateral
+
+  client.http.patch(url, $json)
+
+proc patchAvailability*(
+    client: CodexClient,
+    availabilityId: AvailabilityId,
+    totalSize, duration, minPrice, maxCollateral: ?UInt256 = UInt256.none
+): void =
+  let response = client.patchAvailabilityRaw(availabilityId, totalSize=totalSize, duration=duration, minPrice=minPrice, maxCollateral=maxCollateral)
+  doAssert response.status == "200 OK", "expected 200 OK, got " & response.status
 
 proc getAvailabilities*(client: CodexClient): ?!seq[Availability] =
   ## Call sales availability REST endpoint
   let url = client.baseurl & "/sales/availability"
   let body = client.http.getContent(url)
-  seq[Availability].fromJson(parseJson(body))
+  seq[Availability].fromJson(body)
+
+proc getAvailabilityReservations*(client: CodexClient, availabilityId: AvailabilityId): ?!seq[Reservation] =
+  ## Retrieves Availability's Reservations
+  let url = client.baseurl & "/sales/availability/" & $availabilityId & "/reservations"
+  let body = client.http.getContent(url)
+  seq[Reservation].fromJson(body)
 
 proc close*(client: CodexClient) =
   client.http.close()

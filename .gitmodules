@@ -5,7 +5,7 @@
 	branch = master
 [submodule "vendor/nim-libp2p"]
 	path = vendor/nim-libp2p
-	url = https://github.com/status-im/nim-libp2p.git
+	url = https://github.com/vacp2p/nim-libp2p.git
 	ignore = untracked
 	branch = master
 [submodule "vendor/nimcrypto"]
@@ -77,7 +77,7 @@
 	path = vendor/nim-chronos
 	url = https://github.com/codex-storage/nim-chronos.git
 	ignore = untracked
-	branch = feature/profiler
+	branch = feature/profiler-v4
 [submodule "vendor/nim-faststreams"]
 	path = vendor/nim-faststreams
 	url = https://github.com/status-im/nim-faststreams.git
@@ -209,3 +209,12 @@
 	url = https://github.com/codex-storage/codex-storage-proofs-circuits.git
 	ignore = untracked
 	branch = master
+[submodule "vendor/nim-serde"]
+	path = vendor/nim-serde
+	url = https://github.com/codex-storage/nim-serde.git
+[submodule "vendor/nim-leveldbstatic"]
+	path = vendor/nim-leveldbstatic
+	url = https://github.com/codex-storage/nim-leveldb.git
+[submodule "vendor/nim-zippy"]
+	path = vendor/nim-zippy
+	url = https://github.com/status-im/nim-zippy.git

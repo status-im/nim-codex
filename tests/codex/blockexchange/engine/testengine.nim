@@ -15,7 +15,7 @@ import pkg/codex/chunker
 import pkg/codex/discovery
 import pkg/codex/blocktype
 import pkg/codex/utils/asyncheapqueue
-import pkg/codex/utils/asyncprofiler
+import pkg/codex/manifest
 
 import ../../../asynctest
 import ../../helpers
@@ -78,11 +78,17 @@ asyncchecksuite "NetworkStore engine basic":
         blockDiscovery,
         pendingBlocks)
 
+      advertiser = Advertiser.new(
+        localStore,
+        blockDiscovery
+      )
+
       engine = BlockExcEngine.new(
         localStore,
         wallet,
         network,
         discovery,
+        advertiser,
         peerStore,
         pendingBlocks)
 
@@ -113,11 +119,17 @@ asyncchecksuite "NetworkStore engine basic":
         blockDiscovery,
         pendingBlocks)
 
+      advertiser = Advertiser.new(
+        localStore,
+        blockDiscovery
+      )
+
       engine = BlockExcEngine.new(
         localStore,
         wallet,
         network,
         discovery,
+        advertiser,
         peerStore,
         pendingBlocks)
 
@@ -139,6 +151,7 @@ asyncchecksuite "NetworkStore engine handlers":
     network: BlockExcNetwork
     engine: BlockExcEngine
     discovery: DiscoveryEngine
+    advertiser: Advertiser
     peerCtx: BlockExcPeerCtx
     localStore: BlockStore
     blocks: seq[Block]
@@ -176,11 +189,17 @@ asyncchecksuite "NetworkStore engine handlers":
       blockDiscovery,
       pendingBlocks)
 
+    advertiser = Advertiser.new(
+      localStore,
+      blockDiscovery
+    )
+
     engine = BlockExcEngine.new(
       localStore,
       wallet,
       network,
       discovery,
+      advertiser,
       peerStore,
       pendingBlocks)
 
@@ -403,6 +422,7 @@ asyncchecksuite "Task Handler":
     network: BlockExcNetwork
     engine: BlockExcEngine
     discovery: DiscoveryEngine
+    advertiser: Advertiser
     localStore: BlockStore
 
     peersCtx: seq[BlockExcPeerCtx]
@@ -436,11 +456,17 @@ asyncchecksuite "Task Handler":
       blockDiscovery,
       pendingBlocks)
 
+    advertiser = Advertiser.new(
+      localStore,
+      blockDiscovery
+    )
+
     engine = BlockExcEngine.new(
       localStore,
       wallet,
       network,
       discovery,
+      advertiser,
       peerStore,
       pendingBlocks)
     peersCtx = @[]

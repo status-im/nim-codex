@@ -124,6 +124,9 @@ switch("define", "ctt_asm=false")
 # Allow the use of old-style case objects for nim config compatibility
 switch("define", "nimOldCaseObjects")
 
+# Enable compat mode for Chronos V4
+switch("define", "chronosHandleException")
+
 # begin Nimble config (version 1)
 when system.fileExists("nimble.paths"):
   include "nimble.paths"

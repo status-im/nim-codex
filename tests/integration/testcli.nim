@@ -3,6 +3,7 @@ import std/tempfiles
 import codex/conf
 import codex/utils/fileutils
 import ./nodes
+import ../examples
 
 suite "Command line interface":
 
@@ -25,26 +26,32 @@ suite "Command line interface":
     node.stop()
     discard removeFile(unsafeKeyFile)
 
-  test "complains when persistence is enabled without accessible r1cs file":
-    let node = startNode(@["persistence", "prover"])
-    node.waitUntilOutput("r1cs file not readable, doesn't exist or wrong extension (.r1cs)")
+  let
+    marketplaceArg = "--marketplace-address=" & $EthAddress.example
+    expectedDownloadInstruction = "Proving circuit files are not found. Please run the following to download them:"
+
+  test "suggests downloading of circuit files when persistence is enabled without accessible r1cs file":
+    let node = startNode(@["persistence", "prover", marketplaceArg])
+    node.waitUntilOutput(expectedDownloadInstruction)
     node.stop()
 
-  test "complains when persistence is enabled without accessible wasm file":
+  test "suggests downloading of circuit files when persistence is enabled without accessible wasm file":
     let node = startNode(@[
       "persistence",
       "prover",
+      marketplaceArg,
       "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs"
     ])
-    node.waitUntilOutput("wasm file not readable, doesn't exist or wrong extension (.wasm)")
+    node.waitUntilOutput(expectedDownloadInstruction)
     node.stop()
 
-  test "complains when persistence is enabled without accessible zkey file":
+  test "suggests downloading of circuit files when persistence is enabled without accessible zkey file":
     let node = startNode(@[
       "persistence",
       "prover",
+      marketplaceArg,
       "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
       "--circom-wasm=tests/circuits/fixtures/proof_main.wasm"
     ])
-    node.waitUntilOutput("zkey file not readable, doesn't exist or wrong extension (.zkey)")
+    node.waitUntilOutput(expectedDownloadInstruction)
     node.stop()

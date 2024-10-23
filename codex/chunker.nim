@@ -90,8 +90,13 @@ proc new*(
         res += await stream.readOnce(addr data[res], len - res)
     except LPStreamEOFError as exc:
       trace "LPStreamChunker stream Eof", exc = exc.msg
+    except CancelledError as error:
+      raise error
+    except LPStreamError as error:
+      error "LPStream error", err = error.msg
+      raise error
     except CatchableError as exc:
-      trace "CatchableError exception", exc = exc.msg
+      error "CatchableError exception", exc = exc.msg
       raise newException(Defect, exc.msg)
 
     return res
@@ -122,8 +127,10 @@ proc new*(
         total += res
     except IOError as exc:
       trace "Exception reading file", exc = exc.msg
+    except CancelledError as error:
+      raise error
     except CatchableError as exc:
-      trace "CatchableError exception", exc = exc.msg
+      error "CatchableError exception", exc = exc.msg
       raise newException(Defect, exc.msg)
 
     return total

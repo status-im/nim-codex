@@ -29,7 +29,7 @@ suite "Taiko L2 Integration Tests":
     ])
     node1.waitUntilStarted()
 
-    let bootstrap = node1.client.info()["spr"].getStr()
+    let bootstrap = (!node1.client.info())["spr"].getStr()
 
     node2 = startNode([
       "--data-dir=" & createTempDir("", ""),

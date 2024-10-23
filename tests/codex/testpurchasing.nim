@@ -19,7 +19,7 @@ asyncchecksuite "Purchasing":
   var purchasing: Purchasing
   var market: MockMarket
   var clock: MockClock
-  var request: StorageRequest
+  var request, populatedRequest: StorageRequest
 
   setup:
     market = MockMarket.new()
@@ -33,6 +33,12 @@ asyncchecksuite "Purchasing":
         reward: uint8.example.u256
       )
     )
+
+    # We need request which has stable ID during the whole Purchasing pipeline
+    # for some tests (related to expiry). Because of Purchasing.populate() we need
+    # to do the steps bellow.
+    populatedRequest = StorageRequest.example
+    populatedRequest.client = await market.getSigner()
 
   test "submits a storage request when asked":
     discard await purchasing.purchase(request)
@@ -63,23 +69,6 @@ asyncchecksuite "Purchasing":
     check eventually market.requested.len > 0
     check market.requested[0].ask.proofProbability == 42.u256
 
-  test "has a default value for request expiration interval":
-    check purchasing.requestExpiryInterval != 0.u256
-
-  test "can change default value for request expiration interval":
-    purchasing.requestExpiryInterval = 42.u256
-    let start = getTime().toUnix()
-    discard await purchasing.purchase(request)
-    check eventually market.requested.len > 0
-    check market.requested[0].expiry == (start + 42).u256
-
-  test "can override expiry time per request":
-    let expiry = (getTime().toUnix() + 42).u256
-    request.expiry = expiry
-    discard await purchasing.purchase(request)
-    check eventually market.requested.len > 0
-    check market.requested[0].expiry == expiry
-
   test "includes a random nonce in every storage request":
     discard await purchasing.purchase(request)
     discard await purchasing.purchase(request)
@@ -92,29 +81,37 @@ asyncchecksuite "Purchasing":
     check market.requested[0].client == await market.getSigner()
 
   test "succeeds when request is finished":
-    let purchase = await purchasing.purchase(request)
+    market.requestExpiry[populatedRequest.id] = getTime().toUnix() + 10
+    let purchase = await purchasing.purchase(populatedRequest)
+
     check eventually market.requested.len > 0
     let request = market.requested[0]
     let requestEnd = getTime().toUnix() + 42
     market.requestEnds[request.id] = requestEnd
+
     market.emitRequestFulfilled(request.id)
     clock.set(requestEnd + 1)
     await purchase.wait()
     check purchase.error.isNone
 
   test "fails when request times out":
-    let purchase = await purchasing.purchase(request)
+    let expiry = getTime().toUnix() + 10
+    market.requestExpiry[populatedRequest.id] = expiry
+    let purchase = await purchasing.purchase(populatedRequest)
     check eventually market.requested.len > 0
     let request = market.requested[0]
-    clock.set(request.expiry.truncate(int64) + 1)
+
+    clock.set(expiry + 1)
     expect PurchaseTimeout:
       await purchase.wait()
 
   test "checks that funds were withdrawn when purchase times out":
-    let purchase = await purchasing.purchase(request)
+    let expiry = getTime().toUnix() + 10
+    market.requestExpiry[populatedRequest.id] = expiry
+    let purchase = await purchasing.purchase(populatedRequest)
     check eventually market.requested.len > 0
     let request = market.requested[0]
-    clock.set(request.expiry.truncate(int64) + 1)
+    clock.set(expiry + 1)
     expect PurchaseTimeout:
       await purchase.wait()
     check market.withdrawn == @[request.id]
@@ -233,3 +230,21 @@ checksuite "Purchasing state machine":
 
     let next = await future
     check !next of PurchaseFinished
+
+  test "withdraw funds in PurchaseFinished":
+    let request = StorageRequest.example
+    let purchase = Purchase.new(request, market, clock)
+    discard await PurchaseFinished().run(purchase)
+    check request.id in market.withdrawn
+
+  test "withdraw funds in PurchaseFailed":
+    let request = StorageRequest.example
+    let purchase = Purchase.new(request, market, clock)
+    discard await PurchaseFailed().run(purchase)
+    check request.id in market.withdrawn
+
+  test "withdraw funds in PurchaseCancelled":
+    let request = StorageRequest.example
+    let purchase = Purchase.new(request, market, clock)
+    discard await PurchaseCancelled().run(purchase)
+    check request.id in market.withdrawn

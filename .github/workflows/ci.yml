@@ -9,7 +9,7 @@ on:
 
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
-  nim_version: v1.6.14
+  nim_version: pinned
 
 
 concurrency:
@@ -28,11 +28,12 @@ jobs:
       uses: fabiocaccamo/create-matrix-action@v4
       with:
         matrix: |
-          os {linux},   cpu {amd64}, builder {ubuntu-latest},  tests {all},         nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {linux},   cpu {amd64}, builder {ubuntu-20.04},   tests {all},         nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
           os {macos},   cpu {amd64}, builder {macos-13},       tests {all},         nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
           os {windows}, cpu {amd64}, builder {windows-latest}, tests {unittest},    nim_version {${{ env.nim_version }}}, shell {msys2}
           os {windows}, cpu {amd64}, builder {windows-latest}, tests {contract},    nim_version {${{ env.nim_version }}}, shell {msys2}
           os {windows}, cpu {amd64}, builder {windows-latest}, tests {integration}, nim_version {${{ env.nim_version }}}, shell {msys2}
+          os {windows}, cpu {amd64}, builder {windows-latest}, tests {tools},       nim_version {${{ env.nim_version }}}, shell {msys2}
 
   build:
     needs: matrix
@@ -42,12 +43,13 @@ jobs:
       cache_nonce: ${{ needs.matrix.outputs.cache_nonce }}
 
   coverage:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup Nimbus Build System
         uses: ./.github/actions/nimbus-build-system

@@ -58,6 +58,14 @@ suite "Indexing strategies":
     expect IndexingWrongIterationsError:
       discard LinearStrategy.init(0, 10, 0)
 
+  test "should split elements evenly when possible":
+    let
+      l = LinearStrategy.init(0, 11, 3)
+    check:
+      toSeq(l.getIndicies(0)) == @[0, 1, 2, 3].mapIt(it)
+      toSeq(l.getIndicies(1)) == @[4, 5, 6, 7].mapIt(it)
+      toSeq(l.getIndicies(2)) == @[8, 9, 10, 11].mapIt(it)
+
   test "linear - oob":
     expect IndexingError:
       discard linear.getIndicies(3)

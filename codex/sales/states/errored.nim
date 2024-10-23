@@ -12,6 +12,7 @@ logScope:
 
 type SaleErrored* = ref object of SaleState
   error*: ref CatchableError
+  reprocessSlot*: bool
 
 method `$`*(state: SaleErrored): string = "SaleErrored"
 
@@ -30,5 +31,5 @@ method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
     onClear(request, data.slotIndex)
 
   if onCleanUp =? agent.onCleanUp:
-    await onCleanUp(returnBytes = true)
+    await onCleanUp(returnBytes = true, reprocessSlot = state.reprocessSlot)
 

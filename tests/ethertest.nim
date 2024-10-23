@@ -18,8 +18,6 @@ template ethersuite*(name, body) =
     setup:
       ethProvider = JsonRpcProvider.new("ws://localhost:8545")
       snapshot = await send(ethProvider, "evm_snapshot")
-      # ensure that we have a recent block with a fresh timestamp
-      discard await send(ethProvider, "evm_mine")
       accounts = await ethProvider.listAccounts()
 
     teardown:
@@ -27,5 +25,5 @@ template ethersuite*(name, body) =
 
     body
 
-export unittest
+export asynctest
 export ethers except `%`

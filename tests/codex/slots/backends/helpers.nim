@@ -17,21 +17,6 @@ import pkg/codex/utils/json
 
 export types
 
-func fromCircomData*(_: type Poseidon2Hash, cellData: seq[byte]): seq[Poseidon2Hash] =
-  var
-    pos = 0
-    cellElms: seq[Bn254Fr]
-  while pos < cellData.len:
-    var
-      step = 32
-      offset = min(pos + step, cellData.len)
-      data = cellData[pos..<offset]
-    let ff = Bn254Fr.fromBytes(data.toArray32).get
-    cellElms.add(ff)
-    pos += data.len
-
-  cellElms
-
 func toJsonDecimal*(big: BigInt[254]): string =
   let s = big.toDecimal.strip( leading = true, trailing = false, chars = {'0'} )
   if s.len == 0: "0" else: s
@@ -78,12 +63,15 @@ func toJson*(input: ProofInputs[Poseidon2Hash]): JsonNode =
     "slotRoot": input.slotRoot.toDecimal,
     "slotProof": input.slotProof.mapIt( it.toBig.toJsonDecimal ),
     "cellData": input.samples.mapIt(
-      toSeq( it.cellData.elements(Poseidon2Hash) ).mapIt( it.toBig.toJsonDecimal )
+      it.cellData.mapIt( it.toBig.toJsonDecimal )
     ),
     "merklePaths": input.samples.mapIt(
       it.merklePaths.mapIt( it.toBig.toJsonDecimal )
     )
   }
+
+func toJson*(input: NormalizedProofInputs[Poseidon2Hash]): JsonNode =
+  toJson(ProofInputs[Poseidon2Hash](input))
 
 func jsonToProofInput*(_: type Poseidon2Hash, inputJson: JsonNode): ProofInputs[Poseidon2Hash] =
   let
@@ -93,10 +81,12 @@ func jsonToProofInput*(_: type Poseidon2Hash, inputJson: JsonNode): ProofInputs[
             block:
               var
                 big: BigInt[256]
-                data = newSeq[byte](big.bits div 8)
+                hash: Poseidon2Hash
+                data: array[32, byte]
               assert bool(big.fromDecimal( it.str ))
-              data.marshal(big, littleEndian)
-              data
+              assert data.marshal(big, littleEndian)
+
+              Poseidon2Hash.fromBytes(data).get
           ).concat # flatten out elements
         )
 

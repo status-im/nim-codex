@@ -58,15 +58,13 @@ proc getWantHandle*(
         inFlight: inFlight,
         startTime: getMonoTime().ticks)
 
-      trace "Adding pending future for block", address, inFlight = p.blocks[address].inFlight
-
     p.updatePendingBlockGauge()
     return await p.blocks[address].handle.wait(timeout)
   except CancelledError as exc:
     trace "Blocks cancelled", exc = exc.msg, address
     raise exc
   except CatchableError as exc:
-    trace "Pending WANT failed or expired", exc = exc.msg
+    error "Pending WANT failed or expired", exc = exc.msg
     # no need to cancel, it is already cancelled by wait()
     raise exc
   finally:
@@ -88,8 +86,6 @@ proc resolve*(
 
   for bd in blocksDelivery:
     p.blocks.withValue(bd.address, blockReq):
-      trace "Resolving block", address = bd.address
-
       if not blockReq.handle.finished:
         let
           startTime = blockReq.startTime
@@ -99,11 +95,11 @@ proc resolve*(
         blockReq.handle.complete(bd.blk)
 
         codex_block_exchange_retrieval_time_us.set(retrievalDurationUs)
-        trace "Block retrieval time", retrievalDurationUs, address = bd.address
+
+        if retrievalDurationUs > 500000:
+          warn "High block retrieval time", retrievalDurationUs, address = bd.address
       else:
         trace "Block handle already finished", address = bd.address
-    do:
-      warn "Attempting to resolve block that's not currently a pending block", address = bd.address
 
 proc setInFlight*(
   p: PendingBlocksManager,
@@ -114,7 +110,6 @@ proc setInFlight*(
 
   p.blocks.withValue(address, pending):
     pending[].inFlight = inFlight
-    trace "Setting inflight", address, inFlight = pending[].inFlight
 
 proc isInFlight*(
   p: PendingBlocksManager,
@@ -124,7 +119,6 @@ proc isInFlight*(
 
   p.blocks.withValue(address, pending):
     result = pending[].inFlight
-    trace "Getting inflight", address, inFlight = result
 
 proc contains*(p: PendingBlocksManager, cid: Cid): bool =
   BlockAddress.init(cid) in p.blocks

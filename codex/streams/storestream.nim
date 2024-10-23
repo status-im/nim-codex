@@ -38,7 +38,6 @@ type
   StoreStream* = ref object of SeekableStream
     store*: BlockStore          # Store where to lookup block contents
     manifest*: Manifest         # List of block CIDs
-    pad*: bool                  # Pad last block to manifest.blockSize?
 
 method initStream*(s: StoreStream) =
   if s.objName.len == 0:
@@ -57,13 +56,15 @@ proc new*(
   result = StoreStream(
     store: store,
     manifest: manifest,
-    pad: pad,
     offset: 0)
 
   result.initStream()
 
 method `size`*(self: StoreStream): int =
-  bytes(self.manifest, self.pad).int
+  ## The size of a StoreStream is the size of the original dataset, without
+  ## padding or parity blocks.
+  let m = self.manifest
+  (if m.protected: m.originalDatasetSize else: m.datasetSize).int
 
 proc `size=`*(self: StoreStream, size: int)
   {.error: "Setting the size is forbidden".} =
@@ -82,7 +83,6 @@ method readOnce*(
   ## Raise exception if we are already at EOF.
   ##
 
-  trace "Reading from manifest", cid = self.manifest.cid.get(), blocks = self.manifest.blocksCount
   if self.atEof:
     raise newLPStreamEOFError()
 
@@ -104,7 +104,7 @@ method readOnce*(
     without blk =? await self.store.getBlock(address), error:
       raise newLPStreamReadError(error)
 
-    trace "Reading bytes from store stream", blockNum, cid = blk.cid, bytes = readBytes, blockOffset
+    trace "Reading bytes from store stream", manifestCid = self.manifest.cid.get(), numBlocks = self.manifest.blocksCount, blockNum, blkCid = blk.cid, bytes = readBytes, blockOffset
 
     # Copy `readBytes` bytes starting at `blockOffset` from the block into the outbuf
     if blk.isEmpty:

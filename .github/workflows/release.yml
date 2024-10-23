@@ -1,0 +1,179 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+env:
+  cache_nonce: 0 # Allows for easily busting actions/cache caches
+  nim_version: pinned
+  rust_version: 1.78.0
+  codex_binary_base: codex
+  cirdl_binary_base: cirdl
+  build_dir: build
+  nim_flags: ''
+  windows_libs: 'libstdc++-6.dll libgomp-1.dll libgcc_s_seh-1.dll libwinpthread-1.dll'
+
+jobs:
+  # Matrix
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+    - name: Compute matrix
+      id: matrix
+      uses: fabiocaccamo/create-matrix-action@v4
+      with:
+        matrix: |
+          os {linux},   cpu {amd64}, builder {ubuntu-20.04},                   nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {linux},   cpu {arm64}, builder {buildjet-4vcpu-ubuntu-2204-arm}, nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {macos},   cpu {amd64}, builder {macos-13},                       nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {macos},   cpu {arm64}, builder {macos-14},                       nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {windows}, cpu {amd64}, builder {windows-latest},                 nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {msys2}
+
+  # Build
+  build:
+    needs: matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{fromJson(needs.matrix.outputs.matrix)}}
+
+    defaults:
+      run:
+        shell: ${{ matrix.shell }} {0}
+
+    name: ${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}
+    runs-on: ${{ matrix.builder }}
+    timeout-minutes: 80
+    steps:
+      - name: Release - Checkout sources
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Release - Setup Nimbus Build System
+        uses: ./.github/actions/nimbus-build-system
+        with:
+          os: ${{ matrix.os }}
+          cpu: ${{ matrix.cpu }}
+          shell: ${{ matrix.shell }}
+          nim_version: ${{ matrix.nim_version }}
+          rust_version: ${{ matrix.rust_version }}
+
+      - name: Release - Compute binary name
+        run: |
+          case ${{ matrix.os }} in
+            linux*)   os_name="linux"   ;;
+            macos*)   os_name="darwin"  ;;
+            windows*) os_name="windows" ;;
+          esac
+          github_ref_name="${GITHUB_REF_NAME/\//-}"
+          codex_binary="${{ env.codex_binary_base }}-${github_ref_name}-${os_name}-${{ matrix.cpu }}"
+          cirdl_binary="${{ env.cirdl_binary_base }}-${github_ref_name}-${os_name}-${{ matrix.cpu }}"
+          if [[ ${os_name} == "windows" ]]; then
+            codex_binary="${codex_binary}.exe"
+            cirdl_binary="${cirdl_binary}.exe"
+          fi
+          echo "codex_binary=${codex_binary}" >>$GITHUB_ENV
+          echo "cirdl_binary=${cirdl_binary}" >>$GITHUB_ENV
+
+      - name: Release - Build
+        run: |
+          make NIMFLAGS="--out:${{ env.build_dir }}/${{ env.codex_binary }} ${{ env.nim_flags }}"
+          make cirdl NIMFLAGS="--out:${{ env.build_dir }}/${{ env.cirdl_binary }} ${{ env.nim_flags }}"
+
+      - name: Release - Libraries
+        run: |
+          if [[ "${{ matrix.os }}" == "windows" ]]; then
+            for lib in ${{ env.windows_libs }}; do
+              cp -v "${MINGW_PREFIX}/bin/${lib}" "${{ env.build_dir }}"
+            done
+          fi
+
+      - name: Release - Upload codex build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ env.codex_binary }}
+          path: ${{ env.build_dir }}/${{ env.codex_binary_base }}*
+          retention-days: 30
+
+      - name: Release - Upload cirdl build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ env.cirdl_binary }}
+          path: ${{ env.build_dir }}/${{ env.cirdl_binary_base }}*
+          retention-days: 30
+
+      - name: Release - Upload windows libs
+        if: matrix.os == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.os }}-libs
+          path: ${{ env.build_dir }}/*.dll
+          retention-days: 30
+
+  # Release
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    if: success() || failure()
+    steps:
+      - name: Release - Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release*
+          merge-multiple: true
+          path: /tmp/release
+
+      - name: Release - Compress and checksum
+        run: |
+          cd /tmp/release
+          checksum() {
+            arc="${1}"
+            sha256sum "${arc}" >"${arc}.sha256"
+          }
+
+          # Compress and prepare
+          for file in ${{ env.codex_binary_base }}* ${{ env.cirdl_binary_base }}*; do
+            if [[ "${file}" == *".exe"* ]]; then
+
+              # Windows - binary only
+              arc="${file%.*}.zip"
+              zip "${arc}" "${file}"
+              checksum "${arc}"
+
+              # Windows - binary and libs
+              arc="${file%.*}-libs.zip"
+              zip "${arc}" "${file}" ${{ env.windows_libs }}
+              rm -f "${file}"
+              checksum "${arc}"
+            else
+
+              # Linux/macOS
+              arc="${file}.tar.gz"
+              chmod 755 "${file}"
+              tar cfz "${arc}" "${file}"
+              rm -f "${file}"
+              checksum "${arc}"
+            fi
+          done
+          rm -f ${{ env.windows_libs }}
+
+      - name: Release - Upload compressed artifacts and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: archives-and-checksums
+          path: /tmp/release/
+          retention-days: 30
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            /tmp/release/*
+          make_latest: true

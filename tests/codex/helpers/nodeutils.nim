@@ -40,8 +40,9 @@ proc generateNodes*(
       localStore = CacheStore.new(blocks.mapIt( it ))
       peerStore = PeerCtxStore.new()
       pendingBlocks = PendingBlocksManager.new()
+      advertiser = Advertiser.new(localStore, discovery)
       blockDiscovery = DiscoveryEngine.new(localStore, peerStore, network, discovery, pendingBlocks)
-      engine = BlockExcEngine.new(localStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
+      engine = BlockExcEngine.new(localStore, wallet, network, blockDiscovery, advertiser, peerStore, pendingBlocks)
       networkStore = NetworkStore.new(engine, localStore)
 
     switch.mount(network)

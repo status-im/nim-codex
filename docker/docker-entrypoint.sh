@@ -1,6 +1,8 @@
 #!/bin/bash
 
 # Environment variables from files
+# If set to file path, read the file and export the variables
+# If set to directory path, read all files in the directory and export the variables
 if [[ -n "${ENV_PATH}" ]]; then
   set -a
   [[ -f "${ENV_PATH}" ]] && source "${ENV_PATH}" || for f in "${ENV_PATH}"/*; do source "$f"; done
@@ -48,6 +50,34 @@ if [ -n "${PRIV_KEY}" ]; then
   chmod 600 "private.key"
   export CODEX_ETH_PRIVATE_KEY="private.key"
   echo "Private key set"
+fi
+
+# Circuit downloader
+# cirdl [circuitPath] [rpcEndpoint] [marketplaceAddress]
+if [[ "$@" == *"prover"* ]]; then
+  echo "Prover is enabled - Run Circuit downloader"
+
+  # Set variables required by cirdl from command line arguments when passed
+  for arg in data-dir circuit-dir eth-provider marketplace-address; do
+    arg_value=$(grep -o "${arg}=[^ ,]\+" <<< $@ | awk -F '=' '{print $2}')
+    if [[ -n "${arg_value}" ]]; then
+      var_name=$(tr '[:lower:]' '[:upper:]' <<< "CODEX_${arg//-/_}")
+      export "${var_name}"="${arg_value}"
+    fi
+  done
+
+  # Set circuit dir from CODEX_CIRCUIT_DIR variables if set
+  if [[ -z "${CODEX_CIRCUIT_DIR}" ]]; then
+    export CODEX_CIRCUIT_DIR="${CODEX_DATA_DIR}/circuits"
+  fi
+
+  # Download circuit
+  mkdir -p "${CODEX_CIRCUIT_DIR}"
+  chmod 700 "${CODEX_CIRCUIT_DIR}"
+  download="cirdl ${CODEX_CIRCUIT_DIR} ${CODEX_ETH_PROVIDER} ${CODEX_MARKETPLACE_ADDRESS}"
+  echo "${download}"
+  eval "${download}"
+  [[ $? -ne 0 ]] && { echo "Failed to download circuit files"; exit 1; }
 fi
 
 # Run

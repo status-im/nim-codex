@@ -29,7 +29,7 @@ import ../logutils
 # TODO: Manifest should be reworked to more concrete types,
 # perhaps using inheritance
 type
-  Manifest* = object of RootObj
+  Manifest* = ref object of RootObj
     treeCid {.serialize.}: Cid              # Root of the merkle tree
     datasetSize {.serialize.}: NBytes       # Total size of all blocks
     blockSize {.serialize.}: NBytes         # Size of each contained block (might not be needed if blocks are len-prefixed)
@@ -135,13 +135,6 @@ func isManifest*(mc: MultiCodec): ?!bool =
 # Various sizes and verification
 ############################################################
 
-func bytes*(self: Manifest, pad = true): NBytes =
-  ## Compute how many bytes corresponding StoreStream(Manifest, pad) will return
-  if pad or self.protected:
-    self.blocksCount.NBytes * self.blockSize
-  else:
-    self.datasetSize
-
 func rounded*(self: Manifest): int =
   ## Number of data blocks in *protected* manifest including padding at the end
   roundUp(self.originalBlocksCount, self.ecK)
@@ -238,7 +231,7 @@ func new*(
   treeCid: Cid,
   datasetSize: NBytes,
   ecK, ecM: int,
-  strategy: StrategyType): Manifest =
+  strategy = SteppedStrategy): Manifest =
   ## Create an erasure protected dataset from an
   ## unprotected one
   ##
@@ -284,7 +277,7 @@ func new*(
   ecM: int,
   originalTreeCid: Cid,
   originalDatasetSize: NBytes,
-  strategy: StrategyType): Manifest =
+  strategy = SteppedStrategy): Manifest =
 
   Manifest(
     treeCid: treeCid,
@@ -306,7 +299,7 @@ func new*(
   verifyRoot: Cid,
   slotRoots: openArray[Cid],
   cellSize = DefaultCellSize,
-  strategy = SteppedStrategy): ?!Manifest =
+  strategy = LinearStrategy): ?!Manifest =
   ## Create a verifiable dataset from an
   ## protected one
   ##
@@ -329,8 +322,9 @@ func new*(
     protected: true,
     ecK: manifest.ecK,
     ecM: manifest.ecM,
-    originalTreeCid: manifest.treeCid,
+    originalTreeCid: manifest.originalTreeCid,
     originalDatasetSize: manifest.originalDatasetSize,
+    protectedStrategy: manifest.protectedStrategy,
     verifiable: true,
     verifyRoot: verifyRoot,
     slotRoots: @slotRoots,

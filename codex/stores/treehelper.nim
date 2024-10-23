@@ -47,4 +47,4 @@ proc putSomeProofs*(store: BlockStore, tree: CodexTree, iter: Iter[Natural]): Fu
   store.putSomeProofs(tree, iter.map((i: Natural) => i.ord))
 
 proc putAllProofs*(store: BlockStore, tree: CodexTree): Future[?!void] =
-  store.putSomeProofs(tree, Iter.fromSlice(0..<tree.leavesCount))
+  store.putSomeProofs(tree, Iter[int].new(0..<tree.leavesCount))

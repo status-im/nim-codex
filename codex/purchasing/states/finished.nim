@@ -16,5 +16,7 @@ method `$`*(state: PurchaseFinished): string =
 method run*(state: PurchaseFinished, machine: Machine): Future[?State] {.async.} =
   codex_purchases_finished.inc()
   let purchase = Purchase(machine)
-  info "Purchase finished", requestId = purchase.requestId
+  info "Purchase finished, withdrawing remaining funds", requestId = purchase.requestId
+  await purchase.market.withdrawFunds(purchase.requestId)
+
   purchase.future.complete()

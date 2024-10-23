@@ -13,6 +13,7 @@ import std/options
 import std/sequtils
 import std/strformat
 import std/sugar
+import std/cpuinfo
 
 import pkg/questionable
 import pkg/questionable/results
@@ -25,6 +26,7 @@ import pkg/libp2p/stream/bufferstream
 # TODO: remove once exported by libp2p
 import pkg/libp2p/routing_record
 import pkg/libp2p/signed_envelope
+import pkg/taskpools
 
 import ./chunker
 import ./slots
@@ -69,6 +71,7 @@ type
     contracts*: Contracts
     clock*: Clock
     storage*: Contracts
+    taskpool*: Taskpool
 
   CodexNodeRef* = ref CodexNode
 
@@ -154,10 +157,8 @@ proc updateExpiry*(
 
   try:
     let
-      ensuringFutures = Iter
-        .fromSlice(0..<manifest.blocksCount)
-        .mapIt(
-          self.networkStore.localStore.ensureExpiry( manifest.treeCid, it, expiry ))
+      ensuringFutures = Iter[int].new(0..<manifest.blocksCount)
+        .mapIt(self.networkStore.localStore.ensureExpiry( manifest.treeCid, it, expiry ))
     await allFuturesThrowing(ensuringFutures)
   except CancelledError as exc:
     raise exc
@@ -206,8 +207,74 @@ proc fetchBatched*(
 
   trace "Fetching blocks in batches of", size = batchSize
 
-  let iter = Iter.fromSlice(0..<manifest.blocksCount)
+  let iter = Iter[int].new(0..<manifest.blocksCount)
   self.fetchBatched(manifest.treeCid, iter, batchSize, onBatch)
+
+proc streamSingleBlock(
+  self: CodexNodeRef,
+  cid: Cid
+): Future[?!LPstream] {.async.} =
+  ## Streams the contents of a single block.
+  ##
+  trace "Streaming single block", cid = cid
+
+  let
+    stream = BufferStream.new()
+
+  without blk =? (await self.networkStore.getBlock(BlockAddress.init(cid))), err:
+    return failure(err)
+
+  proc streamOneBlock(): Future[void] {.async.} =
+    try:
+      await stream.pushData(blk.data)
+    except CatchableError as exc:
+      trace "Unable to send block", cid, exc = exc.msg
+      discard
+    finally:
+      await stream.pushEof()
+
+  asyncSpawn streamOneBlock()
+  LPStream(stream).success
+
+proc streamEntireDataset(
+  self: CodexNodeRef,
+  manifest: Manifest,
+  manifestCid: Cid,
+): Future[?!LPStream] {.async.} =
+  ## Streams the contents of the entire dataset described by the manifest.
+  ##
+  trace "Retrieving blocks from manifest", manifestCid
+
+  if manifest.protected:
+    # Retrieve, decode and save to the local store all EС groups
+    proc erasureJob(): Future[?!void] {.async.} =
+      try:
+        # Spawn an erasure decoding job
+        let
+          erasure = Erasure.new(
+            self.networkStore,
+            leoEncoderProvider,
+            leoDecoderProvider,
+            self.taskpool)
+        without _ =? (await erasure.decode(manifest)), error:
+          error "Unable to erasure decode manifest", manifestCid, exc = error.msg
+          return failure(error)
+
+        return success()
+      # --------------------------------------------------------------------------
+      # FIXME this is a HACK so that the node does not crash during the workshop.
+      #   We should NOT catch Defect.
+      except Exception as exc:
+        trace "Exception decoding manifest", manifestCid, exc = exc.msg
+        return failure(exc.msg)
+      # --------------------------------------------------------------------------
+
+    if err =? (await erasureJob()).errorOption:
+      return failure(err)
+
+  # Retrieve all blocks of the dataset sequentially from the local store or network
+  trace "Creating store stream for manifest", manifestCid
+  LPStream(StoreStream.new(self.networkStore, manifest, pad = false)).success
 
 proc retrieve*(
   self: CodexNodeRef,
@@ -219,46 +286,13 @@ proc retrieve*(
   if local and not await (cid in self.networkStore):
     return failure((ref BlockNotFoundError)(msg: "Block not found in local store"))
 
-  if manifest =? (await self.fetchManifest(cid)):
-    trace "Retrieving blocks from manifest", cid
-    if manifest.protected:
-      # Retrieve, decode and save to the local store all EС groups
-      proc erasureJob(): Future[void] {.async.} =
-        try:
-          # Spawn an erasure decoding job
-          let
-            erasure = Erasure.new(
-              self.networkStore,
-              leoEncoderProvider,
-              leoDecoderProvider)
-          without _ =? (await erasure.decode(manifest)), error:
-            trace "Unable to erasure decode manifest", cid, exc = error.msg
-        except CatchableError as exc:
-          trace "Exception decoding manifest", cid, exc = exc.msg
-
-      asyncSpawn erasureJob()
-
-    # Retrieve all blocks of the dataset sequentially from the local store or network
-    trace "Creating store stream for manifest", cid
-    LPStream(StoreStream.new(self.networkStore, manifest, pad = false)).success
-  else:
-    let
-      stream = BufferStream.new()
-
-    without blk =? (await self.networkStore.getBlock(BlockAddress.init(cid))), err:
+  without manifest =? (await self.fetchManifest(cid)), err:
+    if err of AsyncTimeoutError:
       return failure(err)
 
-    proc streamOneBlock(): Future[void] {.async.} =
-      try:
-        await stream.pushData(blk.data)
-      except CatchableError as exc:
-        trace "Unable to send block", cid, exc = exc.msg
-        discard
-      finally:
-        await stream.pushEof()
+    return await self.streamSingleBlock(cid)
 
-    asyncSpawn streamOneBlock()
-    LPStream(stream).success()
+  await self.streamEntireDataset(manifest, cid)
 
 proc store*(
   self: CodexNodeRef,
@@ -267,7 +301,7 @@ proc store*(
   ## Save stream contents as dataset with given blockSize
   ## to nodes's BlockStore, and return Cid of its manifest
   ##
-  trace "Storing data"
+  info "Storing data"
 
   let
     hcodec = Sha256HashCodec
@@ -281,8 +315,6 @@ proc store*(
       let chunk = await chunker.getBytes();
       chunk.len > 0):
 
-      trace "Got data from stream", len = chunk.len
-
       without mhash =? MultiHash.digest($hcodec, chunk).mapFailure, err:
         return failure(err)
 
@@ -295,7 +327,7 @@ proc store*(
       cids.add(cid)
 
       if err =? (await self.networkStore.putBlock(blk)).errorOption:
-        trace "Unable to store block", cid = blk.cid, err = err.msg
+        error "Unable to store block", cid = blk.cid, err = err.msg
         return failure(&"Unable to store block {blk.cid}")
   except CancelledError as exc:
     raise exc
@@ -326,17 +358,13 @@ proc store*(
     codec = dataCodec)
 
   without manifestBlk =? await self.storeManifest(manifest), err:
-    trace "Unable to store manifest"
+    error "Unable to store manifest"
     return failure(err)
 
   info "Stored data", manifestCid = manifestBlk.cid,
                       treeCid = treeCid,
                       blocks = manifest.blocksCount,
                       datasetSize = manifest.datasetSize
-
-  # Announce manifest
-  await self.discovery.provide(manifestBlk.cid)
-  await self.discovery.provide(treeCid)
 
   return manifestBlk.cid.success
 
@@ -392,12 +420,22 @@ proc setupRequest(
     trace "Unable to fetch manifest for cid"
     return failure error
 
+  # ----------------------------------------------------------------------------
+  # FIXME this is a BAND-AID to address
+  #   https://github.com/codex-storage/nim-codex/issues/852 temporarily for the
+  #   workshop. Remove this once we get that fixed.
+  if manifest.blocksCount.uint == ecK:
+    return failure("Cannot setup slots for a dataset with ecK == numBlocks. Please use a larger file or a different combination of `nodes` and `tolerance`.")
+  # ----------------------------------------------------------------------------
+
+
   # Erasure code the dataset according to provided parameters
   let
     erasure = Erasure.new(
       self.networkStore.localStore,
       leoEncoderProvider,
-      leoDecoderProvider)
+      leoDecoderProvider,
+      self.taskpool)
 
   without encoded =? (await erasure.encode(manifest, ecK, ecM)), error:
     trace "Unable to erasure code dataset"
@@ -511,7 +549,9 @@ proc onStore(
     trace "Unable to fetch manifest for cid", cid, err = err.msg
     return failure(err)
 
-  without builder =? Poseidon2Builder.new(self.networkStore, manifest), err:
+  without builder =? Poseidon2Builder.new(
+    self.networkStore, manifest, manifest.verifiableStrategy
+  ), err:
     trace "Unable to create slots builder", err = err.msg
     return failure(err)
 
@@ -536,8 +576,8 @@ proc onStore(
 
     return success()
 
-  without indexer =? manifest.protectedStrategy.init(
-    0, manifest.numSlotBlocks() - 1, manifest.numSlots).catch, err:
+  without indexer =? manifest.verifiableStrategy.init(
+    0, manifest.blocksCount - 1, manifest.numSlots).catch, err:
     trace "Unable to create indexing strategy from protected manifest", err = err.msg
     return failure(err)
 
@@ -673,6 +713,8 @@ proc start*(self: CodexNodeRef) {.async.} =
 
     try:
       await hostContracts.start()
+    except CancelledError as error:
+      raise error
     except CatchableError as error:
       error "Unable to start host contract interactions", error=error.msg
       self.contracts.host = HostInteractions.none
@@ -680,6 +722,8 @@ proc start*(self: CodexNodeRef) {.async.} =
   if clientContracts =? self.contracts.client:
     try:
       await clientContracts.start()
+    except CancelledError as error:
+      raise error
     except CatchableError as error:
       error "Unable to start client contract interactions: ", error=error.msg
       self.contracts.client = ClientInteractions.none
@@ -687,6 +731,8 @@ proc start*(self: CodexNodeRef) {.async.} =
   if validatorContracts =? self.contracts.validator:
     try:
       await validatorContracts.start()
+    except CancelledError as error:
+      raise error
     except CatchableError as error:
       error "Unable to start validator contract interactions: ", error=error.msg
       self.contracts.validator = ValidatorInteractions.none
@@ -725,7 +771,8 @@ proc new*(
   engine: BlockExcEngine,
   discovery: Discovery,
   prover = Prover.none,
-  contracts = Contracts.default): CodexNodeRef =
+  contracts = Contracts.default,
+  taskpool = Taskpool.new(num_threads = countProcessors())): CodexNodeRef =
   ## Create new instance of a Codex self, call `start` to run it
   ##
 
@@ -735,4 +782,5 @@ proc new*(
     engine: engine,
     prover: prover,
     discovery: discovery,
-    contracts: contracts)
+    contracts: contracts,
+    taskpool: taskpool)

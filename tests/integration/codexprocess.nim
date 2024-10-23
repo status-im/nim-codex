@@ -2,6 +2,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/confutils
 import pkg/chronicles
+import pkg/chronos/asyncproc
 import pkg/ethers
 import pkg/libp2p
 import std/os

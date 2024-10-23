@@ -66,7 +66,7 @@ proc encode*(manifest: Manifest): ?!seq[byte] =
   var header = initProtoBuffer()
   header.write(1, manifest.treeCid.data.buffer)
   header.write(2, manifest.blockSize.uint32)
-  header.write(3, manifest.datasetSize.uint32)
+  header.write(3, manifest.datasetSize.uint64)
   header.write(4, manifest.codec.uint32)
   header.write(5, manifest.hcodec.uint32)
   header.write(6, manifest.version.uint32)
@@ -75,7 +75,7 @@ proc encode*(manifest: Manifest): ?!seq[byte] =
     erasureInfo.write(1, manifest.ecK.uint32)
     erasureInfo.write(2, manifest.ecM.uint32)
     erasureInfo.write(3, manifest.originalTreeCid.data.buffer)
-    erasureInfo.write(4, manifest.originalDatasetSize.uint32)
+    erasureInfo.write(4, manifest.originalDatasetSize.uint64)
     erasureInfo.write(5, manifest.protectedStrategy.uint32)
 
     if manifest.verifiable:
@@ -106,12 +106,12 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
     pbVerificationInfo: ProtoBuffer
     treeCidBuf: seq[byte]
     originalTreeCid: seq[byte]
-    datasetSize: uint32
+    datasetSize: uint64
     codec: uint32
     hcodec: uint32
     version: uint32
     blockSize: uint32
-    originalDatasetSize: uint32
+    originalDatasetSize: uint64
     ecK, ecM: uint32
     protectedStrategy: uint32
     verifyRoot: seq[byte]

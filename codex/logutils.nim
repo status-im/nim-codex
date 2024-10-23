@@ -17,16 +17,16 @@
 ## module, and specifying `formatIt`. If textlines log output and json log output
 ## need to be different, overload `formatIt` and specify a `LogFormat`. If json
 ## serialization is needed, it can be declared with a `%` proc. `logutils`
-## imports and exports `utils/json` which handles the de/serialization, examples
+## imports and exports `nim-serde` which handles the de/serialization, examples
 ## below. **Only `codex/logutils` needs to be imported.**
 ##
 ## Using `logutils` in the Codex codebase:
 ## - Instead of importing `pkg/chronicles`, import `pkg/codex/logutils`
 ##     - most of `chronicles` is exported by `logutils`
-## - Instead of importing `std/json`, import `pkg/codex/utils/json`
-##     - `std/json` is exported by `utils/json` which is exported by `logutils`
+## - Instead of importing `std/json`, import `pkg/serde/json`
+##     - `std/json` is exported by `serde` which is exported by `logutils`
 ## - Instead of importing `pkg/nim-json-serialization`, import
-##   `pkg/codex/utils/json`
+##   `pkg/serde/json` or use codex-specific overloads by importing `utils/json`
 ##     - one of the goals is to remove the use of `nim-json-serialization`
 ##
 ## ```nim
@@ -54,7 +54,7 @@
 ## # chronicles json output
 ## {"lvl":"TRC","msg":"test","tid":14397405,"ba":{"treeCid":"zb2rhgsDE16rLtbwTFeNKbdSobtKiWdjJPvKEuPgrQAfndjU1","index":0}}
 ## ```
-## In this case, `BlockAddress` is just an object, so `utils/json` can handle
+## In this case, `BlockAddress` is just an object, so `nim-serde` can handle
 ## serializing it without issue (only fields annotated with `{.serialize.}` will
 ## serialize (aka opt-in serialization)).
 ##
@@ -95,20 +95,19 @@ import pkg/chronicles except toJson, `%`
 from pkg/libp2p import Cid, MultiAddress, `$`
 import pkg/questionable
 import pkg/questionable/results
+import ./utils/json except formatIt # TODO: remove exception?
 import pkg/stew/byteutils
 import pkg/stint
 import pkg/upraises
-
-import ./utils/json
 
 export byteutils
 export chronicles except toJson, formatIt, `%`
 export questionable
 export sequtils
+export json except formatIt
 export strutils
 export sugar
 export upraises
-export json
 export results
 
 func shortLog*(long: string, ellipses = "*", start = 3, stop = 6): string =

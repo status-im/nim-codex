@@ -59,7 +59,7 @@ proc example*(_: type StorageRequest): StorageRequest =
       cid: "zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob",
       merkleRoot: array[32, byte].example
     ),
-    expiry: (getTime() + 1.hours).toUnix.u256,
+    expiry:(60 * 60).u256, # 1 hour ,
     nonce: Nonce.example
   )
 

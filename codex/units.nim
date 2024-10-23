@@ -46,9 +46,13 @@ proc `'nb`*(n: string): NBytes = parseInt(n).NBytes
 logutils.formatIt(NBytes): $it
 
 const
-  MiB = 1024.NBytes * 1024.NBytes # ByteSz, 1 mebibyte = 1,048,576 ByteSz
+  KiB = 1024.NBytes # ByteSz, 1 kibibyte = 1,024 ByteSz
+  MiB = KiB * 1024  # ByteSz, 1 mebibyte = 1,048,576 ByteSz
+  GiB = MiB * 1024  # ByteSz, 1 gibibyte = 1,073,741,824 ByteSz
 
+proc KiBs*(v: Natural): NBytes = v.NBytes * KiB
 proc MiBs*(v: Natural): NBytes = v.NBytes * MiB
+proc GiBs*(v: Natural): NBytes = v.NBytes * GiB
 
 func divUp*[T: NBytes](a, b : T): int =
   ## Division with result rounded up (rather than truncated as in 'div')

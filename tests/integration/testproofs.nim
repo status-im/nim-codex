@@ -230,7 +230,7 @@ marketplacesuite "Simulate invalid proofs":
   #   let slotSize = (DefaultBlockSize * 4.NBytes).Natural.u256
 
   #   discard provider0.client.postAvailability(
-  #     size=slotSize, # should match 1 slot only
+  #     totalSize=slotSize, # should match 1 slot only
   #     duration=totalPeriods.periods.u256,
   #     minPrice=300.u256,
   #     maxCollateral=200.u256
@@ -263,7 +263,7 @@ marketplacesuite "Simulate invalid proofs":
   #   # now add availability for providers 1 and 2, which should allow them to to
   #   # put the remaining slots in their queues
   #   discard provider1.client.postAvailability(
-  #     size=slotSize, # should match 1 slot only
+  #     totalSize=slotSize, # should match 1 slot only
   #     duration=totalPeriods.periods.u256,
   #     minPrice=300.u256,
   #     maxCollateral=200.u256
@@ -272,7 +272,7 @@ marketplacesuite "Simulate invalid proofs":
   #   check eventually filledSlotIds.len > 1
 
   #   discard provider2.client.postAvailability(
-  #     size=slotSize, # should match 1 slot only
+  #     totalSize=slotSize, # should match 1 slot only
   #     duration=totalPeriods.periods.u256,
   #     minPrice=300.u256,
   #     maxCollateral=200.u256

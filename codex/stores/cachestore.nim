@@ -61,6 +61,8 @@ method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
 
   try:
     return success self.cache[cid]
+  except CancelledError as error:
+    raise error
   except CatchableError as exc:
     trace "Error requesting block from cache", cid, error = exc.msg
     return failure exc
@@ -130,51 +132,35 @@ method listBlocks*(
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 
-  var
-    iter = AsyncIter[?Cid]()
-
   let
     cids = self.cids()
 
-  proc next(): Future[?Cid] {.async.} =
-    await idleAsync()
+  proc isFinished(): bool =
+    return finished(cids)
 
-    var cid: Cid
-    while true:
-      if iter.finished:
-        return Cid.none
+  proc genNext(): Future[Cid] {.async.} =
+    cids()
 
-      cid = cids()
+  let iter = await (AsyncIter[Cid].new(genNext, isFinished)
+    .filter(
+      proc (cid: Cid): Future[bool] {.async.} =
+        without isManifest =? cid.isManifest, err:
+          trace "Error checking if cid is a manifest", err = err.msg
+          return false
 
-      if finished(cids):
-        iter.finish
-        return Cid.none
+        case blockType:
+        of BlockType.Both:
+          return true
+        of BlockType.Manifest:
+          return isManifest
+        of BlockType.Block:
+          return not isManifest
+    ))
 
-      without isManifest =? cid.isManifest, err:
-        trace "Error checking if cid is a manifest", err = err.msg
-        return Cid.none
-
-      case blockType:
-      of BlockType.Manifest:
-        if not isManifest:
-          trace "Cid is not manifest, skipping", cid
-          continue
-
-        break
-      of BlockType.Block:
-        if isManifest:
-          trace "Cid is a manifest, skipping", cid
-          continue
-
-        break
-      of BlockType.Both:
-        break
-
-    return cid.some
-
-  iter.next = next
-
-  return success iter
+  return success(map[Cid, ?Cid](iter,
+      proc (cid: Cid): Future[?Cid] {.async.} =
+        some(cid)
+  ))
 
 func putBlockSync(self: CacheStore, blk: Block): bool =
 
@@ -211,6 +197,9 @@ method putBlock*(
     return success()
 
   discard self.putBlockSync(blk)
+  if onBlock =? self.onBlockStored:
+    await onBlock(blk.cid)
+    
   return success()
 
 method putCidAndProof*(
@@ -296,7 +285,8 @@ proc new*(
       cache: cache,
       cidAndProofCache: cidAndProofCache,
       currentSize: currentSize,
-      size: cacheSize)
+      size: cacheSize,
+      onBlockStored: CidCallback.none)
 
   for blk in blocks:
     discard store.putBlockSync(blk)

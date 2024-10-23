@@ -269,8 +269,6 @@ template multinodesuite*(name: string, body: untyped) =
         # reverted in the test teardown
         if nodeConfigs.hardhat.isNone:
           snapshot = await send(ethProvider, "evm_snapshot")
-        # ensure that we have a recent block with a fresh timestamp
-        discard await send(ethProvider, "evm_mine")
         accounts = await ethProvider.listAccounts()
       except CatchableError as e:
         echo "Hardhat not running. Run hardhat manually " &
@@ -288,7 +286,11 @@ template multinodesuite*(name: string, body: untyped) =
                           node: node
                         )
             if clients().len == 1:
-              bootstrap = CodexProcess(node).client.info()["spr"].getStr()
+              without ninfo =? CodexProcess(node).client.info():
+                # raise CatchableError instead of Defect (with .get or !) so we
+                # can gracefully shutdown and prevent zombies
+                raiseMultiNodeSuiteError "Failed to get node info"
+              bootstrap = ninfo["spr"].getStr()
 
       if var providers =? nodeConfigs.providers:
         failAndTeardownOnError "failed to start provider nodes":
@@ -307,6 +309,9 @@ template multinodesuite*(name: string, body: untyped) =
                           role: Role.Validator,
                           node: node
                         )
+
+      # ensure that we have a recent block with a fresh timestamp
+      discard await send(ethProvider, "evm_mine")
 
     teardown:
       await teardownImpl()

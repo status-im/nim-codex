@@ -69,7 +69,7 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
   if err =? (await onStore(request,
                            data.slotIndex,
                            onBlocks)).errorOption:
-    return some State(SaleErrored(error: err))
+    return some State(SaleErrored(error: err, reprocessSlot: false))
 
   trace "Download complete"
   return some State(SaleInitialProving())

@@ -53,7 +53,7 @@ template marketplacesuite*(name: string, body: untyped) =
         let provider = providers()[i].client
 
         discard provider.postAvailability(
-          size=datasetSize.u256, # should match 1 slot only
+          totalSize=datasetSize.u256, # should match 1 slot only
           duration=duration.u256,
           minPrice=300.u256,
           maxCollateral=200.u256
@@ -68,11 +68,9 @@ template marketplacesuite*(name: string, body: untyped) =
                         expiry: uint64 = 4.periods,
                         nodes = providers().len,
                         tolerance = 0): Future[PurchaseId] {.async.} =
-      let expiry = (await ethProvider.currentTime()) + expiry.u256
-
       let id = client.requestStorage(
         cid,
-        expiry=expiry,
+        expiry=expiry.uint,
         duration=duration.u256,
         proofProbability=proofProbability.u256,
         collateral=collateral,

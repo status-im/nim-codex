@@ -16,7 +16,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/shims/net
 import pkg/contractabi/address as ca
-import pkg/codexdht/discv5/protocol as discv5
+import pkg/codexdht/discv5/[routing_table, protocol as discv5]
 
 import ./rng
 import ./errors
@@ -73,27 +73,22 @@ method find*(
   cid: Cid): Future[seq[SignedPeerRecord]] {.async, base.} =
   ## Find block providers
   ##
-
-  trace "Finding providers for block", cid
   without providers =?
     (await d.protocol.getProviders(cid.toNodeId())).mapFailure, error:
-    trace "Error finding providers for block", cid, error = error.msg
+    warn "Error finding providers for block", cid, error = error.msg
 
   return providers.filterIt( not (it.data.peerId == d.peerId) )
 
 method provide*(d: Discovery, cid: Cid) {.async, base.} =
-  ## Provide a bock Cid
+  ## Provide a block Cid
   ##
-
-  trace "Providing block", cid
   let
     nodes = await d.protocol.addProvider(
       cid.toNodeId(), d.providerRecord.get)
 
   if nodes.len <= 0:
-    trace "Couldn't provide to any nodes!"
+    warn "Couldn't provide to any nodes!"
 
-  trace "Provided to nodes", nodes = nodes.len
 
 method find*(
   d: Discovery,
@@ -193,6 +188,18 @@ proc new*(
 
   self.updateAnnounceRecord(announceAddrs)
 
+  # --------------------------------------------------------------------------
+  # FIXME disable IP limits temporarily so we can run our workshop. Re-enable
+  #   and figure out proper solution.
+  let discoveryConfig = DiscoveryConfig(
+    tableIpLimits: TableIpLimits(
+      tableIpLimit: high(uint),
+      bucketIpLimit:high(uint)
+    ),
+    bitsPerHop: DefaultBitsPerHop
+  )
+  # --------------------------------------------------------------------------
+
   self.protocol = newProtocol(
     key,
     bindIp = bindIp.toNormalIp,
@@ -200,6 +207,7 @@ proc new*(
     record = self.providerRecord.get,
     bootstrapRecords = bootstrapNodes,
     rng = Rng.instance(),
-    providers = ProvidersManager.new(store))
+    providers = ProvidersManager.new(store),
+    config = discoveryConfig)
 
   self

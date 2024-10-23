@@ -34,10 +34,10 @@ checksuite "BlockMaintainer":
   var testBe2: BlockExpiration
   var testBe3: BlockExpiration
 
-  proc createTestExpiration(expiration: SecondsSince1970): BlockExpiration =
+  proc createTestExpiration(expiry: SecondsSince1970): BlockExpiration =
     BlockExpiration(
       cid: bt.Block.example.cid,
-      expiration: expiration
+      expiry: expiry
     )
 
   setup:
@@ -186,4 +186,3 @@ checksuite "BlockMaintainer":
     await invokeTimerManyTimes()
     # Second new block has expired
     check mockRepoStore.delBlockCids == [testBe1.cid, testBe2.cid, testBe3.cid, testBe4.cid, testBe5.cid]
-

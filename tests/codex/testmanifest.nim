@@ -57,6 +57,16 @@ checksuite "Manifest":
     check:
       encodeDecode(manifest) == manifest
 
+  test "Should encode/decode large manifest":
+    let large = Manifest.new(
+      treeCid = Cid.example,
+      blockSize = (64 * 1024).NBytes,
+      datasetSize = (5 * 1024).MiBs
+    )
+
+    check:
+      encodeDecode(large) == large
+
   test "Should encode/decode to/from protected manifest":
     check:
       encodeDecode(protectedManifest) == protectedManifest
@@ -64,3 +74,36 @@ checksuite "Manifest":
   test "Should encode/decode to/from verifiable manifest":
     check:
       encodeDecode(verifiableManifest) == verifiableManifest
+
+
+suite "Manifest - Attribute Inheritance":
+  proc makeProtectedManifest(strategy: StrategyType): Manifest =
+    Manifest.new(
+      manifest = Manifest.new(
+        treeCid = Cid.example,
+        blockSize = 1.MiBs,
+        datasetSize = 100.MiBs,
+      ),
+      treeCid = Cid.example,
+      datasetSize = 200.MiBs,
+      ecK = 1,
+      ecM = 1,
+      strategy = strategy
+    )
+
+  test "Should preserve interleaving strategy for protected manifest in verifiable manifest":
+    var verifiable = Manifest.new(
+      manifest = makeProtectedManifest(SteppedStrategy),
+      verifyRoot = Cid.example,
+      slotRoots = @[Cid.example, Cid.example]
+    ).tryGet()
+
+    check verifiable.protectedStrategy == SteppedStrategy
+
+    verifiable = Manifest.new(
+      manifest = makeProtectedManifest(LinearStrategy),
+      verifyRoot = Cid.example,
+      slotRoots = @[Cid.example, Cid.example]
+    ).tryGet()
+
+    check verifiable.protectedStrategy == LinearStrategy

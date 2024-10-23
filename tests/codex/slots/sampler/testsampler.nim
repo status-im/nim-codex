@@ -35,7 +35,7 @@ suite "Test Sampler - control samples":
 
   setup:
     inputData = readFile("tests/circuits/fixtures/input.json")
-    inputJson = parseJson(inputData)
+    inputJson = !JsonNode.parse(inputData)
     proofInput = Poseidon2Hash.jsonToProofInput(inputJson)
 
   test "Should verify control samples":
@@ -58,7 +58,7 @@ suite "Test Sampler - control samples":
           proofInput.nCellsPerSlot,
           sample.merklePaths[5..<9]).tryGet
 
-        cellData = Poseidon2Hash.fromCircomData(sample.cellData)
+        cellData = sample.cellData
         cellLeaf = Poseidon2Hash.spongeDigest(cellData, rate = 2).tryGet
         slotLeaf = cellProof.reconstructRoot(cellLeaf).tryGet
 
@@ -84,6 +84,8 @@ suite "Test Sampler":
     entropy       = 1234567.toF
     blockSize     = DefaultBlockSize
     cellSize      = DefaultCellSize
+    repoTmp = TempLevelDb.new()
+    metaTmp = TempLevelDb.new()
 
   var
     store: RepoStore
@@ -94,8 +96,8 @@ suite "Test Sampler":
 
   setup:
     let
-      repoDs = SQLiteDatastore.new(Memory).tryGet()
-      metaDs = SQLiteDatastore.new(Memory).tryGet()
+      repoDs = repoTmp.newDb()
+      metaDs = metaTmp.newDb()
 
     store = RepoStore.new(repoDs, metaDs)
 
@@ -112,6 +114,8 @@ suite "Test Sampler":
 
   teardown:
     await store.close()
+    await repoTmp.destroyDb()
+    await metaTmp.destroyDb()
 
   test "Should fail instantiating for invalid slot index":
     let
@@ -154,7 +158,7 @@ suite "Test Sampler":
           nSlotCells,
           sample.merklePaths[5..<sample.merklePaths.len]).tryGet
 
-        cellData = Poseidon2Hash.fromCircomData(sample.cellData)
+        cellData = sample.cellData
         cellLeaf = Poseidon2Hash.spongeDigest(cellData, rate = 2).tryGet
         slotLeaf = cellProof.reconstructRoot(cellLeaf).tryGet
 

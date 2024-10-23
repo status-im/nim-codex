@@ -12,14 +12,23 @@ inputs:
   nim_version:
     description: "Nim version"
     default: "version-1-6"
+  rust_version:
+    description: "Rust version"
+    default: "1.78.0"
   shell:
     description: "Shell to run commands in"
     default: "bash --noprofile --norc -e -o pipefail"
 runs:
   using: "composite"
   steps:
-    - name: APT (Linux amd64)
-      if: inputs.os == 'linux' && inputs.cpu == 'amd64'
+    - name: Rust (Linux)
+      if: inputs.os == 'linux'
+      shell: ${{ inputs.shell }} {0}
+      run: |
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs/ | sh -s -- --default-toolchain=${{ inputs.rust_version }} -y
+
+    - name: APT (Linux amd64/arm64)
+      if: inputs.os == 'linux' && (inputs.cpu == 'amd64' || inputs.cpu == 'arm64')
       shell: ${{ inputs.shell }} {0}
       run: |
         sudo apt-fast update -qq
@@ -69,6 +78,12 @@ runs:
           mingw-w64-i686-ntldd-git
           mingw-w64-i686-rust
 
+    - name: MSYS2 (Windows All) - Downgrade to gcc 13
+      if: inputs.os == 'windows'
+      shell: ${{ inputs.shell }} {0}
+      run: |
+        pacman -U --noconfirm https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-gcc-13.2.0-6-any.pkg.tar.zst https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-gcc-libs-13.2.0-6-any.pkg.tar.zst
+
     - name: Derive environment variables
       shell: ${{ inputs.shell }} {0}
       run: |
@@ -77,15 +92,10 @@ runs:
           printf "'%s'" "$quoted"
         }
 
-        if [[ '${{ inputs.cpu }}' == 'amd64' ]]; then
-          PLATFORM=x64
-        else
-          PLATFORM=x86
-        fi
-        echo "PLATFORM=${PLATFORM}" >> ${GITHUB_ENV}
+        [[ '${{ inputs.cpu }}' == 'i386' ]] && echo "ARCH_OVERRIDE=ARCH_OVERRIDE=x86" >> ${GITHUB_ENV}
 
-        # Stack usage on Linux amd64
-        if [[ '${{ inputs.os }}' == 'linux' && '${{ inputs.cpu }}' == 'amd64' ]]; then
+        # Stack usage on Linux amd64/arm64
+        if [[ '${{ inputs.os }}' == 'linux' && ('${{ inputs.cpu }}' == 'amd64' || '${{ inputs.cpu }}' == 'arm64')]]; then
           NIMFLAGS="${NIMFLAGS} -d:limitStackUsage"
           echo "NIMFLAGS=${NIMFLAGS}" >> $GITHUB_ENV
         fi
@@ -139,15 +149,9 @@ runs:
         # Use all available CPUs for build process
         ncpu=""
         case '${{ inputs.os }}' in
-        'linux')
-          ncpu=$(nproc)
-          ;;
-        'macos')
-          ncpu=$(sysctl -n hw.ncpu)
-          ;;
-        'windows')
-          ncpu=${NUMBER_OF_PROCESSORS}
-          ;;
+        'linux')   ncpu=$(nproc)                ;;
+        'macos')   ncpu=$(sysctl -n hw.ncpu)    ;;
+        'windows') ncpu=${NUMBER_OF_PROCESSORS} ;;
         esac
         [[ -z "$ncpu" || $ncpu -le 0 ]] && ncpu=1
         echo "ncpu=${ncpu}" >> ${GITHUB_ENV}
@@ -167,7 +171,6 @@ runs:
     - name: Build Nim and Codex dependencies
       shell: ${{ inputs.shell }} {0}
       run: |
-        make -j${ncpu} CI_CACHE=NimBinaries ARCH_OVERRIDE=${PLATFORM} QUICK_AND_DIRTY_COMPILER=1 update
+        make -j${ncpu} CI_CACHE=NimBinaries ${ARCH_OVERRIDE} QUICK_AND_DIRTY_COMPILER=1 update
         echo
         ./env.sh nim --version
-
