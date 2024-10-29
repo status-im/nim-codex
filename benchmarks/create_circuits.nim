@@ -139,7 +139,7 @@ proc createCircuit*(
     generateCircomAndSamples(args, env, name)
 
     if not wasm.fileExists or not r1cs.fileExists:
-      runit fmt"circom --r1cs --wasm --O2 -l{env.circuitDirIncludes} {name}.circom"
+      runit fmt"circom --r1cs --wasm --O2 -c -l{env.circuitDirIncludes} {name}.circom"
       moveFile fmt"{name}_js" / fmt"{name}.wasm", fmt"{name}.wasm"
     echo "Found wasm: ", wasm
     echo "Found r1cs: ", r1cs
