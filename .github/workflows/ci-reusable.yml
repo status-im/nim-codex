@@ -24,7 +24,7 @@ jobs:
       run:
         shell: ${{ matrix.shell }} {0}
 
-    name: '${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}-${{ matrix.tests }}'
+    name: ${{ matrix.os }}-${{ matrix.tests }}-${{ matrix.cpu }}-${{ matrix.nim_version }}
     runs-on: ${{ matrix.builder }}
     timeout-minutes: 100
     steps:

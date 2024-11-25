@@ -56,7 +56,7 @@ proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
     discard await token.increaseAllowance(market.contract.address(), amount).confirm(0)
 
 method getZkeyHash*(market: OnChainMarket): Future[?string] {.async.} =
-  let config = await market.contract.config()
+  let config = await market.contract.configuration()
   return some config.proofs.zkeyHash
 
 method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
@@ -65,18 +65,18 @@ method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
 
 method periodicity*(market: OnChainMarket): Future[Periodicity] {.async.} =
   convertEthersError:
-    let config = await market.contract.config()
+    let config = await market.contract.configuration()
     let period = config.proofs.period
     return Periodicity(seconds: period)
 
 method proofTimeout*(market: OnChainMarket): Future[UInt256] {.async.} =
   convertEthersError:
-    let config = await market.contract.config()
+    let config = await market.contract.configuration()
     return config.proofs.timeout
 
 method proofDowntime*(market: OnChainMarket): Future[uint8] {.async.} =
   convertEthersError:
-    let config = await market.contract.config()
+    let config = await market.contract.configuration()
     return config.proofs.downtime
 
 method getPointer*(market: OnChainMarket, slotId: SlotId): Future[uint8] {.async.} =
@@ -165,12 +165,18 @@ method fillSlot(market: OnChainMarket,
                 proof: Groth16Proof,
                 collateral: UInt256) {.async.} =
   convertEthersError:
+    logScope:
+      requestId
+      slotIndex
+
     await market.approveFunds(collateral)
+    trace "calling fillSlot on contract"
     discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(0)
+    trace "fillSlot transaction completed"
 
 method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
   convertEthersError:
-    var freeSlot: Future[?TransactionResponse]
+    var freeSlot: Future[Confirmable]
     if rewardRecipient =? market.rewardRecipient:
       # If --reward-recipient specified, use it as the reward recipient, and use
       # the SP's address as the collateral recipient
@@ -253,7 +259,12 @@ method reserveSlot*(
   slotIndex: UInt256) {.async.} =
 
   convertEthersError:
-    discard await market.contract.reserveSlot(requestId, slotIndex).confirm(0)
+    discard await market.contract.reserveSlot(
+      requestId,
+      slotIndex,
+      # reserveSlot runs out of gas for unknown reason, but 100k gas covers it
+      TransactionOverrides(gasLimit: some 100000.u256)
+    ).confirm(0)
 
 method canReserveSlot*(
   market: OnChainMarket,

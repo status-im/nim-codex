@@ -9,7 +9,7 @@ import ../checktest
 type MockProvider = ref object of Provider
   chainId*: UInt256
 
-method getChainId*(provider: MockProvider): Future[UInt256] {.async.} =
+method getChainId*(provider: MockProvider): Future[UInt256] {.async: (raises:[ProviderError]).} =
   return provider.chainId
 
 proc configFactory(): CodexConf =

@@ -13,6 +13,8 @@ push: {.upraises: [].}
 
 
 import std/sequtils
+import mimetypes
+import os
 
 import pkg/questionable
 import pkg/questionable/results
@@ -82,11 +84,27 @@ proc retrieveCid(
   try:
     without stream =? (await node.retrieve(cid, local)), error:
       if error of BlockNotFoundError:
-        return RestApiResponse.error(Http404, error.msg)
+        resp.status = Http404
+        return await resp.sendBody("")
       else:
-        return RestApiResponse.error(Http500, error.msg)
+        resp.status = Http500
+        return await resp.sendBody(error.msg)
 
-    resp.addHeader("Content-Type", "application/octet-stream")
+    # It is ok to fetch again the manifest because it will hit the cache
+    without manifest =? (await node.fetchManifest(cid)), err:
+      error "Failed to fetch manifest", err = err.msg
+      resp.status = Http404
+      return await resp.sendBody(err.msg)
+
+    if manifest.mimetype.isSome:
+      resp.setHeader("Content-Type", manifest.mimetype.get())
+    else:
+      resp.addHeader("Content-Type", "application/octet-stream")
+
+    if manifest.filename.isSome:
+      resp.setHeader("Content-Disposition", "attachment; filename=\"" & manifest.filename.get() & "\"")
+
+
     await resp.prepareChunked()
 
     while not stream.atEof:
@@ -99,12 +117,14 @@ proc retrieveCid(
         break
 
       bytes += buff.len
+
       await resp.sendChunk(addr buff[0], buff.len)
     await resp.finish()
     codex_api_downloads.inc()
   except CatchableError as exc:
     warn "Excepting streaming blocks", exc = exc.msg
-    return RestApiResponse.error(Http500)
+    resp.status = Http500
+    return await resp.sendBody("")
   finally:
     info "Sent bytes", cid = cid, bytes
     if not stream.isNil:
@@ -125,6 +145,18 @@ proc setCorsHeaders(resp: HttpResponseRef, httpMethod: string, origin: string) =
   resp.setHeader("Access-Control-Allow-Methods", httpMethod & ", OPTIONS")
   resp.setHeader("Access-Control-Max-Age", "86400")
 
+proc getFilenameFromContentDisposition(contentDisposition: string): ?string =
+  if not("filename=" in contentDisposition):
+    return string.none
+
+  let parts = contentDisposition.split("filename=\"")
+
+  if parts.len < 2:
+    return string.none
+
+  let filename = parts[1].strip()
+  return filename[0..^2].some
+
 proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin # prevents capture inside of api defintion
    
@@ -135,7 +167,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       
       if corsOrigin =? allowedOrigin:
         resp.setCorsHeaders("POST", corsOrigin)
-        resp.setHeader("Access-Control-Allow-Headers", "content-type")
+        resp.setHeader("Access-Control-Allow-Headers", "content-type, content-disposition")
 
       resp.status = Http204
       await resp.sendBody("")
@@ -158,12 +190,31 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       #
       await request.handleExpect()
 
+      var mimetype = request.headers.getString(ContentTypeHeader).some
+
+      if mimetype.get() != "":
+        var m = newMimetypes()
+        let extension = m.getExt(mimetype.get(), "")
+        if extension == "":
+            return RestApiResponse.error(Http422, "The MIME type is not valid.")
+      else:
+        mimetype = string.none
+
+      const ContentDispositionHeader = "Content-Disposition"
+      let contentDisposition = request.headers.getString(ContentDispositionHeader)
+      let filename = getFilenameFromContentDisposition(contentDisposition)
+
+      if filename.isSome and not isValidFilename(filename.get()):
+          return RestApiResponse.error(Http422, "The filename is not valid.")
+
+      # Here we could check if the extension matches the filename if needed
+
       let
         reader = bodyReader.get()
 
       try:
         without cid =? (
-          await node.store(AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)))), error:
+          await node.store(AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)), filename = filename, mimetype = mimetype)), error:
           error "Error uploading file", exc = error.msg
           return RestApiResponse.error(Http500, error.msg)
 
@@ -280,10 +331,6 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
         return RestApiResponse.error(
           Http400,
           $cid.error(), headers = headers)
-
-      if corsOrigin =? allowedOrigin:
-        resp.setCorsHeaders("GET", corsOrigin)
-        resp.setHeader("Access-Control-Headers", "X-Requested-With")
 
       without manifest =? (await node.fetchManifest(cid.get())), err:
         error "Failed to fetch manifest", err = err.msg
@@ -542,7 +589,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       try:
         without contracts =? node.contracts.client:
           return RestApiResponse.error(Http503, "Persistence is not enabled", headers = headers)
-
+        
         without cid =? cid.tryGet.catch, error:
           return RestApiResponse.error(Http400, error.msg, headers = headers)
 

@@ -257,3 +257,13 @@ proc saleStateIs*(client: CodexClient, id: SlotId, state: string): bool =
 
 proc requestId*(client: CodexClient, id: PurchaseId): ?RequestId =
   return client.getPurchase(id).option.?requestId
+
+proc uploadRaw*(client: CodexClient, contents: string, headers = newHttpHeaders()): Response =
+  return client.http.request(client.baseurl & "/data", body = contents, httpMethod=HttpPost, headers = headers)
+
+proc listRaw*(client: CodexClient): Response =
+  return client.http.request(client.baseurl & "/data", httpMethod=HttpGet)
+
+proc downloadRaw*(client: CodexClient, cid: string, local = false): Response =
+  return client.http.request(client.baseurl & "/data/" & cid &
+      (if local: "" else: "/network/stream"), httpMethod=HttpGet)

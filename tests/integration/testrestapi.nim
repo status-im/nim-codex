@@ -4,9 +4,9 @@ from pkg/libp2p import `==`
 import pkg/codex/units
 import ./twonodes
 import ../examples
+import json
 
 twonodessuite "REST API", debug1 = false, debug2 = false:
-
   test "nodes can print their peer information":
     check !client1.info() != !client2.info()
 
@@ -16,6 +16,7 @@ twonodessuite "REST API", debug1 = false, debug2 = false:
   test "node accepts file uploads":
     let cid1 = client1.upload("some file contents").get
     let cid2 = client1.upload("some other contents").get
+
     check cid1 != cid2
 
   test "node shows used and available space":
@@ -25,7 +26,7 @@ twonodessuite "REST API", debug1 = false, debug2 = false:
     check:
       space.totalBlocks == 2
       space.quotaMaxBytes == 8589934592.NBytes
-      space.quotaUsedBytes == 65592.NBytes
+      space.quotaUsedBytes == 65598.NBytes
       space.quotaReservedBytes == 12.NBytes
 
   test "node lists local files":
@@ -151,3 +152,89 @@ twonodessuite "REST API", debug1 = false, debug2 = false:
         tolerance.uint)
 
       check responseBefore.status == "200 OK"
+
+  test "node accepts file uploads with content type":
+    let headers = newHttpHeaders({"Content-Type": "text/plain"})
+    let response = client1.uploadRaw("some file contents", headers)
+
+    check response.status == "200 OK"
+    check response.body != ""
+
+  test "node accepts file uploads with content disposition":
+    let headers = newHttpHeaders({"Content-Disposition": "attachment; filename=\"example.txt\""})
+    let response = client1.uploadRaw("some file contents", headers)
+
+    check response.status == "200 OK"
+    check response.body != ""
+
+  test "node accepts file uploads with content disposition without filename":
+    let headers = newHttpHeaders({"Content-Disposition": "attachment"})
+    let response = client1.uploadRaw("some file contents", headers)
+
+    check response.status == "200 OK"
+    check response.body != ""
+
+  test "upload fails if content disposition contains bad filename":
+    let headers = newHttpHeaders({"Content-Disposition": "attachment; filename=\"exam*ple.txt\""})
+    let response = client1.uploadRaw("some file contents", headers)
+
+    check response.status == "422 Unprocessable Entity"
+    check response.body == "The filename is not valid."
+
+  test "upload fails if content type is invalid":
+    let headers = newHttpHeaders({"Content-Type": "hello/world"})
+    let response = client1.uploadRaw("some file contents", headers)
+
+    check response.status == "422 Unprocessable Entity"
+    check response.body == "The MIME type is not valid."
+
+  test "node retrieve the metadata":
+    let headers = newHttpHeaders({"Content-Type": "text/plain", "Content-Disposition": "attachment; filename=\"example.txt\""})
+    let uploadResponse = client1.uploadRaw("some file contents", headers)
+    let cid = uploadResponse.body
+    let listResponse = client1.listRaw()
+
+    let jsonData = parseJson(listResponse.body)
+
+    check jsonData.hasKey("content") == true
+
+    let content = jsonData["content"][0]
+
+    check content.hasKey("manifest") == true
+
+    let manifest = content["manifest"]
+
+    check manifest.hasKey("filename") == true
+    check manifest["filename"].getStr() == "example.txt"
+    check manifest.hasKey("mimetype") == true
+    check manifest["mimetype"].getStr() == "text/plain"
+    check manifest.hasKey("uploadedAt") == true
+    check manifest["uploadedAt"].getInt() > 0
+
+  test "node set the headers when for download":
+    let headers = newHttpHeaders({
+      "Content-Disposition": "attachment; filename=\"example.txt\"",
+      "Content-Type": "text/plain"
+    })
+
+    let uploadResponse = client1.uploadRaw("some file contents", headers)
+    let cid = uploadResponse.body
+
+    check uploadResponse.status == "200 OK"
+
+    let response = client1.downloadRaw(cid)
+
+    check response.status == "200 OK"
+    check response.headers.hasKey("Content-Type") == true
+    check response.headers["Content-Type"] == "text/plain"
+    check response.headers.hasKey("Content-Disposition") == true
+    check response.headers["Content-Disposition"] == "attachment; filename=\"example.txt\""
+
+    let local = true
+    let localResponse = client1.downloadRaw(cid, local)
+
+    check localResponse.status == "200 OK"
+    check localResponse.headers.hasKey("Content-Type") == true
+    check localResponse.headers["Content-Type"] == "text/plain"
+    check localResponse.headers.hasKey("Content-Disposition") == true
+    check localResponse.headers["Content-Disposition"] == "attachment; filename=\"example.txt\""

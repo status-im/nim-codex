@@ -17,18 +17,18 @@ export requests
 type
   Marketplace* = ref object of Contract
 
-proc config*(marketplace: Marketplace): MarketplaceConfig {.contract, view.}
+proc configuration*(marketplace: Marketplace): MarketplaceConfig {.contract, view.}
 proc token*(marketplace: Marketplace): Address {.contract, view.}
 proc slashMisses*(marketplace: Marketplace): UInt256 {.contract, view.}
 proc slashPercentage*(marketplace: Marketplace): UInt256 {.contract, view.}
 proc minCollateralThreshold*(marketplace: Marketplace): UInt256 {.contract, view.}
 
-proc requestStorage*(marketplace: Marketplace, request: StorageRequest): ?TransactionResponse {.contract.}
-proc fillSlot*(marketplace: Marketplace, requestId: RequestId, slotIndex: UInt256, proof: Groth16Proof): ?TransactionResponse {.contract.}
-proc withdrawFunds*(marketplace: Marketplace, requestId: RequestId): ?TransactionResponse {.contract.}
-proc withdrawFunds*(marketplace: Marketplace, requestId: RequestId, withdrawAddress: Address): ?TransactionResponse {.contract.}
-proc freeSlot*(marketplace: Marketplace, id: SlotId): ?TransactionResponse {.contract.}
-proc freeSlot*(marketplace: Marketplace, id: SlotId, rewardRecipient: Address, collateralRecipient: Address): ?TransactionResponse {.contract.}
+proc requestStorage*(marketplace: Marketplace, request: StorageRequest): Confirmable {.contract.}
+proc fillSlot*(marketplace: Marketplace, requestId: RequestId, slotIndex: UInt256, proof: Groth16Proof): Confirmable {.contract.}
+proc withdrawFunds*(marketplace: Marketplace, requestId: RequestId): Confirmable {.contract.}
+proc withdrawFunds*(marketplace: Marketplace, requestId: RequestId, withdrawAddress: Address): Confirmable {.contract.}
+proc freeSlot*(marketplace: Marketplace, id: SlotId): Confirmable {.contract.}
+proc freeSlot*(marketplace: Marketplace, id: SlotId, rewardRecipient: Address, collateralRecipient: Address): Confirmable {.contract.}
 proc getRequest*(marketplace: Marketplace, id: RequestId): StorageRequest {.contract, view.}
 proc getHost*(marketplace: Marketplace, id: SlotId): Address {.contract, view.}
 proc getActiveSlot*(marketplace: Marketplace, id: SlotId): Slot {.contract, view.}
@@ -49,8 +49,8 @@ proc willProofBeRequired*(marketplace: Marketplace, id: SlotId): bool {.contract
 proc getChallenge*(marketplace: Marketplace, id: SlotId): array[32, byte] {.contract, view.}
 proc getPointer*(marketplace: Marketplace, id: SlotId): uint8 {.contract, view.}
 
-proc submitProof*(marketplace: Marketplace, id: SlotId, proof: Groth16Proof): ?TransactionResponse {.contract.}
-proc markProofAsMissing*(marketplace: Marketplace, id: SlotId, period: UInt256): ?TransactionResponse {.contract.}
+proc submitProof*(marketplace: Marketplace, id: SlotId, proof: Groth16Proof): Confirmable {.contract.}
+proc markProofAsMissing*(marketplace: Marketplace, id: SlotId, period: UInt256): Confirmable {.contract.}
 
-proc reserveSlot*(marketplace: Marketplace, requestId: RequestId, slotIndex: UInt256): ?TransactionResponse {.contract.}
+proc reserveSlot*(marketplace: Marketplace, requestId: RequestId, slotIndex: UInt256): Confirmable {.contract.}
 proc canReserveSlot*(marketplace: Marketplace, requestId: RequestId, slotIndex: UInt256): bool {.contract, view.}

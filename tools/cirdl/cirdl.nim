@@ -34,7 +34,7 @@ proc getCircuitHash(rpcEndpoint: string, marketplaceAddress: string): Future[?!s
     return failure("Invalid address: " & marketplaceAddress)
 
   let marketplace = Marketplace.new(address, provider)
-  let config = await marketplace.config()
+  let config = await marketplace.configuration()
   return success config.proofs.zkeyHash
 
 proc formatUrl(hash: string): string =

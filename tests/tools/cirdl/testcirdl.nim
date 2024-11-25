@@ -2,10 +2,11 @@ import std/os
 import std/osproc
 import std/options
 import pkg/chronos
-import codex/contracts
-import ../../integration/marketplacesuite
+import pkg/codex/contracts
+import ../../asynctest
+import ../../contracts/deployment
 
-marketplacesuite "tools/cirdl":
+suite "tools/cirdl":
   const
     cirdl = "build" / "cirdl"
     workdir = "."
@@ -14,11 +15,11 @@ marketplacesuite "tools/cirdl":
     let
       circuitPath = "testcircuitpath"
       rpcEndpoint = "ws://localhost:8545"
-      marketplaceAddress = $marketplace.address
+      marketplaceAddress = Marketplace.address
 
     discard existsOrCreateDir(circuitPath)
 
-    let args = [circuitPath, rpcEndpoint, marketplaceAddress]
+    let args = [circuitPath, rpcEndpoint, $marketplaceAddress]
 
     let process = osproc.startProcess(
       cirdl,

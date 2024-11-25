@@ -14,7 +14,7 @@ inputs:
     default: "version-1-6"
   rust_version:
     description: "Rust version"
-    default: "1.78.0"
+    default: "1.79.0"
   shell:
     description: "Shell to run commands in"
     default: "bash --noprofile --norc -e -o pipefail"

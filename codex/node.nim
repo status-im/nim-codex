@@ -14,6 +14,7 @@ import std/sequtils
 import std/strformat
 import std/sugar
 import std/cpuinfo
+import times
 
 import pkg/questionable
 import pkg/questionable/results
@@ -297,6 +298,8 @@ proc retrieve*(
 proc store*(
   self: CodexNodeRef,
   stream: LPStream,
+  filename: ?string = string.none,
+  mimetype: ?string = string.none,
   blockSize = DefaultBlockSize): Future[?!Cid] {.async.} =
   ## Save stream contents as dataset with given blockSize
   ## to nodes's BlockStore, and return Cid of its manifest
@@ -355,7 +358,10 @@ proc store*(
     datasetSize = NBytes(chunker.offset),
     version = CIDv1,
     hcodec = hcodec,
-    codec = dataCodec)
+    codec = dataCodec,
+    filename = filename,
+    mimetype = mimetype,
+    uploadedAt = now().utc.toTime.toUnix.some)
 
   without manifestBlk =? await self.storeManifest(manifest), err:
     error "Unable to store manifest"
@@ -364,7 +370,9 @@ proc store*(
   info "Stored data", manifestCid = manifestBlk.cid,
                       treeCid = treeCid,
                       blocks = manifest.blocksCount,
-                      datasetSize = manifest.datasetSize
+                      datasetSize = manifest.datasetSize,
+                      filename = manifest.filename,
+                      mimetype = manifest.mimetype
 
   return manifestBlk.cid.success
 
@@ -749,14 +757,14 @@ proc stop*(self: CodexNodeRef) {.async.} =
   if not self.discovery.isNil:
     await self.discovery.stop()
 
-  if not self.clock.isNil:
-    await self.clock.stop()
-
   if clientContracts =? self.contracts.client:
     await clientContracts.stop()
 
   if hostContracts =? self.contracts.host:
     await hostContracts.stop()
+
+  if not self.clock.isNil:
+    await self.clock.stop()
 
   if validatorContracts =? self.contracts.validator:
     await validatorContracts.stop()

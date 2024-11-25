@@ -83,6 +83,8 @@ suite "Manifest - Attribute Inheritance":
         treeCid = Cid.example,
         blockSize = 1.MiBs,
         datasetSize = 100.MiBs,
+        filename = "codex.png".some,
+        mimetype = "image/png".some
       ),
       treeCid = Cid.example,
       datasetSize = 200.MiBs,
@@ -107,3 +109,15 @@ suite "Manifest - Attribute Inheritance":
     ).tryGet()
 
     check verifiable.protectedStrategy == LinearStrategy
+
+  test "Should preserve metadata for manifest in verifiable manifest":
+    var verifiable = Manifest.new(
+      manifest = makeProtectedManifest(SteppedStrategy),
+      verifyRoot = Cid.example,
+      slotRoots = @[Cid.example, Cid.example]
+    ).tryGet()
+
+    check verifiable.filename.isSome == true
+    check verifiable.filename.get() == "codex.png"
+    check verifiable.mimetype.isSome == true
+    check verifiable.mimetype.get() == "image/png"

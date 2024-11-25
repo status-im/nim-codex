@@ -40,6 +40,30 @@ DOCKER_IMAGE_NIM_PARAMS ?= -d:chronicles_colors:none -d:insecure
 
 LINK_PCRE := 0
 
+ifeq ($(OS),Windows_NT)
+    ifeq ($(PROCESSOR_ARCHITECTURE), AMD64)
+        ARCH = x86_64
+    endif
+    ifeq ($(PROCESSOR_ARCHITECTURE), ARM64)
+        ARCH = arm64
+    endif
+else
+    UNAME_P := $(shell uname -p)
+    ifneq ($(filter $(UNAME_P), i686 i386 x86_64),)
+        ARCH = x86_64
+    endif
+    ifneq ($(filter $(UNAME_P), aarch64 arm),)
+        ARCH = arm64
+    endif
+endif
+
+ifeq ($(ARCH), x86_64)
+    CXXFLAGS ?= -std=c++17 -mssse3
+else
+    CXXFLAGS ?= -std=c++17
+endif
+export CXXFLAGS
+
 # we don't want an error here, so we can handle things later, in the ".DEFAULT" target
 -include $(BUILD_SYSTEM_DIR)/makefiles/variables.mk
 

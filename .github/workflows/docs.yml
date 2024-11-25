@@ -28,14 +28,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: '0'
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
           node-version: 18
 
       - name: Lint OpenAPI
-        shell: bash
         run: npx @redocly/cli lint openapi.yaml
 
   deploy:
@@ -46,20 +45,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: '0'
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
           node-version: 18
 
       - name: Build OpenAPI
-        shell: bash
-        run: npx @redocly/cli build-docs openapi.yaml --output "openapi/index.html" --title "Codex API"
+        run: npx @redocly/cli build-docs openapi.yaml --output openapi/index.html --title "Codex API"
+
+      - name: Build Postman Collection
+        run: npx -y openapi-to-postmanv2 -s openapi.yaml -o openapi/postman.json -p -O folderStrategy=Tags,includeAuthInfoInExample=false
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './openapi'
+          path: openapi
 
       - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v4

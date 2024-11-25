@@ -90,6 +90,40 @@ components:
         cid:
           $ref: "#/components/schemas/Cid"
 
+    Node:
+      type: object
+      properties:
+        nodeId:
+          type: string
+        peerId:
+          type: string
+        record:
+          type: string
+        address:
+          type: string
+        seen:
+          type: boolean
+
+    CodexVersion:
+      type: object
+      properties:
+        version:
+          type: string
+          example: v0.1.7
+        revision:
+          type: string
+          example: 0c647d8
+
+    PeersTable:
+      type: object
+      properties:
+        localNode:
+          $ref: "#/components/schemas/Node"
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Node"
+
     DebugInfo:
       type: object
       properties:
@@ -104,6 +138,10 @@ components:
           description: Path of the data repository where all nodes data are stored
         spr:
           $ref: "#/components/schemas/SPR"
+        table:
+          $ref: "#/components/schemas/PeersTable"
+        codex:
+          $ref: "#/components/schemas/CodexVersion"
 
     SalesAvailability:
       type: object
@@ -306,10 +344,10 @@ components:
     ManifestItem:
       type: object
       properties:
-        rootHash:
+        treeCid:
           $ref: "#/components/schemas/Cid"
-          description: "Root hash of the content"
-        originalBytes:
+          description: "Unique data identifier"
+        datasetSize:
           type: integer
           format: int64
           description: "Length of original content in bytes"
@@ -319,6 +357,22 @@ components:
         protected:
           type: boolean
           description: "Indicates if content is protected by erasure-coding"
+        filename:
+          type: string
+          nullable: true
+          description: "The original name of the uploaded content (optional)"
+          example: codex.png
+        mimetype:
+          type: string
+          nullable: true
+          description: "The original mimetype of the uploaded content (optional)"
+          example: image/png
+        uploadedAt:
+          type: integer
+          format: int64
+          nullable: true
+          description: "The UTC upload timestamp in seconds"
+          example: 1729244192
 
     Space:
       type: object
@@ -404,12 +458,29 @@ paths:
           description: Invalid CID is specified
         "404":
           description: Content specified by the CID is not found
+        "422":
+          description: The content type is not a valid content type or the filename is not valid
         "500":
           description: Well it was bad-bad
     post:
       summary: "Upload a file in a streaming manner. Once finished, the file is stored in the node and can be retrieved by any node in the network using the returned CID."
       tags: [ Data ]
       operationId: upload
+      parameters:
+        - name: content-type
+          in: header
+          required: false
+          description: The content type of the file. Must be valid.
+          schema:
+            type: string
+            example: "image/png"
+        - name: content-disposition
+          in: header
+          required: false
+          description: The content disposition used to send the filename.
+          schema:
+            type: string
+            example: "attachment; filename=\"codex.png\""
       requestBody:
         content:
           application/octet-stream:

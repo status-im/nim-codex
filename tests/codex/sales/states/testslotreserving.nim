@@ -51,10 +51,6 @@ asyncchecksuite "sales state 'SlotReserving'":
     let next = state.onFailed(request)
     check !next of SaleFailed
 
-  test "switches to filled state when slot is filled":
-    let next = state.onSlotFilled(request.id, slotIndex)
-    check !next of SaleFilled
-
   test "run switches to downloading when slot successfully reserved":
     let next = await state.run(agent)
     check !next of SaleDownloading

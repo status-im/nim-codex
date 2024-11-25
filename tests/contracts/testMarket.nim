@@ -34,7 +34,7 @@ ethersuite "On-Chain Market":
   setup:
     let address = Marketplace.address(dummyVerifier = true)
     marketplace = Marketplace.new(address, ethProvider.getSigner())
-    let config = await marketplace.config()
+    let config = await marketplace.configuration()
     hostRewardRecipient = accounts[2]
 
     market = OnChainMarket.new(marketplace)
@@ -76,13 +76,13 @@ ethersuite "On-Chain Market":
 
   test "can retrieve proof periodicity":
     let periodicity = await market.periodicity()
-    let config = await marketplace.config()
+    let config = await marketplace.configuration()
     let periodLength = config.proofs.period
     check periodicity.seconds == periodLength
 
   test "can retrieve proof timeout":
     let proofTimeout = await market.proofTimeout()
-    let config = await marketplace.config()
+    let config = await marketplace.configuration()
     check proofTimeout == config.proofs.timeout
 
   test "supports marketplace requests":

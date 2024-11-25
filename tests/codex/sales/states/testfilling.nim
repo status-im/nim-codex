@@ -24,7 +24,3 @@ checksuite "sales state 'filling'":
   test "switches to failed state when request fails":
     let next = state.onFailed(request)
     check !next of SaleFailed
-
-  test "switches to filled state when slot is filled":
-    let next = state.onSlotFilled(request.id, slotIndex)
-    check !next of SaleFilled

@@ -38,7 +38,7 @@ ethersuite "Marketplace contracts":
     let tokenAddress = await marketplace.token()
     token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
 
-    let config = await marketplace.config()
+    let config = await marketplace.configuration()
     periodicity = Periodicity(seconds: config.proofs.period)
 
     request = StorageRequest.example

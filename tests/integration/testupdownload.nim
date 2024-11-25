@@ -1,5 +1,7 @@
 import pkg/codex/rest/json
 import ./twonodes
+import json
+from pkg/libp2p import Cid, `$`
 
 twonodessuite "Uploads and downloads", debug1 = false, debug2 = false:
 
@@ -39,24 +41,42 @@ twonodessuite "Uploads and downloads", debug1 = false, debug2 = false:
     check:
       resp2.error.msg == "404 Not Found"
 
-  proc checkRestContent(content: ?!string) =
+  proc checkRestContent(cid: Cid, content: ?!string) =
     let c = content.tryGet()
+
     # tried to JSON (very easy) and checking the resulting object (would be much nicer)
     # spent an hour to try and make it work.
-    check:
-      c == "{\"cid\":\"zDvZRwzm1ePSzKSXt57D5YxHwcSDmsCyYN65wW4HT7fuX9HrzFXy\",\"manifest\":{\"treeCid\":\"zDzSvJTezk7bJNQqFq8k1iHXY84psNuUfZVusA5bBQQUSuyzDSVL\",\"datasetSize\":18,\"blockSize\":65536,\"protected\":false}}"
+    let jsonData = parseJson(c)
+
+    check jsonData.hasKey("cid") == true
+
+    check jsonData["cid"].getStr() == $cid
+    check jsonData.hasKey("manifest") == true
+
+    let manifest = jsonData["manifest"]
+
+    check manifest.hasKey("treeCid") == true
+    check manifest["treeCid"].getStr() == "zDzSvJTezk7bJNQqFq8k1iHXY84psNuUfZVusA5bBQQUSuyzDSVL"
+    check manifest.hasKey("datasetSize") == true
+    check manifest["datasetSize"].getInt() == 18
+    check manifest.hasKey("blockSize") == true
+    check manifest["blockSize"].getInt() == 65536
+    check manifest.hasKey("protected") == true
+    check manifest["protected"].getBool() == false
 
   test "node allows downloading only manifest":
     let content1 = "some file contents"
     let cid1 = client1.upload(content1).get
-    let resp2 = client2.downloadManifestOnly(cid1)
-    checkRestContent(resp2)
+
+    let resp2 = client1.downloadManifestOnly(cid1)
+    checkRestContent(cid1, resp2)
 
   test "node allows downloading content without stream":
     let content1 = "some file contents"
     let cid1 = client1.upload(content1).get
+
     let resp1 = client2.downloadNoStream(cid1)
-    checkRestContent(resp1)
+    checkRestContent(cid1, resp1)
     let resp2 = client2.download(cid1, local = true).get
     check:
       content1 == resp2
