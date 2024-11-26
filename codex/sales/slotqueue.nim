@@ -58,7 +58,7 @@ type
   QueueNotRunningError* = object of SlotQueueError
 
 # Number of concurrent workers used for processing SlotQueueItems
-const DefaultMaxWorkers = 3
+const DefaultMaxWorkers = 1
 
 # Cap slot queue size to prevent unbounded growth and make sifting more
 # efficient. Max size is not equivalent to the number of slots a host can

@@ -311,7 +311,7 @@ asyncchecksuite "Sales":
     createAvailability() # enough to fill a single slot
     await market.requestStorage(request)
     let items = SlotQueueItem.init(request)
-    await sleepAsync(10.millis) # queue starts paused, allow items to be added to the queue
+    await allowRequestToStart()
     check eventually queue.paused
     # The first processed item/slot will be filled (eventually). Subsequent
     # items will be processed and eventually re-pushed with `seen = true`. Once
