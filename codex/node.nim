@@ -254,8 +254,6 @@ proc streamEntireDataset(
         let
           erasure = Erasure.new(
             self.networkStore,
-            leoEncoderProvider,
-            leoDecoderProvider,
             self.taskpool)
         without _ =? (await erasure.decode(manifest)), error:
           error "Unable to erasure decode manifest", manifestCid, exc = error.msg
@@ -441,8 +439,6 @@ proc setupRequest(
   let
     erasure = Erasure.new(
       self.networkStore.localStore,
-      leoEncoderProvider,
-      leoDecoderProvider,
       self.taskpool)
 
   without encoded =? (await erasure.encode(manifest, ecK, ecM)), error:

@@ -18,6 +18,7 @@ import pkg/chronos
 import pkg/libp2p/[multicodec, cid, multihash]
 import pkg/libp2p/protobuf/minprotobuf
 import pkg/taskpools
+import pkg/leopard
 
 import ../logutils
 import ../manifest
@@ -31,10 +32,7 @@ import ../errors
 
 import pkg/stew/byteutils
 
-import ./backend
 import ./asyncbackend
-
-export backend
 
 logScope:
   topics = "codex erasure"
@@ -63,15 +61,7 @@ type
   ## or any combination there of.
   ##
 
-  EncoderProvider* = proc(size, blocks, parity: int): EncoderBackend
-    {.raises: [Defect], noSideEffect.}
-
-  DecoderProvider* = proc(size, blocks, parity: int): DecoderBackend
-    {.raises: [Defect], noSideEffect.}
-
   Erasure* = ref object
-    encoderProvider*: EncoderProvider
-    decoderProvider*: DecoderProvider
     store*: BlockStore
     taskpool: Taskpool
 
@@ -285,10 +275,12 @@ proc encodeData(
 
   var
     cids = seq[Cid].new()
-    encoder = self.encoderProvider(manifest.blockSize.int, params.ecK, params.ecM)
     emptyBlock = newSeq[byte](manifest.blockSize.int)
 
   cids[].setLen(params.blocksCount)
+
+  without var encoder =? LeoEncoder.init(manifest.blockSize.int, params.ecK, params.ecM).mapFailure, err:
+    return failure(err)
 
   try:
     for step in 0..<params.steps:
@@ -349,7 +341,7 @@ proc encodeData(
     trace "Erasure coding encoding error", exc = exc.msg
     return failure(exc)
   finally:
-    encoder.release()
+    encoder.free()
 
 proc encode*(
   self: Erasure,
@@ -390,8 +382,10 @@ proc decode*(
   var
     cids = seq[Cid].new()
     recoveredIndices = newSeq[Natural]()
-    decoder = self.decoderProvider(encoded.blockSize.int, encoded.ecK, encoded.ecM)
     emptyBlock = newSeq[byte](encoded.blockSize.int)
+
+  without var decoder =? LeoDecoder.init(encoded.blockSize.int, encoded.ecK, encoded.ecM).mapFailure, err:
+    return failure(err)
 
   cids[].setLen(encoded.blocksCount)
   try:
@@ -439,7 +433,7 @@ proc decode*(
     trace "Erasure coding decoding error", exc = exc.msg
     return failure(exc)
   finally:
-    decoder.release()
+    decoder.free()
 
   without tree =? CodexTree.init(cids[0..<encoded.originalBlocksCount]), err:
     return failure(err)
@@ -469,14 +463,10 @@ proc stop*(self: Erasure) {.async.} =
 proc new*(
   T: type Erasure,
   store: BlockStore,
-  encoderProvider: EncoderProvider,
-  decoderProvider: DecoderProvider,
   taskpool: Taskpool): Erasure =
   ## Create a new Erasure instance for encoding and decoding manifests
   ##
 
   Erasure(
     store: store,
-    encoderProvider: encoderProvider,
-    decoderProvider: decoderProvider,
     taskpool: taskpool)

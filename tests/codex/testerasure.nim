@@ -40,7 +40,7 @@ suite "Erasure encode/decode":
     chunker = RandomChunker.new(rng, size = dataSetSize, chunkSize = BlockSize)
     store = RepoStore.new(repoDs, metaDs)
     taskpool = Taskpool.new(num_threads = countProcessors())
-    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
+    erasure = Erasure.new(store, taskpool)
     manifest = await storeDataGetManifest(store, chunker)
 
   teardown:

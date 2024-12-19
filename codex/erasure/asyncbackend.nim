@@ -14,6 +14,7 @@ import pkg/taskpools/flowvars
 import pkg/chronos
 import pkg/chronos/threadsync
 import pkg/questionable/results
+import pkg/leopard
 
 import ./backend
 import ../errors
@@ -29,169 +30,109 @@ const
 type
   EncoderBackendPtr = ptr EncoderBackend
   DecoderBackendPtr = ptr DecoderBackend
+  DecoderPtr = ptr LeoDecoder
+  EncoderPtr = ptr LeoEncoder
 
   # Args objects are missing seq[seq[byte]] field, to avoid unnecessary data copy
   EncodeTaskArgs = object
     signal: ThreadSignalPtr
-    backend: EncoderBackendPtr
-    blockSize: int
-    ecM: int
+    encoder: EncoderPtr
 
   DecodeTaskArgs = object
     signal: ThreadSignalPtr
-    backend: DecoderBackendPtr
-    blockSize: int
-    ecK: int
+    decoder: DecoderPtr
 
   SharedArrayHolder*[T] = object
     data: ptr UncheckedArray[T]
     size: int
 
-  EncodeTaskResult = Result[SharedArrayHolder[byte], cstring]
-  DecodeTaskResult = Result[SharedArrayHolder[byte], cstring]
+  TaskResult = Result[void, cstring]
 
-proc encodeTask(args: EncodeTaskArgs, data: seq[seq[byte]]): EncodeTaskResult =
-  var
-    data = data.unsafeAddr
-    parity = newSeqWith[seq[byte]](args.ecM, newSeq[byte](args.blockSize))
-
+proc encodeTask(args: EncodeTaskArgs): TaskResult =
   try:
-    let res = args.backend[].encode(data[], parity)
-
-    if res.isOk:
-      let
-        resDataSize = parity.len * args.blockSize
-        resData = cast[ptr UncheckedArray[byte]](allocShared0(resDataSize))
-        arrHolder = SharedArrayHolder[byte](
-          data: resData,
-          size: resDataSize
-        )
-
-      for i in 0..<parity.len:
-        copyMem(addr resData[i * args.blockSize], addr parity[i][0], args.blockSize)
-
-      return ok(arrHolder)
-    else:
-      return err(res.error)
-  except CatchableError as exception:
-    return err(exception.msg.cstring)
+    return args.encoder[].encodePrepared()
   finally:
     if err =? args.signal.fireSync().mapFailure.errorOption():
       error "Error firing signal", msg = err.msg
 
-proc decodeTask(args: DecodeTaskArgs, data: seq[seq[byte]], parity: seq[seq[byte]]): DecodeTaskResult =
-  var
-    data = data.unsafeAddr
-    parity = parity.unsafeAddr
-    recovered = newSeqWith[seq[byte]](args.ecK, newSeq[byte](args.blockSize))
-
+proc decodeTask(args: DecodeTaskArgs): TaskResult =
   try:
-    let res = args.backend[].decode(data[], parity[], recovered)
-
-    if res.isOk:
-      let
-        resDataSize = recovered.len * args.blockSize
-        resData = cast[ptr UncheckedArray[byte]](allocShared0(resDataSize))
-        arrHolder = SharedArrayHolder[byte](
-          data: resData,
-          size: resDataSize
-        )
-
-      for i in 0..<recovered.len:
-        copyMem(addr resData[i * args.blockSize], addr recovered[i][0], args.blockSize)
-
-      return ok(arrHolder)
-    else:
-      return err(res.error)
-  except CatchableError as exception:
-    return err(exception.msg.cstring)
+    return args.decoder[].decodePrepared()
   finally:
     if err =? args.signal.fireSync().mapFailure.errorOption():
       error "Error firing signal", msg = err.msg
 
 proc proxySpawnEncodeTask(
   tp: Taskpool,
-  args: EncodeTaskArgs,
-  data: ref seq[seq[byte]]
-): Flowvar[EncodeTaskResult] =
-  # FIXME Uncomment the code below after addressing an issue:
-  # https://github.com/codex-storage/nim-codex/issues/854
-
-  # tp.spawn encodeTask(args, data[])
-
-  let fv = EncodeTaskResult.newFlowVar
-  fv.readyWith(encodeTask(args, data[]))
-  return fv
+  args: EncodeTaskArgs
+): Flowvar[TaskResult] =
+  tp.spawn encodeTask(args)
 
 proc proxySpawnDecodeTask(
   tp: Taskpool,
-  args: DecodeTaskArgs,
-  data: ref seq[seq[byte]],
-  parity: ref seq[seq[byte]]
-): Flowvar[DecodeTaskResult] =
-  # FIXME Uncomment the code below after addressing an issue:
-  # https://github.com/codex-storage/nim-codex/issues/854
-  
-  # tp.spawn decodeTask(args, data[], parity[])
+  args: DecodeTaskArgs
+): Flowvar[TaskResult] = 
+  tp.spawn decodeTask(args)
 
-  let fv = DecodeTaskResult.newFlowVar
-  fv.readyWith(decodeTask(args, data[], parity[]))
-  return fv
-
-proc awaitResult[T](signal: ThreadSignalPtr, handle: Flowvar[T]): Future[?!T] {.async.} =
+proc awaitTaskResult(signal: ThreadSignalPtr, handle: Flowvar[TaskResult]): Future[?!void] {.async.} =
   await wait(signal)
 
   var
-    res: T
+    res: TaskResult
     awaitTotal: Duration
   while awaitTotal < CompletitionTimeout:
-      if handle.tryComplete(res):
-        return success(res)
+    if handle.tryComplete(res):
+      if res.isOk:
+        return success()
       else:
-        awaitTotal += CompletitionRetryDelay
-        await sleepAsync(CompletitionRetryDelay)
+        return failure($res.error)
+    else:
+      awaitTotal += CompletitionRetryDelay
+      await sleepAsync(CompletitionRetryDelay)
 
   return failure("Task signaled finish but didn't return any result within " & $CompletitionRetryDelay)
 
 proc asyncEncode*(
   tp: Taskpool,
-  backend: EncoderBackend,
+  encoder: sink LeoEncoder,
   data: ref seq[seq[byte]],
   blockSize: int,
   ecM: int
 ): Future[?!ref seq[seq[byte]]] {.async.} =
+  if ecM == 0:
+    return success(seq[seq[byte]].new())
+
   without signal =? ThreadSignalPtr.new().mapFailure, err:
     return failure(err)
 
   try:
-    let
-      blockSize = data[0].len
-      args = EncodeTaskArgs(signal: signal, backend: unsafeAddr backend, blockSize: blockSize, ecM: ecM)
-      handle = proxySpawnEncodeTask(tp, args, data)
-
-    without res =? await awaitResult(signal, handle), err:
+    if err =? encoder.prepareEncode(data[]).mapFailure.errorOption():
       return failure(err)
 
-    if res.isOk:
-      var parity = seq[seq[byte]].new()
-      parity[].setLen(ecM)
+    let
+      args = EncodeTaskArgs(signal: signal, encoder: addr encoder)
+      handle = proxySpawnEncodeTask(tp, args)
 
-      for i in 0..<parity[].len:
-        parity[i] = newSeq[byte](blockSize)
-        copyMem(addr parity[i][0], addr res.value.data[i * blockSize], blockSize)
+    if err =? (await awaitTaskResult(signal, handle)).errorOption():
+      return failure(err)
+    
+    var parity = seq[seq[byte]].new()
+    parity[].setLen(ecM)
 
-      deallocShared(res.value.data)
+    for i in 0..<parity[].len:
+      parity[i] = newSeq[byte](blockSize)
 
-      return success(parity)
-    else:
-      return failure($res.error)
+    if err =? encoder.readParity(parity[]).mapFailure.errorOption():
+      return failure(err)
+
+    return success(parity)
   finally:
     if err =? signal.close().mapFailure.errorOption():
       error "Error closing signal", msg = $err.msg
 
 proc asyncDecode*(
   tp: Taskpool,
-  backend: DecoderBackend,
+  decoder: sink LeoDecoder,
   data, parity: ref seq[seq[byte]],
   blockSize: int
 ): Future[?!ref seq[seq[byte]]] {.async.} =
@@ -199,27 +140,25 @@ proc asyncDecode*(
     return failure(err)
 
   try:
-    let
-      ecK = data[].len
-      args = DecodeTaskArgs(signal: signal, backend: unsafeAddr backend, blockSize: blockSize, ecK: ecK)
-      handle = proxySpawnDecodeTask(tp, args, data, parity)
-
-    without res =? await awaitResult(signal, handle), err:
+    if err =? decoder.prepareDecode(data[], parity[]).mapFailure.errorOption():
       return failure(err)
 
-    if res.isOk:
-      var recovered = seq[seq[byte]].new()
-      recovered[].setLen(ecK)
+    let
+      args = DecodeTaskArgs(signal: signal, decoder: addr decoder)
+      handle = proxySpawnDecodeTask(tp, args)
 
-      for i in 0..<recovered[].len:
-        recovered[i] = newSeq[byte](blockSize)
-        copyMem(addr recovered[i][0], addr res.value.data[i * blockSize], blockSize)
+    if err =? (await awaitTaskResult(signal, handle)).errorOption():
+      return failure(err)
 
-      deallocShared(res.value.data)
+    var recovered = seq[seq[byte]].new()
+    recovered[].setLen(data[].len)
+    for i in 0..<recovered[].len:
+      recovered[i] = newSeq[byte](blockSize)
 
-      return success(recovered)
-    else:
-      return failure($res.error)
+    if err =? decoder.readDecoded(recovered[]).mapFailure.errorOption():
+      return failure(err)
+
+    return success(recovered)
   finally:
     if err =? signal.close().mapFailure.errorOption():
       error "Error closing signal", msg = $err.msg
