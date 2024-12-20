@@ -235,7 +235,7 @@ proc printOutput(manager: TestManager) =
   var successes = 0
   echo "▢=====================================================================▢"
   echo "| TEST SUMMARY                                                        |"
-  echo "="
+  echo "|"
   for test in manager.tests:
     without output =? test.output:
       echo "| [FATAL] Test '", test.config.name, "' failed to run to completion"
@@ -246,7 +246,7 @@ proc printOutput(manager: TestManager) =
       echo "| [OK] Test '", test.config.name, "' succeeded"
       inc successes
 
-  echo "| ------------------------------------------------------------------- |"
+  echo "|                                                                     |"
   echo "| PASSING                       : ", successes, " / ", manager.tests.len
   let totalDuration = manager.timeEnd - manager.timeStart
   echo "| TOTAL TIME                    : ", totalDuration
