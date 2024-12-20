@@ -16,10 +16,10 @@ import ./nodeprocess
 
 export codexclient
 export chronicles
+export nodeprocess
 
 logScope:
   topics = "integration testing hardhat process"
-  nodeName = "hardhat"
 
 type
   HardhatProcess* = ref object of NodeProcess
@@ -41,6 +41,9 @@ method outputLineEndings(node: HardhatProcess): string {.raises: [].} =
   return "\n"
 
 proc openLogFile(node: HardhatProcess, logFilePath: string): IoHandle =
+  logScope:
+    nodeName = node.name
+
   let logFileHandle = openFile(
     logFilePath,
     {OpenFlags.Write, OpenFlags.Create, OpenFlags.Truncate}
@@ -56,6 +59,9 @@ proc openLogFile(node: HardhatProcess, logFilePath: string): IoHandle =
   return fileHandle
 
 method start*(node: HardhatProcess) {.async.} =
+
+  logScope:
+    nodeName = node.name
 
   let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
   trace "starting node",
@@ -84,6 +90,9 @@ proc startNode*(
   name: string
 ): Future[HardhatProcess] {.async.} =
 
+  logScope:
+    nodeName = name
+
   var logFilePath = ""
 
   var arguments = newSeq[string]()
@@ -100,7 +109,7 @@ proc startNode*(
     arguments: arguments,
     debug: ($debug != "false"),
     trackedFutures: TrackedFutures.new(),
-    name: "hardhat"
+    name: name
   )
 
   await hardhat.start()
@@ -111,6 +120,10 @@ proc startNode*(
   return hardhat
 
 method onOutputLineCaptured(node: HardhatProcess, line: string) =
+
+  logScope:
+    nodeName = node.name
+
   without logFile =? node.logFile:
     return
 

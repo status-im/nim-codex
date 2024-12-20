@@ -5,16 +5,22 @@ import ../asynctest
 import ../checktest
 import ./codexprocess
 import ./nodeprocess
+import ./utils
 import ../examples
 
 asyncchecksuite "Command line interface":
 
   let key = "4242424242424242424242424242424242424242424242424242424242424242"
 
+  var nodeCount = -1
   proc startCodex(args: seq[string]): Future[CodexProcess] {.async.} =
+    inc nodeCount
     return await CodexProcess.startNode(
-      args,
-      false,
+      args.concat(@[
+        "--api-port=" & $(await nextFreePort(8080 + nodeCount)),
+        "--disc-port=" & $(await nextFreePort(8090 + nodeCount))
+      ]),
+      true,
       "cli-test-node"
     )
 

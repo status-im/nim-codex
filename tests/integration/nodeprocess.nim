@@ -163,6 +163,9 @@ proc waitUntilOutput*(node: NodeProcess, output: string) {.async.} =
   await started.wait(60.seconds) # allow enough time for proof generation
 
 proc waitUntilStarted*(node: NodeProcess) {.async.} =
+  logScope:
+    nodeName = node.name
+
   try:
     await node.waitUntilOutput(node.startedOutput)
     trace "node started"
