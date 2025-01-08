@@ -6,7 +6,7 @@ info:
   description: "List of endpoints and interfaces available to Codex API users"
 
 security:
-  - { }
+  - {}
 
 components:
   schemas:
@@ -50,9 +50,9 @@ components:
       type: string
       description: Address of Ethereum address
 
-    Reward:
+    PricePerByte:
       type: string
-      description: The maximum amount of tokens paid per second per slot to hosts the client is willing to pay
+      description: The amount of tokens paid per byte per second per slot to hosts the client is willing to pay
 
     Duration:
       type: string
@@ -243,16 +243,16 @@ components:
     StorageRequestCreation:
       type: object
       required:
-        - reward
+        - pricePerByte
         - duration
         - proofProbability
-        - collateral
+        - collateralPerByte
         - expiry
       properties:
         duration:
           $ref: "#/components/schemas/Duration"
-        reward:
-          $ref: "#/components/schemas/Reward"
+        pricePerByte:
+          $ref: "#/components/schemas/PricePerByte"
         proofProbability:
           $ref: "#/components/schemas/ProofProbability"
         nodes:
@@ -263,16 +263,16 @@ components:
           description: Additional number of nodes on top of the `nodes` property that can be lost before pronouncing the content lost
           type: integer
           default: 0
-        collateral:
+        collateralPerByte:
           type: string
-          description: Number as decimal string that represents how much collateral is asked from hosts that wants to fill a slots
+          description: Number as decimal string that represents how much collateral per byte is asked from hosts that wants to fill a slots
         expiry:
           type: string
           description: Number as decimal string that represents expiry threshold in seconds from when the Request is submitted. When the threshold is reached and the Request does not find requested amount of nodes to host the data, the Request is voided. The number of seconds can not be higher then the Request's duration itself.
     StorageAsk:
       type: object
       required:
-        - reward
+        - pricePerByte
       properties:
         slots:
           description: Number of slots (eq. hosts) that the Request want to have the content spread over
@@ -284,8 +284,8 @@ components:
           $ref: "#/components/schemas/Duration"
         proofProbability:
           $ref: "#/components/schemas/ProofProbability"
-        reward:
-          $ref: "#/components/schemas/Reward"
+        pricePerByte:
+          $ref: "#/components/schemas/PricePerByte"
         maxSlotLoss:
           type: integer
           description: Max slots that can be lost without data considered to be lost
@@ -418,14 +418,14 @@ paths:
       description: |
         If `addrs` param is supplied, it will be used to dial the peer, otherwise the `peerId` is used
         to invoke peer discovery, if it succeeds the returned addresses will be used to dial.
-      tags: [ Node ]
+      tags: [Node]
       operationId: connectPeer
       parameters:
         - in: path
           name: peerId
           required: true
           schema:
-              $ref: "#/components/schemas/PeerId"
+            $ref: "#/components/schemas/PeerId"
           description: Peer that should be dialed.
         - in: query
           name: addrs
@@ -448,7 +448,7 @@ paths:
   "/data":
     get:
       summary: "Lists manifest CIDs stored locally in node."
-      tags: [ Data ]
+      tags: [Data]
       operationId: listData
       responses:
         "200":
@@ -468,7 +468,7 @@ paths:
           description: Well it was bad-bad
     post:
       summary: "Upload a file in a streaming manner. Once finished, the file is stored in the node and can be retrieved by any node in the network using the returned CID."
-      tags: [ Data ]
+      tags: [Data]
       operationId: upload
       parameters:
         - name: content-type
@@ -484,7 +484,7 @@ paths:
           description: The content disposition used to send the filename.
           schema:
             type: string
-            example: "attachment; filename=\"codex.png\""
+            example: 'attachment; filename="codex.png"'
       requestBody:
         content:
           application/octet-stream:
@@ -504,14 +504,14 @@ paths:
   "/data/{cid}":
     get:
       summary: "Download a file from the local node in a streaming manner. If the file is not available locally, a 404 is returned."
-      tags: [ Data ]
+      tags: [Data]
       operationId: downloadLocal
       parameters:
         - in: path
           name: cid
           required: true
           schema:
-              $ref: "#/components/schemas/Cid"
+            $ref: "#/components/schemas/Cid"
           description: File to be downloaded.
 
       responses:
@@ -532,14 +532,14 @@ paths:
   "/data/{cid}/network":
     post:
       summary: "Download a file from the network to the local node if it's not available locally. Note: Download is performed async. Call can return before download is completed."
-      tags: [ Data ]
+      tags: [Data]
       operationId: downloadNetwork
       parameters:
         - in: path
           name: cid
           required: true
           schema:
-              $ref: "#/components/schemas/Cid"
+            $ref: "#/components/schemas/Cid"
           description: "File to be downloaded."
       responses:
         "200":
@@ -558,14 +558,14 @@ paths:
   "/data/{cid}/network/stream":
     get:
       summary: "Download a file from the network in a streaming manner. If the file is not available locally, it will be retrieved from other nodes in the network if able."
-      tags: [ Data ]
+      tags: [Data]
       operationId: downloadNetworkStream
       parameters:
         - in: path
           name: cid
           required: true
           schema:
-              $ref: "#/components/schemas/Cid"
+            $ref: "#/components/schemas/Cid"
           description: "File to be downloaded."
       responses:
         "200":
@@ -585,14 +585,14 @@ paths:
   "/data/{cid}/network/manifest":
     get:
       summary: "Download only the dataset manifest from the network to the local node if it's not available locally."
-      tags: [ Data ]
+      tags: [Data]
       operationId: downloadNetworkManifest
       parameters:
         - in: path
           name: cid
           required: true
           schema:
-              $ref: "#/components/schemas/Cid"
+            $ref: "#/components/schemas/Cid"
           description: "File for which the manifest is to be downloaded."
       responses:
         "200":
@@ -611,7 +611,7 @@ paths:
   "/space":
     get:
       summary: "Gets a summary of the storage space allocation of the node."
-      tags: [ Data ]
+      tags: [Data]
       operationId: space
       responses:
         "200":
@@ -627,7 +627,7 @@ paths:
   "/sales/slots":
     get:
       summary: "Returns active slots"
-      tags: [ Marketplace ]
+      tags: [Marketplace]
       operationId: getActiveSlots
       responses:
         "200":
@@ -645,7 +645,7 @@ paths:
   "/sales/slots/{slotId}":
     get:
       summary: "Returns active slot with id {slotId} for the host"
-      tags: [ Marketplace ]
+      tags: [Marketplace]
       operationId: getActiveSlotById
       parameters:
         - in: path
@@ -674,7 +674,7 @@ paths:
   "/sales/availability":
     get:
       summary: "Returns storage that is for sale"
-      tags: [ Marketplace ]
+      tags: [Marketplace]
       operationId: getAvailabilities
       responses:
         "200":
@@ -693,7 +693,7 @@ paths:
     post:
       summary: "Offers storage for sale"
       operationId: offerStorage
-      tags: [ Marketplace ]
+      tags: [Marketplace]
       requestBody:
         content:
           application/json:
@@ -721,7 +721,7 @@ paths:
         The new parameters will be only considered for new requests.
         Existing Requests linked to this Availability will continue as is.
       operationId: updateOfferedStorage
-      tags: [ Marketplace ]
+      tags: [Marketplace]
       parameters:
         - in: path
           name: id
@@ -753,7 +753,7 @@ paths:
       summary: "Get availability's reservations"
       description: Return's list of Reservations for ongoing Storage Requests that the node hosts.
       operationId: getReservations
-      tags: [ Marketplace ]
+      tags: [Marketplace]
       parameters:
         - in: path
           name: id
@@ -782,7 +782,7 @@ paths:
   "/storage/request/{cid}":
     post:
       summary: "Creates a new Request for storage"
-      tags: [ Marketplace ]
+      tags: [Marketplace]
       operationId: createStorageRequest
       parameters:
         - in: path
@@ -813,7 +813,7 @@ paths:
   "/storage/purchases":
     get:
       summary: "Returns list of purchase IDs"
-      tags: [ Marketplace ]
+      tags: [Marketplace]
       operationId: getPurchases
       responses:
         "200":
@@ -830,7 +830,7 @@ paths:
   "/storage/purchases/{id}":
     get:
       summary: "Returns purchase details"
-      tags: [ Marketplace ]
+      tags: [Marketplace]
       operationId: getPurchase
       parameters:
         - in: path
@@ -857,7 +857,7 @@ paths:
     get:
       summary: "Get Node's SPR"
       operationId: getSPR
-      tags: [ Node ]
+      tags: [Node]
       responses:
         "200":
           description: Node's SPR
@@ -875,7 +875,7 @@ paths:
     get:
       summary: "Get Node's PeerID"
       operationId: getPeerId
-      tags: [ Node ]
+      tags: [Node]
       responses:
         "200":
           description: Node's Peer ID
@@ -890,7 +890,7 @@ paths:
   "/debug/chronicles/loglevel":
     post:
       summary: "Set log level at run time"
-      tags: [ Debug ]
+      tags: [Debug]
       operationId: setDebugLogLevel
 
       parameters:
@@ -912,7 +912,7 @@ paths:
     get:
       summary: "Gets node information"
       operationId: getDebugInfo
-      tags: [ Debug ]
+      tags: [Debug]
       responses:
         "200":
           description: Node's information
