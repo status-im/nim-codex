@@ -44,6 +44,7 @@ import ./utils/addrutils
 import ./namespaces
 import ./codextypes
 import ./logutils
+import ./utils
 
 logScope:
   topics = "codex node"

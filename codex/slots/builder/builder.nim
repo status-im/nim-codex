@@ -153,17 +153,17 @@ proc buildBlockTree*[T, H](
     trace "Returning empty digest tree for pad block"
     return success (self.emptyBlock, self.emptyDigestTree)
 
-  without blk =? await self.store.getBlock(self.manifest.treeCid, blkIdx), err:
-    error "Failed to get block CID for tree at index", err = err.msg
-    return failure(err)
+  without blk =? await self.store.getBlock(self.manifest.treeCid, blkIdx), error:
+    error "Failed to get block CID for tree at index", error = error.msg
+    return failure(error)
 
   if blk.isEmpty:
     success (self.emptyBlock, self.emptyDigestTree)
   else:
     without tree =?
-      T.digestTree(blk.data, self.cellSize.int), err:
-      error "Failed to create digest for block", err = err.msg
-      return failure(err)
+      T.digestTree(blk.data, self.cellSize.int), error:
+      error "Failed to create digest for block", error = error.msg
+      return failure(error)
 
     success (blk.data, tree)
 
@@ -193,9 +193,9 @@ proc getCellHashes*[T, H](
 
       trace "Getting block CID for tree at index"
       without (_, tree) =? (await self.buildBlockTree(blkIdx, i)) and
-        digest =? tree.root, err:
-        error "Failed to get block CID for tree at index", err = err.msg
-        return failure(err)
+        digest =? tree.root, error:
+        error "Failed to get block CID for tree at index", error = error.msg
+        return failure(error)
 
       trace "Get block digest", digest = digest.toHex
       digest
@@ -208,9 +208,9 @@ proc buildSlotTree*[T, H](
   ## Build the slot tree from the block digest hashes
   ## and return the tree.
 
-  without cellHashes =? (await self.getCellHashes(slotIndex)), err:
-    error "Failed to select slot blocks", err = err.msg
-    return failure(err)
+  without cellHashes =? (await self.getCellHashes(slotIndex)), error:
+    error "Failed to select slot blocks", error = error.msg
+    return failure(error)
 
   T.init(cellHashes)
 
@@ -228,24 +228,24 @@ proc buildSlot*[T, H](
   trace "Building slot tree"
 
   without tree =? (await self.buildSlotTree(slotIndex)) and
-    treeCid =? tree.root.?toSlotCid, err:
-    error "Failed to build slot tree", err = err.msg
-    return failure(err)
+    treeCid =? tree.root.?toSlotCid, error:
+    error "Failed to build slot tree", error = error.msg
+    return failure(error)
 
   trace "Storing slot tree", treeCid, slotIndex, leaves = tree.leavesCount
   for i, leaf in tree.leaves:
-    without cellCid =? leaf.toCellCid, err:
-      error "Failed to get CID for slot cell", err = err.msg
-      return failure(err)
+    without cellCid =? leaf.toCellCid, error:
+      error "Failed to get CID for slot cell", error = error.msg
+      return failure(error)
 
     without proof =? tree.getProof(i) and
-      encodableProof =? proof.toEncodableProof, err:
-      error "Failed to get proof for slot tree", err = err.msg
-      return failure(err)
+      encodableProof =? proof.toEncodableProof, error:
+      error "Failed to get proof for slot tree", error = error.msg
+      return failure(error)
 
     if err =? (await self.store.putCidAndProof(
       treeCid, i, cellCid, encodableProof)).errorOption:
-      error "Failed to store slot tree", err = err.msg
+      error "Failed to store slot tree", error = err.msg
       return failure(err)
 
   tree.root()
@@ -266,14 +266,14 @@ proc buildSlots*[T, H](self: SlotsBuilder[T, H]): Future[?!void] {.async.} =
   if self.slotRoots.len == 0:
     self.slotRoots = collect(newSeq):
       for i in 0..<self.manifest.numSlots:
-        without slotRoot =? (await self.buildSlot(i)), err:
-          error "Failed to build slot", err = err.msg, index = i
-          return failure(err)
+        without slotRoot =? (await self.buildSlot(i)), error:
+          error "Failed to build slot", error = error.msg, index = i
+          return failure(error)
         slotRoot
 
-  without tree =? self.buildVerifyTree(self.slotRoots) and root =? tree.root, err:
-    error "Failed to build slot roots tree", err = err.msg
-    return failure(err)
+  without tree =? self.buildVerifyTree(self.slotRoots) and root =? tree.root, error:
+    error "Failed to build slot roots tree", error = error.msg
+    return failure(error)
 
   if verifyTree =? self.verifyTree and verifyRoot =? verifyTree.root:
     if not bool(verifyRoot == root): # TODO: `!=` doesn't work for SecretBool
@@ -285,17 +285,17 @@ proc buildSlots*[T, H](self: SlotsBuilder[T, H]): Future[?!void] {.async.} =
 
 proc buildManifest*[T, H](self: SlotsBuilder[T, H]): Future[?!Manifest] {.async.} =
   if err =? (await self.buildSlots()).errorOption:
-    error "Failed to build slot roots", err = err.msg
+    error "Failed to build slot roots", error = err.msg
     return failure(err)
 
-  without rootCids =? self.slotRoots.toSlotCids(), err:
-    error "Failed to map slot roots to CIDs", err = err.msg
-    return failure(err)
+  without rootCids =? self.slotRoots.toSlotCids(), error:
+    error "Failed to map slot roots to CIDs", error = error.msg
+    return failure(error)
 
   without rootProvingCidRes =? self.verifyRoot.?toVerifyCid() and
-    rootProvingCid =? rootProvingCidRes, err: # TODO: why doesn't `.?` unpack the result?
-    error "Failed to map slot roots to CIDs", err = err.msg
-    return failure(err)
+    rootProvingCid =? rootProvingCidRes, error: # TODO: why doesn't `.?` unpack the result?
+    error "Failed to map slot roots to CIDs", error = error.msg
+    return failure(error)
 
   Manifest.new(
     self.manifest,

@@ -102,7 +102,7 @@ method readOnce*(
 
     # Read contents of block `blockNum`
     without blk =? await self.store.getBlock(address), error:
-      raise newLPStreamReadError(error)
+      raise newException(LPStreamIncompleteError, "Incomplete data: " & error.msg)
 
     trace "Reading bytes from store stream", manifestCid = self.manifest.cid.get(), numBlocks = self.manifest.blocksCount, blockNum, blkCid = blk.cid, bytes = readBytes, blockOffset
 

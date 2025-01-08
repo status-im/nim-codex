@@ -372,10 +372,10 @@ proc before() {.async.} =
   createDir(path)
 
 proc after() {.async.} =
-  removeDir(path)
+  os.removeDir(path)
 
 let
-  depth = path.split(DirSep).len
+  depth = path.split(os.DirSep).len
 
 commonBlockStoreTests(
   "RepoStore FS backend", proc: BlockStore =

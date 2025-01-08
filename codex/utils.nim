@@ -54,6 +54,30 @@ template findIt*(s, pred: untyped): untyped =
       break
   index
 
+proc allFuturesThrowing*[T](args: varargs[Future[T]]): Future[void] =
+  # TODO: Copied from previous libp2p
+  # Comes with warnings: Can this hide errors?
+  var futs: seq[Future[T]]
+  for fut in args:
+    futs &= fut
+  proc call() {.async.} =
+    var first: ref CatchableError = nil
+    futs = await allFinished(futs)
+    for fut in futs:
+      if fut.failed:
+        let err = fut.readError()
+        if err of Defect:
+          raise err
+        else:
+          if err of CancelledError:
+            raise err
+          if isNil(first):
+            first = err
+    if not isNil(first):
+      raise first
+
+  return call()
+
 when not declared(parseDuration): # Odd code formatting to minimize diff v. mainLine
  const Whitespace = {' ', '\t', '\v', '\r', '\l', '\f'}
 
