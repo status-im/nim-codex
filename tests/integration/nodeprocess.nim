@@ -134,18 +134,29 @@ method stop*(node: NodeProcess) {.base, async.} =
         error "failed to terminate process", errCode = $errCode
 
       trace "waiting for node process to exit"
-      let exitCode = await node.process.waitForExit(3.seconds)
-      if exitCode > 0:
+      var backoff = 8
+      while node.process.running().valueOr false:
+        backoff = min(backoff*2, 1024) # Exponential backoff
+        await sleepAsync(backoff)
+
+      let exitCode = node.process.peekExitCode().valueOr:
+        fatal "could not get exit code from process", error
+        return
+
+      if exitCode > 0 and exitCode != 143: # 143 = SIGTERM (initiated above)
         error "failed to exit process, check for zombies", exitCode
 
-      trace "closing node process' streams"
-      await node.process.closeWait()
     except CancelledError as error:
       raise error
     except CatchableError as e:
       error "error stopping node process", error = e.msg
 
     finally:
+      try:
+        trace "closing node process' streams"
+        await node.process.closeWait()
+      except:
+        discard
       node.process = nil
 
     trace "node stopped"
