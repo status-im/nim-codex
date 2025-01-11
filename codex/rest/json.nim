@@ -15,8 +15,8 @@ type
   StorageRequestParams* = object
     duration* {.serialize.}: UInt256
     proofProbability* {.serialize.}: UInt256
-    reward* {.serialize.}: UInt256
-    collateral* {.serialize.}: UInt256
+    pricePerByte* {.serialize.}: UInt256
+    collateralPerByte* {.serialize.}: UInt256
     expiry* {.serialize.}: ?UInt256
     nodes* {.serialize.}: ?uint
     tolerance* {.serialize.}: ?uint

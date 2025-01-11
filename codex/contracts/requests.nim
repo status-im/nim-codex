@@ -23,8 +23,8 @@ type
     slotSize* {.serialize.}: UInt256
     duration* {.serialize.}: UInt256
     proofProbability* {.serialize.}: UInt256
-    reward* {.serialize.}: UInt256
-    collateral* {.serialize.}: UInt256
+    pricePerByte* {.serialize.}: UInt256
+    collateralPerByte* {.serialize.}: UInt256
     maxSlotLoss* {.serialize.}: uint64
   StorageContent* = object
     cid* {.serialize.}: string
@@ -108,8 +108,8 @@ func fromTuple(_: type StorageAsk, tupl: tuple): StorageAsk =
     slotSize: tupl[1],
     duration: tupl[2],
     proofProbability: tupl[3],
-    reward: tupl[4],
-    collateral: tupl[5],
+    pricePerByte: tupl[4],
+    collateralPerByte: tupl[5],
     maxSlotLoss: tupl[6]
   )
 
@@ -174,7 +174,7 @@ func id*(slot: Slot): SlotId =
   slotId(slot.request, slot.slotIndex)
 
 func pricePerSlot*(ask: StorageAsk): UInt256 =
-  ask.duration * ask.reward
+  ask.duration * ask.pricePerByte * ask.slotSize
 
 func price*(ask: StorageAsk): UInt256 =
   ask.slots.u256 * ask.pricePerSlot

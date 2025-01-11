@@ -577,11 +577,11 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       ## cid              - the cid of a previously uploaded dataset
       ## duration         - the duration of the request in seconds
       ## proofProbability - how often storage proofs are required
-      ## reward           - the maximum amount of tokens paid per second per slot to hosts the client is willing to pay
+      ## pricePerByte     - the amount of tokens paid per byte second per slot to hosts the client is willing to pay
       ## expiry           - specifies threshold in seconds from now when the request expires if the Request does not find requested amount of nodes to host the data
       ## nodes            - number of nodes the content should be stored on
       ## tolerance        - allowed number of nodes that can be lost before content is lost
-      ## colateral        - requested collateral from hosts when they fill slot
+      ## colateralPerByte - requested collateral per byte from hosts when they fill slot
       try:
         without contracts =? node.contracts.client:
           return RestApiResponse.error(Http503, "Persistence is not enabled", headers = headers)
@@ -623,8 +623,8 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
           params.proofProbability,
           nodes,
           tolerance,
-          params.reward,
-          params.collateral,
+          params.pricePerByte,
+          params.collateralPerByte,
           expiry), error:
 
           if error of InsufficientBlocksError:
