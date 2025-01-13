@@ -1,7 +1,7 @@
 import std/os
 import std/strformat
-import std/strutils
 import std/terminal
+from std/unicode import toUpper
 import std/unittest
 import pkg/chronos
 import pkg/chronos/asyncproc
@@ -55,6 +55,10 @@ type
     Left, Right
   Align {.pure.} = enum
     Left, Right
+
+  MarkerPosition {.pure.} = enum
+    Start,
+    Finish
 
 {.push raises: [].}
 
@@ -145,6 +149,17 @@ proc printResult(
             resetStyle, test.config.name,
             resetStyle, styleDim, &" ({test.duration})"
 
+proc printOutputMarker(
+  test: IntegrationTest,
+  position: MarkerPosition,
+  msg: string) {.raises: [TestManagerError].} =
+
+  let newLine = if position == MarkerPosition.Start: "\n"
+                else: ""
+
+  styledEcho styleBright, bgWhite, fgBlack,
+             &"{newLine}----- {toUpper $position} {test.config.name} {msg} -----"
+
 proc printResult(
   test: IntegrationTest,
   processOutput = false,
@@ -154,15 +169,25 @@ proc printResult(
     error =? test.output.errorOption:
     test.printResult(fgRed)
     if testHarnessErrors:
+      test.printOutputMarker(MarkerPosition.Start, "test harness errors")
       echo "Error during test execution: ", error.msg
       echo "Stacktrace: ", error.getStackTrace()
+      test.printOutputMarker(MarkerPosition.Finish, "test harness errors")
 
   elif test.status == IntegrationTestStatus.Failed:
     if output =? test.output:
       if testHarnessErrors: #manager.debugTestHarness
+        test.printOutputMarker(MarkerPosition.Start,
+                                 "test harness errors (stderr)")
         echo output.stdError
+        test.printOutputMarker(MarkerPosition.Finish,
+                                 "test harness errors (stderr)")
       if processOutput:
+        test.printOutputMarker(MarkerPosition.Start,
+                                 "codex node output (stdout)")
         echo output.stdOutput
+        test.printOutputMarker(MarkerPosition.Finish,
+                                 "codex node output (stdout)")
     test.printResult(fgRed)
 
   elif test.status == IntegrationTestStatus.Timeout:
@@ -171,7 +196,11 @@ proc printResult(
   elif test.status == IntegrationTestStatus.Ok:
     if processOutput and
        output =? test.output:
+      test.printOutputMarker(MarkerPosition.Start,
+                               "codex node output (stdout)")
       echo output.stdOutput
+      test.printOutputMarker(MarkerPosition.Finish,
+                               "codex node output (stdout)")
     test.printResult(fgGreen)
 
 proc printSummary(test: IntegrationTest) {.raises: [TestManagerError].} =
