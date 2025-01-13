@@ -34,11 +34,11 @@ type
     testFile*: string
     name*: string
 
-  IntegrationTestStatus* = enum ## The status of a test when it is done.
-    OK,
-    FAILED,
-    TIMEOUT,
-    ERROR
+  IntegrationTestStatus = enum ## The status of a test when it is done.
+    Ok,       # tests completed and all succeeded
+    Failed,   # tests completed, but one or more of the tests failed
+    Timeout,  # the tests did not complete before the timeout
+    Error     # the tests did not complete because an error occurred running the tests (usually an error in the harness)
 
   IntegrationTest = ref object
     config: IntegrationTestConfig
@@ -50,8 +50,11 @@ type
     status: IntegrationTestStatus
 
   TestManagerError = object of CatchableError
-  FormattingError = object of TestManagerError
-  LockError = object of TestManagerError
+
+  Border {.pure.} = enum
+    Left, Right
+  Align {.pure.} = enum
+    Left, Right
 
 {.push raises: [].}
 
@@ -138,7 +141,7 @@ proc printResult(
   test: IntegrationTest,
   colour: ForegroundColor) {.raises: [TestManagerError].} =
 
-  styledEcho styleBright, colour, &"[{test.status}] ",
+  styledEcho styleBright, colour, &"[{toUpper $test.status}] ",
             resetStyle, test.config.name,
             resetStyle, styleDim, &" ({test.duration})"
 
@@ -147,14 +150,14 @@ proc printResult(
   processOutput = false,
   testHarnessErrors = false) {.raises: [TestManagerError].} =
 
-  if test.status == IntegrationTestStatus.ERROR and
+  if test.status == IntegrationTestStatus.Error and
     error =? test.output.errorOption:
     test.printResult(fgRed)
     if testHarnessErrors:
       echo "Error during test execution: ", error.msg
       echo "Stacktrace: ", error.getStackTrace()
 
-  elif test.status == IntegrationTestStatus.FAILED:
+  elif test.status == IntegrationTestStatus.Failed:
     if output =? test.output:
       if testHarnessErrors: #manager.debugTestHarness
         echo output.stdError
@@ -162,12 +165,12 @@ proc printResult(
         echo output.stdOutput
     test.printResult(fgRed)
 
-  elif test.status == IntegrationTestStatus.TIMEOUT:
+  elif test.status == IntegrationTestStatus.Timeout:
     test.printResult(fgYellow)
 
-  elif test.status == IntegrationTestStatus.OK:
+  elif test.status == IntegrationTestStatus.Ok:
     if processOutput and
-      output =? test.output:
+       output =? test.output:
       echo output.stdOutput
     test.printResult(fgGreen)
 
@@ -253,7 +256,7 @@ proc runTest(
     except TestManagerError as e:
       e.msg = "Failed to start hardhat: " & e.msg
       test.timeEnd = Moment.now()
-      test.status = IntegrationTestStatus.ERROR
+      test.status = IntegrationTestStatus.Error
       test.output = CommandExResponse.failure(e)
 
   let command = await manager.buildCommand(test, hardhatPort)
@@ -276,9 +279,9 @@ proc runTest(
     info "Test completed", name = config.name, duration = test.timeEnd - test.timeStart
 
     if output.status != 0:
-      test.status = IntegrationTestStatus.FAILED
+      test.status = IntegrationTestStatus.Failed
     else:
-      test.status = IntegrationTestStatus.OK
+      test.status = IntegrationTestStatus.Ok
 
     test.printResult(processOutput = manager.debugCodexNodes,
                      testHarnessErrors = manager.debugTestHarness)
@@ -290,7 +293,7 @@ proc runTest(
     test.timeEnd = Moment.now()
     error "Test timed out", name = config.name, duration = test.timeEnd - test.timeStart
     test.output = CommandExResponse.failure(e)
-    test.status = IntegrationTestStatus.TIMEOUT
+    test.status = IntegrationTestStatus.Timeout
     test.printResult(processOutput = manager.debugCodexNodes,
                      testHarnessErrors = manager.debugTestHarness)
 
@@ -298,7 +301,7 @@ proc runTest(
     test.timeEnd = Moment.now()
     error "Test failed to complete", name = config.name,duration = test.timeEnd - test.timeStart
     test.output = CommandExResponse.failure(e)
-    test.status = IntegrationTestStatus.ERROR
+    test.status = IntegrationTestStatus.Error
     test.printResult(processOutput = manager.debugCodexNodes,
                      testHarnessErrors = manager.debugTestHarness)
 
@@ -308,7 +311,7 @@ proc runTests(manager: TestManager) {.async: (raises: [CancelledError, TestManag
   manager.timeStart = Moment.now()
 
   styledEcho styleBright, bgWhite, fgBlack,
-             "[Integration Test Manager] Starting parallel integration tests"
+             "\n[Integration Test Manager] Starting parallel integration tests"
 
   for config in manager.configs:
     testFutures.add manager.runTest(config)
@@ -316,12 +319,6 @@ proc runTests(manager: TestManager) {.async: (raises: [CancelledError, TestManag
   await allFutures testFutures
 
   manager.timeEnd = Moment.now()
-
-type
-  Border {.pure.} = enum
-    Left, Right
-  Align {.pure.} = enum
-    Left, Right
 
 proc withBorder(
   msg: string,
@@ -343,7 +340,7 @@ proc printResult(manager: TestManager) {.raises: [TestManagerError].}=
   var totalDurationSerial: Duration
   for test in manager.tests:
     totalDurationSerial += test.duration
-    if test.status == IntegrationTestStatus.OK:
+    if test.status == IntegrationTestStatus.Ok:
       inc successes
   # estimated time saved as serial execution with a single hardhat instance
   # incurs less overhead
