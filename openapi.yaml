@@ -178,8 +178,8 @@ components:
         - $ref: "#/components/schemas/SalesAvailability"
         - required:
             - totalSize
-            - minPrice
-            - maxCollateral
+            - minPricePerByte
+            - totalCollateral
             - duration
 
     Slot:

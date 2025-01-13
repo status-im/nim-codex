@@ -28,7 +28,7 @@ method onFailed*(state: SaleFilling, request: StorageRequest): ?State =
 method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
   let market = SalesAgent(machine).context.market
-  without (fullCollateral =? data.request.?ask.?collateral):
+  without (request =? data.request):
     raiseAssert "Request not set"
 
   logScope:
@@ -36,14 +36,16 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
     slotIndex = data.slotIndex
 
   let slotState = await market.slotState(slotId(data.requestId, data.slotIndex))
+  let requestedCollateral = request.ask.collateralPerByte * request.ask.slotSize
   var collateral: UInt256
 
   if slotState == SlotState.Repair:
     # When repairing the node gets "discount" on the collateral that it needs to
     let repairRewardPercentage = (await market.repairRewardPercentage).u256
-    collateral = fullCollateral - ((fullCollateral * repairRewardPercentage)).div(100.u256)
+    collateral = requestedCollateral -
+      ((requestedCollateral * repairRewardPercentage)).div(100.u256)
   else:
-    collateral = fullCollateral
+    collateral = requestedCollateral
 
   debug "Filling slot"
   try:

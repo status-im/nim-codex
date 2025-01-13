@@ -30,8 +30,8 @@ type
   RestAvailability* = object
     totalSize* {.serialize.}: UInt256
     duration* {.serialize.}: UInt256
-    minPrice* {.serialize.}: UInt256
-    maxCollateral* {.serialize.}: UInt256
+    minPricePerByte* {.serialize.}: UInt256
+    totalCollateral* {.serialize.}: UInt256
     freeSize* {.serialize.}: ?UInt256
 
   RestSalesAgent* = object
