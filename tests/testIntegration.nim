@@ -16,22 +16,22 @@ import ./integration/testmanager
 {.warning[UnusedImport]:off.}
 
 const TestConfigs = @[
-  # IntegrationTestConfig(testFile: "./integration/testcli", startHardhat: true),
-  # IntegrationTestConfig(testFile: "./integration/testrestapi", startHardhat: true),
-  # IntegrationTestConfig(testFile: "./integration/testupdownload", startHardhat: true),
-  # IntegrationTestConfig(testFile: "./integration/testsales", startHardhat: true),
-  # IntegrationTestConfig(testFile: "./integration/testpurchasing", startHardhat: true),
-  # IntegrationTestConfig(testFile: "./integration/testblockexpiration", startHardhat: true),
-  IntegrationTestConfig(
-    name: "Basic Marketplace and payout tests",
-    testFile: "./integration/testmarketplace",
-    startHardhat: true),
-  # IntegrationTestConfig(testFile: "./integration/testproofs", startHardhat: true),
-  # IntegrationTestConfig(testFile: "./integration/testvalidator", startHardhat: true),
-  IntegrationTestConfig(
-    name: "Erasure Coding Bug",
-    testFile: "./integration/testecbug",
-    startHardhat: true)
+  IntegrationTestConfig.init("./integration/testcli", startHardhat = true),
+  IntegrationTestConfig.init("./integration/testrestapi", startHardhat = false),
+  # IntegrationTestConfig.init("./integration/testupdownload", startHardhat = true),
+  # IntegrationTestConfig.init("./integration/testsales", startHardhat = true),
+  # IntegrationTestConfig.init("./integration/testpurchasing", startHardhat = true),
+  # IntegrationTestConfig.init("./integration/testblockexpiration", startHardhat = true),
+  # IntegrationTestConfig.init(
+  #   name = "Basic Marketplace and payout tests",
+  #   testFile = "./integration/testmarketplace",
+  #   startHardhat = true),
+  # IntegrationTestConfig("./integration/testproofs", startHardhat = true),
+  # IntegrationTestConfig("./integration/testvalidator", startHardhat = true),
+  IntegrationTestConfig.init(
+    name = "Erasure Coding Bug",
+    testFile = "./integration/testecbug",
+    startHardhat = true)
 ]
 
 proc run() {.async.} =

@@ -30,9 +30,9 @@ type
     testTimeout: Duration # individual test timeout
 
   IntegrationTestConfig* = object
-    startHardhat*: bool
-    testFile*: string
-    name*: string
+    startHardhat: bool
+    testFile: string
+    name: string
 
   IntegrationTestStatus = enum ## The status of a test when it is done.
     Ok,       # tests completed and all succeeded
@@ -85,6 +85,21 @@ proc new*(
     debugHardhat: debugHardhat,
     debugCodexNodes: debugCodexNodes,
     testTimeout: testTimeout
+  )
+
+func init*(
+  _: type IntegrationTestConfig,
+  testFile: string,
+  startHardhat: bool,
+  name = ""): IntegrationTestConfig =
+
+  IntegrationTestConfig(
+    testFile: testFile,
+    name: if name == "":
+            testFile.extractFilename
+          else:
+            name,
+    startHardhat: startHardhat
   )
 
 template withLock*(lock: AsyncLock, body: untyped) =
