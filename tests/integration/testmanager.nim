@@ -49,7 +49,7 @@ type
     testId: string    # when used in datadir path, prevents data dir clashes
     status: IntegrationTestStatus
 
-  TestManagerError = object of CatchableError
+  TestManagerError* = object of CatchableError
 
   Border {.pure.} = enum
     Left, Right
@@ -120,7 +120,8 @@ template styledEcho*(args: varargs[untyped]) =
   try:
     styledEcho args
   except CatchableError as parent:
-    raiseTestManagerError "failed to print to terminal, error: " & parent.msg, parent
+    # no need to re-raise this, as it'll eventually have to be logged only
+    error "failed to print to terminal", error = parent.msg
 
 proc duration(manager: TestManager): Duration =
   manager.timeEnd - manager.timeStart
@@ -130,10 +131,16 @@ proc duration(test: IntegrationTest): Duration =
 
 proc startHardhat(
   manager: TestManager,
-  config: IntegrationTestConfig): Future[int] {.async: (raises: [CancelledError, TestManagerError]).} =
+  config: IntegrationTestConfig): Future[Hardhat] {.async: (raises: [CancelledError, TestManagerError]).} =
 
   var args: seq[string] = @[]
   var port: int
+
+  let hardhat = Hardhat.new()
+  manager.hardhats.add hardhat
+
+  proc onOutputLineCaptured(line: string) {.raises: [].} =
+    hardhat.output.add line
 
   withLock(manager.hardhatPortLock):
     port = await nextFreePort(manager.lastHardhatPort + 10)
@@ -146,11 +153,13 @@ proc startHardhat(
   try:
     let node = await HardhatProcess.startNode(
       args,
-      manager.debugHardhat,
-      "hardhat for '" & config.name & "'")
+      false,
+      "hardhat for '" & config.name & "'",
+      onOutputLineCaptured)
     await node.waitUntilStarted()
-    manager.hardhats.add node
-    return port
+    hardhat.process = node
+    hardhat.port = port
+    return hardhat
   except CancelledError as e:
     raise e
   except CatchableError as e:
@@ -158,7 +167,7 @@ proc startHardhat(
 
 proc printResult(
   test: IntegrationTest,
-  colour: ForegroundColor) {.raises: [TestManagerError].} =
+  colour: ForegroundColor) =
 
   styledEcho styleBright, colour, &"[{toUpper $test.status}] ",
             resetStyle, test.config.name,
@@ -167,18 +176,21 @@ proc printResult(
 proc printOutputMarker(
   test: IntegrationTest,
   position: MarkerPosition,
-  msg: string) {.raises: [TestManagerError].} =
+  msg: string) =
 
-  let newLine = if position == MarkerPosition.Start: "\n"
-                else: ""
+  if position == MarkerPosition.Start:
+    echo ""
 
   styledEcho styleBright, bgWhite, fgBlack,
-             &"{newLine}----- {toUpper $position} {test.config.name} {msg} -----"
+    &"----- {toUpper $position} {test.config.name} {msg} -----"
+
+  if position == MarkerPosition.Finish:
+    echo ""
 
 proc printResult(
   test: IntegrationTest,
   processOutput = false,
-  testHarnessErrors = false) {.raises: [TestManagerError].} =
+  testHarnessErrors = false) =
 
   if test.status == IntegrationTestStatus.Error and
     error =? test.output.errorOption:
@@ -218,16 +230,27 @@ proc printResult(
                                "codex node output (stdout)")
     test.printResult(fgGreen)
 
-proc printSummary(test: IntegrationTest) {.raises: [TestManagerError].} =
+proc printSummary(test: IntegrationTest) =
   test.printResult(processOutput = false, testHarnessErrors = false)
 
-proc printStart(test: IntegrationTest) {.raises: [TestManagerError].} =
+proc printStart(test: IntegrationTest) =
   styledEcho styleBright, fgMagenta, &"[Integration test started] ", resetStyle, test.config.name
+
+proc stopHardhat(
+  manager: TestManager,
+  test: IntegrationTest,
+  hardhat: Hardhat) {.async: (raises: [CancelledError, TestManagerError]).} =
+
+  try:
+    await hardhat.process.stop()
+  except CatchableError as parent:
+    raiseTestManagerError("failed to stop hardhat node", parent)
+
 
 proc buildCommand(
   manager: TestManager,
   test: IntegrationTest,
-  hardhatPort: int): Future[string] {.async: (raises:[CancelledError, TestManagerError]).} =
+  hardhatPort: ?int): Future[string] {.async: (raises:[CancelledError, TestManagerError]).} =
 
   var apiPort, discPort: int
   withLock(manager.codexPortLock):
@@ -246,6 +269,13 @@ proc buildCommand(
               "-d:chronicles_default_output_device=stdout " &
               "-d:chronicles_sinks=textlines"
 
+  let strHardhatPort =
+    if not test.config.startHardhat: ""
+    else:
+      without port =? hardhatPort:
+        raiseTestManagerError "hardhatPort required when 'config.startHardhat' is true"
+      "-d:HardhatPort=" & $port
+
   var testFile: string
   try:
     testFile = absolutePath(
@@ -260,9 +290,7 @@ proc buildCommand(
       return  "nim c " &
               &"-d:CodexApiPort={apiPort} " &
               &"-d:CodexDiscPort={discPort} " &
-                (if test.config.startHardhat:
-                  &"-d:HardhatPort={hardhatPort} "
-                else: "") &
+              &"{strHardhatPort} " &
               &"-d:TestId={test.testId} " &
               &"{logging} " &
                 "--verbosity:0 " &
@@ -281,7 +309,7 @@ proc buildCommand(
 
 proc runTest(
   manager: TestManager,
-  config: IntegrationTestConfig) {.async: (raises: [CancelledError, TestManagerError]).} =
+  config: IntegrationTestConfig) {.async: (raises: [CancelledError]).} =
 
   logScope:
     config
@@ -293,34 +321,37 @@ proc runTest(
     testId: $ uint16.example
   )
 
-  var hardhatPort = 0
-  if config.startHardhat:
-    try:
-      hardhatPort = await manager.startHardhat(config)
-    except TestManagerError as e:
-      e.msg = "Failed to start hardhat: " & e.msg
-      test.timeEnd = Moment.now()
-      test.status = IntegrationTestStatus.Error
-      test.output = CommandExResponse.failure(e)
+  test.timeStart = Moment.now()
+  manager.tests.add test
 
-  let command = await manager.buildCommand(test, hardhatPort)
+  var hardhat: Hardhat
+  var hardhatPort = int.none
+  var command: string
+  try:
+    if config.startHardhat:
+      hardhat = await manager.startHardhat(config)
+      hardhatPort = hardhat.port.some
+    command = await manager.buildCommand(test, hardhatPort)
+  except TestManagerError as e:
+    error "Failed to start hardhat and build command", error = e.msg
+    test.timeEnd = Moment.now()
+    test.status = IntegrationTestStatus.Error
+    test.output = CommandExResponse.failure(e)
+    test.printResult(processOutput = manager.debugCodexNodes,
+                      testHarnessErrors = manager.debugTestHarness)
+    return
 
   trace "Starting parallel integration test", command
   test.printStart()
-  test.timeStart = Moment.now()
   test.process = execCommandEx(
     command = command,
     timeout = manager.testTimeout
   )
-  manager.tests.add test
 
   try:
 
     let output = await test.process # waits on waitForExit
     test.output = success(output)
-    test.timeEnd = Moment.now()
-
-    info "Test completed", name = config.name, duration = test.timeEnd - test.timeStart
 
     if output.status != 0:
       test.status = IntegrationTestStatus.Failed
@@ -349,8 +380,27 @@ proc runTest(
     test.printResult(processOutput = manager.debugCodexNodes,
                      testHarnessErrors = manager.debugTestHarness)
 
-proc runTests(manager: TestManager) {.async: (raises: [CancelledError, TestManagerError]).} =
-  var testFutures: seq[Future[void].Raising([CancelledError, TestManagerError])]
+  if config.startHardhat and not hardhat.isNil:
+    try:
+      trace "Stopping hardhat", name = config.name
+      await manager.stopHardhat(test, hardhat)
+    except TestManagerError as e:
+      warn "Failed to stop hardhat node, continuing",
+        error = e.msg, test = test.config.name
+
+    if manager.debugHardhat:
+      test.printOutputMarker(MarkerPosition.Start, "Hardhat stdout")
+      for line in hardhat.output:
+        echo line
+      test.printOutputMarker(MarkerPosition.Finish, "Hardhat stdout")
+
+    manager.hardhats.keepItIf( it != hardhat )
+
+  test.timeEnd = Moment.now()
+  info "Test completed", name = config.name, duration = test.timeEnd - test.timeStart
+
+proc runTests(manager: TestManager) {.async: (raises: [CancelledError]).} =
+  var testFutures: seq[Future[void].Raising([CancelledError])]
 
   manager.timeStart = Moment.now()
 
@@ -414,6 +464,6 @@ proc stop*(manager: TestManager) {.async: (raises: [CancelledError]).} =
 
   for hardhat in manager.hardhats:
     try:
-      await hardhat.stop()
+      await hardhat.process.stop()
     except CatchableError as e:
       trace "failed to stop hardhat node", error = e.msg

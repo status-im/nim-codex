@@ -22,8 +22,10 @@ logScope:
   topics = "integration testing hardhat process"
 
 type
+  OnOutputLineCaptured = proc(line: string) {.raises: [].}
   HardhatProcess* = ref object of NodeProcess
     logFile: ?IoHandle
+    onOutputLine: OnOutputLineCaptured
 
 method workingDir(node: HardhatProcess): string =
   return currentSourcePath() / ".." / ".." / ".." / "vendor" / "codex-contracts-eth"
@@ -87,7 +89,8 @@ proc startNode*(
   _: type HardhatProcess,
   args: seq[string],
   debug: string | bool = false,
-  name: string
+  name: string,
+  onOutputLineCaptured: OnOutputLineCaptured = nil
 ): Future[HardhatProcess] {.async.} =
 
   logScope:
@@ -109,7 +112,8 @@ proc startNode*(
     arguments: arguments,
     debug: ($debug != "false"),
     trackedFutures: TrackedFutures.new(),
-    name: name
+    name: name,
+    onOutputLine: onOutputLineCaptured
   )
 
   await hardhat.start()
@@ -119,10 +123,13 @@ proc startNode*(
 
   return hardhat
 
-method onOutputLineCaptured(node: HardhatProcess, line: string) =
+method onOutputLineCaptured(node: HardhatProcess, line: string) {.raises: [].} =
 
   logScope:
     nodeName = node.name
+
+  if not node.onOutputLine.isNil:
+    node.onOutputLine(line)
 
   without logFile =? node.logFile:
     return
