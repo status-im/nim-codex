@@ -32,6 +32,7 @@ type
     timeEnd: Moment
     codexPortLock: AsyncLock
     hardhatPortLock: AsyncLock
+    hardhatProcessLock: AsyncLock
     testTimeout: Duration # individual test timeout
 
   IntegrationTestConfig* = object
@@ -177,15 +178,16 @@ proc startHardhat(
 
   trace "starting hardhat process on port ", port
   try:
-    let node = await HardhatProcess.startNode(
-      args,
-      false,
-      "hardhat for '" & config.name & "'",
-      onOutputLineCaptured)
-    await node.waitUntilStarted()
-    hardhat.process = node
-    hardhat.port = port
-    return hardhat
+    withLock(test.manager.hardhatProcessLock):
+      let node = await HardhatProcess.startNode(
+        args,
+        false,
+        "hardhat for '" & test.config.name & "'",
+        onOutputLineCaptured)
+      hardhat.process = node
+      hardhat.port = port
+      await node.waitUntilStarted()
+      return hardhat
   except CancelledError as e:
     raise e
   except CatchableError as e:
