@@ -46,6 +46,7 @@ type
     Error     # Test file did not launch correctly. Indicates an error occurred running the tests (usually an error in the harness).
 
   IntegrationTest = ref object
+    manager: TestManager
     config: IntegrationTestConfig
     process: Future[CommandExResponse].Raising([AsyncProcessError, AsyncProcessTimeoutError, CancelledError])
     timeStart: Moment
@@ -155,8 +156,7 @@ proc duration(test: IntegrationTest): Duration =
   test.timeEnd - test.timeStart
 
 proc startHardhat(
-  manager: TestManager,
-  config: IntegrationTestConfig): Future[Hardhat] {.async: (raises: [CancelledError, TestManagerError]).} =
+  test: IntegrationTest): Future[Hardhat] {.async: (raises: [CancelledError, TestManagerError]).} =
 
   var args: seq[string] = @[]
   var port: int
@@ -167,9 +167,9 @@ proc startHardhat(
   proc onOutputLineCaptured(line: string) {.raises: [].} =
     hardhat.output.add line
 
-  withLock(manager.hardhatPortLock):
-    port = await nextFreePort(manager.lastHardhatPort + 10)
-    manager.lastHardhatPort = port
+  withLock(test.manager.hardhatPortLock):
+    port = await nextFreePort(test.manager.lastHardhatPort + 10)
+    test.manager.lastHardhatPort = port
 
   args.add("--port")
   args.add($port)
@@ -189,16 +189,6 @@ proc startHardhat(
     raise e
   except CatchableError as e:
     raiseTestManagerError "hardhat node failed to start: " & e.msg, e
-
-proc stopHardhat(
-  manager: TestManager,
-  test: IntegrationTest,
-  hardhat: Hardhat) {.async: (raises: [CancelledError, TestManagerError]).} =
-
-  try:
-    await hardhat.process.stop()
-  except CatchableError as parent:
-    raiseTestManagerError("failed to stop hardhat node", parent)
 
 proc printResult(
   test: IntegrationTest,
@@ -272,22 +262,21 @@ proc printStart(test: IntegrationTest) =
   echoStyled styleBright, fgMagenta, &"[Integration test started] ", resetStyle, test.config.name
 
 proc buildCommand(
-  manager: TestManager,
   test: IntegrationTest,
   hardhatPort: ?int): Future[string] {.async: (raises:[CancelledError, TestManagerError]).} =
 
   var apiPort, discPort: int
-  withLock(manager.codexPortLock):
+  withLock(test.manager.codexPortLock):
     # TODO: needed? nextFreePort should take care of this
     # inc by 20 to allow each test to run 20 codex nodes (clients, SPs,
     # validators) giving a good chance the port will be free
-    apiPort = await nextFreePort(manager.lastCodexApiPort + 20)
-    manager.lastCodexApiPort = apiPort
-    discPort = await nextFreePort(manager.lastCodexDiscPort + 20)
-    manager.lastCodexDiscPort = discPort
+    apiPort = await nextFreePort(test.manager.lastCodexApiPort + 20)
+    test.manager.lastCodexApiPort = apiPort
+    discPort = await nextFreePort(test.manager.lastCodexDiscPort + 20)
+    test.manager.lastCodexDiscPort = discPort
 
   var logging = ""
-  if manager.debugTestHarness:
+  if test.manager.debugTestHarness:
     logging = "-d:chronicles_log_level=TRACE " &
               "-d:chronicles_disabled_topics=websock " &
               "-d:chronicles_default_output_device=stdout " &
@@ -309,7 +298,7 @@ proc buildCommand(
     raiseTestManagerError "bad file name, testFile: " & test.config.testFile, parent
 
   var command: string
-  withLock(manager.hardhatPortLock):
+  withLock(test.manager.hardhatPortLock):
     try:
       return  "nim c " &
               &"-d:CodexApiPort={apiPort} " &
@@ -341,6 +330,7 @@ proc runTest(
   trace "Running test"
 
   var test = IntegrationTest(
+    manager: manager,
     config: config,
     testId: $ uint16.example
   )
@@ -353,9 +343,10 @@ proc runTest(
   var command: string
   try:
     if config.startHardhat:
-      hardhat = await manager.startHardhat(config)
+      hardhat = await test.startHardhat()
       hardhatPort = hardhat.port.some
-    command = await manager.buildCommand(test, hardhatPort)
+      manager.hardhats.add hardhat
+    command = await test.buildCommand(hardhatPort)
   except TestManagerError as e:
     error "Failed to start hardhat and build command", error = e.msg
     test.timeEnd = Moment.now()
@@ -404,8 +395,8 @@ proc runTest(
   if config.startHardhat and not hardhat.isNil:
     try:
       trace "Stopping hardhat", name = config.name
-      await manager.stopHardhat(test, hardhat)
-    except TestManagerError as e:
+      await hardhat.process.stop()
+    except CatchableError as e:
       warn "Failed to stop hardhat node, continuing",
         error = e.msg, test = test.config.name
 
