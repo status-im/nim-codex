@@ -122,7 +122,7 @@ proc startNode*[T: NodeProcess](
   await node.start()
   return node
 
-method stop*(node: NodeProcess) {.base, async.} =
+method stop*(node: NodeProcess, expectedErrCode: int = -1) {.base, async.} =
   logScope:
     nodeName = node.name
 
@@ -143,7 +143,9 @@ method stop*(node: NodeProcess) {.base, async.} =
         fatal "could not get exit code from process", error
         return
 
-      if exitCode > 0 and exitCode != 143: # 143 = SIGTERM (initiated above)
+      if exitCode > 0 and
+         exitCode != 143 and # 143 = SIGTERM (initiated above)
+         exitCode != expectedErrCode:
         error "failed to exit process, check for zombies", exitCode
 
     except CancelledError as error:

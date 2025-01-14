@@ -8,6 +8,8 @@ import ./nodeprocess
 import ./utils
 import ../examples
 
+const HardhatPort {.intdefine.}: int = 8545
+
 asyncchecksuite "Command line interface":
 
   let key = "4242424242424242424242424242424242424242424242424242424242424242"
@@ -26,19 +28,21 @@ asyncchecksuite "Command line interface":
 
   test "complains when persistence is enabled without ethereum account":
     let node = await startCodex(@[
-      "persistence"
+      "persistence",
+      "--eth-provider=" & "http://127.0.0.1:" & $HardhatPort
     ])
     await node.waitUntilOutput("Persistence enabled, but no Ethereum account was set")
-    await node.stop()
+    await node.stop(expectedErrCode=1)
 
   test "complains when ethereum private key file has wrong permissions":
     let unsafeKeyFile = genTempPath("", "")
     discard unsafeKeyFile.writeFile(key, 0o666)
     let node = await startCodex(@[
       "persistence",
+      "--eth-provider=" & "http://127.0.0.1:" & $HardhatPort,
       "--eth-private-key=" & unsafeKeyFile])
     await node.waitUntilOutput("Ethereum private key file does not have safe file permissions")
-    await node.stop()
+    await node.stop(expectedErrCode=1)
     discard removeFile(unsafeKeyFile)
 
   let
@@ -48,25 +52,27 @@ asyncchecksuite "Command line interface":
   test "suggests downloading of circuit files when persistence is enabled without accessible r1cs file":
     let node = await startCodex(@["persistence", "prover", marketplaceArg])
     await node.waitUntilOutput(expectedDownloadInstruction)
-    await node.stop()
+    await node.stop(expectedErrCode=1)
 
   test "suggests downloading of circuit files when persistence is enabled without accessible wasm file":
     let node = await startCodex(@[
       "persistence",
+      "--eth-provider=" & "http://127.0.0.1:" & $HardhatPort,
       "prover",
       marketplaceArg,
       "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs"
     ])
     await node.waitUntilOutput(expectedDownloadInstruction)
-    await node.stop()
+    await node.stop(expectedErrCode=1)
 
   test "suggests downloading of circuit files when persistence is enabled without accessible zkey file":
     let node = await startCodex(@[
       "persistence",
+      "--eth-provider=" & "http://127.0.0.1:" & $HardhatPort,
       "prover",
       marketplaceArg,
       "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
       "--circom-wasm=tests/circuits/fixtures/proof_main.wasm"
     ])
     await node.waitUntilOutput(expectedDownloadInstruction)
-    await node.stop()
+    await node.stop(expectedErrCode=1)
