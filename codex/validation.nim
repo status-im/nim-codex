@@ -23,9 +23,6 @@ type
     proofTimeout: UInt256
     config: ValidationConfig
 
-const
-  MaxStorageRequestDuration = 30.days
-
 logScope:
   topics = "codex validator"
 
@@ -128,7 +125,8 @@ proc epochForDurationBackFromNow(validation: Validation,
 
 proc restoreHistoricalState(validation: Validation) {.async.} =
   trace "Restoring historical state..."
-  let startTimeEpoch = validation.epochForDurationBackFromNow(MaxStorageRequestDuration)
+  let requestDurationLimit = await validation.market.requestDurationLimit
+  let startTimeEpoch = validation.epochForDurationBackFromNow(requestDurationLimit)
   let slotFilledEvents = await validation.market.queryPastSlotFilledEvents(
     fromTime = startTimeEpoch)
   for event in slotFilledEvents:

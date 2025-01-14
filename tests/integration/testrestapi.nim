@@ -79,6 +79,29 @@ twonodessuite "REST API":
     check responseBefore.status == "400 Bad Request"
     check responseBefore.body == "Tolerance needs to be bigger then zero"
 
+  test "request storage fails if duration exceeds limit", twoNodesConfig:
+    let data = await RandomChunker.example(blocks=2)
+    let cid = client1.upload(data).get
+    let duration = (31*24*60*60).u256 # 31 days TODO: this should not be hardcoded, but waits for https://github.com/codex-storage/nim-codex/issues/1056
+    let reward = 2.u256
+    let proofProbability = 3.u256
+    let expiry = 30.uint
+    let collateral = 200.u256
+    let nodes = 3
+    let tolerance = 2
+
+    var responseBefore = client1.requestStorageRaw(cid,
+      duration,
+      reward,
+      proofProbability,
+      collateral,
+      expiry,
+      nodes.uint,
+      tolerance.uint)
+
+    check responseBefore.status == "400 Bad Request"
+    check "Duration exceeds limit of" in responseBefore.body
+
   test "request storage fails if nodes and tolerance aren't correct", twoNodesConfig:
     let data = await RandomChunker.example(blocks=2)
     let cid = client1.upload(data).get

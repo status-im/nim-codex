@@ -129,7 +129,7 @@ proc retrieveCid(
     if not stream.isNil:
       await stream.close()
 
-proc buildCorsHeaders(httpMethod: string, allowedOrigin: Option[string]): seq[(string, string)] = 
+proc buildCorsHeaders(httpMethod: string, allowedOrigin: Option[string]): seq[(string, string)] =
   var headers: seq[(string, string)] = newSeq[(string, string)]()
 
   if corsOrigin =? allowedOrigin:
@@ -137,9 +137,9 @@ proc buildCorsHeaders(httpMethod: string, allowedOrigin: Option[string]): seq[(s
     headers.add(("Access-Control-Allow-Methods", httpMethod & ", OPTIONS"))
     headers.add(("Access-Control-Max-Age", "86400"))
 
-  return headers 
+  return headers
 
-proc setCorsHeaders(resp: HttpResponseRef, httpMethod: string, origin: string) = 
+proc setCorsHeaders(resp: HttpResponseRef, httpMethod: string, origin: string) =
   resp.setHeader("Access-Control-Allow-Origin", origin)
   resp.setHeader("Access-Control-Allow-Methods", httpMethod & ", OPTIONS")
   resp.setHeader("Access-Control-Max-Age", "86400")
@@ -158,12 +158,12 @@ proc getFilenameFromContentDisposition(contentDisposition: string): ?string =
 
 proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin # prevents capture inside of api defintion
-   
+
   router.api(
     MethodOptions,
     "/api/codex/v1/data") do (
        resp: HttpResponseRef) -> RestApiResponse:
-      
+
       if corsOrigin =? allowedOrigin:
         resp.setCorsHeaders("POST", corsOrigin)
         resp.setHeader("Access-Control-Allow-Headers", "content-type, content-disposition")
@@ -250,7 +250,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       if cid.isErr:
         return RestApiResponse.error(
           Http400,
-          $cid.error(), 
+          $cid.error(),
           headers = headers)
 
       if corsOrigin =? allowedOrigin:
@@ -456,7 +456,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 
         return RestApiResponse.response(availability.toJson,
                                         Http201,
-                                        contentType="application/json", 
+                                        contentType="application/json",
                                         headers = headers)
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
@@ -588,7 +588,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       try:
         without contracts =? node.contracts.client:
           return RestApiResponse.error(Http503, "Persistence is not enabled", headers = headers)
-        
+
         without cid =? cid.tryGet.catch, error:
           return RestApiResponse.error(Http400, error.msg, headers = headers)
 
@@ -596,6 +596,10 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
 
         without params =? StorageRequestParams.fromJson(body), error:
           return RestApiResponse.error(Http400, error.msg, headers = headers)
+
+        let requestDurationLimit = await contracts.purchasing.market.requestDurationLimit
+        if params.duration > requestDurationLimit:
+          return RestApiResponse.error(Http400, "Duration exceeds limit of " & $requestDurationLimit & " seconds", headers = headers)
 
         let nodes = params.nodes |? 3
         let tolerance = params.tolerance |? 1
@@ -641,7 +645,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500, headers = headers)
-    
+
   router.api(
     MethodGet,
     "/api/codex/v1/storage/purchases/{id}") do (
@@ -746,7 +750,7 @@ proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
       if peerId.isErr:
         return RestApiResponse.error(
           Http400,
-          $peerId.error(), 
+          $peerId.error(),
           headers = headers)
 
       let addresses = if addrs.isOk and addrs.get().len > 0:
@@ -755,7 +759,7 @@ proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
             without peerRecord =? (await node.findPeer(peerId.get())):
               return RestApiResponse.error(
                 Http400,
-                "Unable to find Peer!", 
+                "Unable to find Peer!",
                 headers = headers)
             peerRecord.addresses.mapIt(it.address)
       try:

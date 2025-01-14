@@ -70,6 +70,9 @@ method proofTimeout*(market: Market): Future[UInt256] {.base, async.} =
 method repairRewardPercentage*(market: Market): Future[uint8] {.base, async.} =
   raiseAssert("not implemented")
 
+method requestDurationLimit*(market: Market): Future[UInt256] {.base, async.} =
+  raiseAssert("not implemented")
+
 method proofDowntime*(market: Market): Future[uint8] {.base, async.} =
   raiseAssert("not implemented")
 

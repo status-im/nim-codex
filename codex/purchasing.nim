@@ -14,7 +14,7 @@ export purchase
 
 type
   Purchasing* = ref object
-    market: Market
+    market*: Market
     clock: Clock
     purchases: Table[PurchaseId, Purchase]
     proofProbability*: UInt256
