@@ -56,6 +56,15 @@ type
 
   TestManagerError* = object of CatchableError
 
+  Border {.pure.} = enum
+    Left, Right
+  Align {.pure.} = enum
+    Left, Right
+
+  MarkerPosition {.pure.} = enum
+    Start,
+    Finish
+
 {.push raises: [].}
 
 logScope:
