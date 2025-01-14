@@ -22,7 +22,7 @@ asyncchecksuite "Command line interface":
         "--api-port=" & $(await nextFreePort(8080 + nodeCount)),
         "--disc-port=" & $(await nextFreePort(8090 + nodeCount))
       ]),
-      true,
+      debug = false,
       "cli-test-node"
     )
 
