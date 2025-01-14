@@ -71,6 +71,8 @@ type
 logScope:
   topics = "testing integration testmanager"
 
+proc printOutputMarker(test: IntegrationTest, position: MarkerPosition, msg: string) {.gcsafe, raises: [].}
+
 proc raiseTestManagerError(msg: string, parent: ref CatchableError = nil) {.raises: [TestManagerError].} =
   raise newException(TestManagerError, msg, parent)
 
@@ -188,6 +190,11 @@ proc startHardhat(
   except CancelledError as e:
     raise e
   except CatchableError as e:
+    if not hardhat.isNil:
+      test.printOutputMarker(MarkerPosition.Start, "hardhat stdout")
+      for line in hardhat.output:
+        echo line
+      test.printOutputMarker(MarkerPosition.Finish, "hardhat stdout")
     raiseTestManagerError "hardhat node failed to start: " & e.msg, e
 
 proc printResult(
@@ -220,11 +227,10 @@ proc printResult(
   if test.status == IntegrationTestStatus.Error and
     error =? test.output.errorOption:
     test.printResult(fgRed)
-    if printStdErr:
-      test.printOutputMarker(MarkerPosition.Start, "test harness errors")
-      echo "Error during test execution: ", error.msg
-      echo "Stacktrace: ", error.getStackTrace()
-      test.printOutputMarker(MarkerPosition.Finish, "test harness errors")
+    test.printOutputMarker(MarkerPosition.Start, "test harness errors")
+    echo "Error during test execution: ", error.msg
+    echo "Stacktrace: ", error.getStackTrace()
+    test.printOutputMarker(MarkerPosition.Finish, "test harness errors")
 
   elif test.status == IntegrationTestStatus.Failed:
     if output =? test.output:
@@ -352,9 +358,10 @@ proc runTest(
     test.timeEnd = Moment.now()
     test.status = IntegrationTestStatus.Error
     test.output = CommandExResponse.failure(e)
-    test.printResult(printStdOut = manager.debugCodexNodes,
+    test.printResult(printStdOut = manager.debugHardhat or manager.debugCodexNodes,
                       printStdErr = manager.debugTestHarness)
     return
+
 
   trace "Starting parallel integration test", command
   test.printStart()
