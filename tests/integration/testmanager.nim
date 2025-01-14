@@ -164,7 +164,6 @@ proc startHardhat(
   var port: int
 
   let hardhat = Hardhat.new()
-  manager.hardhats.add hardhat
 
   proc onOutputLineCaptured(line: string) {.raises: [].} =
     hardhat.output.add line
