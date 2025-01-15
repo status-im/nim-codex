@@ -8,11 +8,14 @@ type
   MarketplaceConfig* = object
     collateral*: CollateralConfig
     proofs*: ProofConfig
+
   CollateralConfig* = object
-    repairRewardPercentage*: uint8 # percentage of remaining collateral slot has after it has been freed
+    repairRewardPercentage*: uint8
+      # percentage of remaining collateral slot has after it has been freed
     maxNumberOfSlashes*: uint8 # frees slot when the number of slashes reaches this value
     slashCriterion*: uint16 # amount of proofs missed that lead to slashing
     slashPercentage*: uint8 # percentage of the collateral that is slashed
+
   ProofConfig* = object
     period*: UInt256 # proofs requirements are calculated per period (in seconds)
     timeout*: UInt256 # mark proofs as missing before the timeout (in seconds)
@@ -23,14 +26,13 @@ type
     # blocks. Should be a prime number to ensure there are no cycles.
     downtimeProduct*: uint8
 
-
 func fromTuple(_: type ProofConfig, tupl: tuple): ProofConfig =
   ProofConfig(
     period: tupl[0],
     timeout: tupl[1],
     downtime: tupl[2],
     zkeyHash: tupl[3],
-    downtimeProduct: tupl[4]
+    downtimeProduct: tupl[4],
   )
 
 func fromTuple(_: type CollateralConfig, tupl: tuple): CollateralConfig =
@@ -38,14 +40,11 @@ func fromTuple(_: type CollateralConfig, tupl: tuple): CollateralConfig =
     repairRewardPercentage: tupl[0],
     maxNumberOfSlashes: tupl[1],
     slashCriterion: tupl[2],
-    slashPercentage: tupl[3]
+    slashPercentage: tupl[3],
   )
 
 func fromTuple(_: type MarketplaceConfig, tupl: tuple): MarketplaceConfig =
-  MarketplaceConfig(
-    collateral: tupl[0],
-    proofs: tupl[1]
-  )
+  MarketplaceConfig(collateral: tupl[0], proofs: tupl[1])
 
 func solidityType*(_: type ProofConfig): string =
   solidityType(ProofConfig.fieldTypes)

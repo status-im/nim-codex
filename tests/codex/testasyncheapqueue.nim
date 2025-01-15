@@ -7,8 +7,7 @@ import pkg/codex/rng
 import ../asynctest
 import ./helpers
 
-type
-  Task* = tuple[name: string, priority: int]
+type Task* = tuple[name: string, priority: int]
 
 proc `<`*(a, b: Task): bool =
   a.priority < b.priority
@@ -70,7 +69,7 @@ checksuite "Synchronous tests":
 
     check res == @[9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
 
-  test "Test del": # Test del
+  test "Test del":
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
     for item in data:
@@ -91,7 +90,7 @@ checksuite "Synchronous tests":
     heap.del(heap.find(2))
     check heap.toSortedSeq == @[1, 3, 4, 8, 9]
 
-  test "Test del last": # Test del last
+  test "Test del last":
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 2, 3]
     for item in data:
@@ -190,11 +189,11 @@ asyncchecksuite "Asynchronous Tests":
     for item in data:
       check heap.pushNoWait(item).isOk
 
-    check heap[0] == ("b", 3)                 # sanity check for order
+    check heap[0] == ("b", 3) # sanity check for order
 
-    let fut = heap.pushOrUpdate(("c", 2))     # attempt to push a non existen item but block
-    check heap.popNoWait().tryGet() == ("b", 3)  # pop one off
-    await fut                                 # wait for push to complete
+    let fut = heap.pushOrUpdate(("c", 2)) # attempt to push a non existen item but block
+    check heap.popNoWait().tryGet() == ("b", 3) # pop one off
+    await fut # wait for push to complete
 
     check heap[0] == (name: "c", priority: 2) # check order again
 
@@ -215,10 +214,7 @@ asyncchecksuite "Asynchronous Tests":
     let data = ["d", "b", "c", "a", "h", "e", "f", "g"]
 
     for item in data:
-      check heap.pushNoWait((
-        name: item,
-        priority: Rng.instance().rand(data.len)
-      )).isOk
+      check heap.pushNoWait((name: item, priority: Rng.instance().rand(data.len))).isOk
 
     let del = heap[3]
     heap.delete(del)

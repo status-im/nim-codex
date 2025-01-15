@@ -10,10 +10,10 @@ import ./finished
 logScope:
   topics = "marketplace sales payout"
 
-type
-  SalePayout* = ref object of ErrorHandlingState
+type SalePayout* = ref object of ErrorHandlingState
 
-method `$`*(state: SalePayout): string = "SalePayout"
+method `$`*(state: SalePayout): string =
+  "SalePayout"
 
 method onCancelled*(state: SalePayout, request: StorageRequest): ?State =
   return some State(SaleCancelled())
@@ -29,7 +29,8 @@ method run(state: SalePayout, machine: Machine): Future[?State] {.async.} =
     raiseAssert "no sale request"
 
   let slot = Slot(request: request, slotIndex: data.slotIndex)
-  debug "Collecting finished slot's reward",  requestId = data.requestId, slotIndex = data.slotIndex
+  debug "Collecting finished slot's reward",
+    requestId = data.requestId, slotIndex = data.slotIndex
   await market.freeSlot(slot.id)
 
   return some State(SaleFinished())

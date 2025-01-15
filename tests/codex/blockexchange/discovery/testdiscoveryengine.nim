@@ -62,12 +62,18 @@ asyncchecksuite "Test Discovery Engine":
         network,
         blockDiscovery,
         pendingBlocks,
-        discoveryLoopSleep = 100.millis)
-      wants = blocks.mapIt(pendingBlocks.getWantHandle(it.cid) )
+        discoveryLoopSleep = 100.millis,
+      )
+      wants = blocks.mapIt(pendingBlocks.getWantHandle(it.cid))
 
-    blockDiscovery.findBlockProvidersHandler =
-      proc(d: MockDiscovery, cid: Cid): Future[seq[SignedPeerRecord]] {.async, gcsafe.} =
-        pendingBlocks.resolve(blocks.filterIt(it.cid == cid).mapIt(BlockDelivery(blk: it, address: it.address)))
+    blockDiscovery.findBlockProvidersHandler = proc(
+        d: MockDiscovery, cid: Cid
+    ): Future[seq[SignedPeerRecord]] {.async, gcsafe.} =
+      pendingBlocks.resolve(
+        blocks.filterIt(it.cid == cid).mapIt(
+          BlockDelivery(blk: it, address: it.address)
+        )
+      )
 
     await discoveryEngine.start()
     await allFuturesThrowing(allFinished(wants)).wait(1.seconds)
@@ -82,14 +88,16 @@ asyncchecksuite "Test Discovery Engine":
         network,
         blockDiscovery,
         pendingBlocks,
-        discoveryLoopSleep = 100.millis)
+        discoveryLoopSleep = 100.millis,
+      )
       want = newFuture[void]()
 
-    blockDiscovery.findBlockProvidersHandler =
-      proc(d: MockDiscovery, cid: Cid): Future[seq[SignedPeerRecord]] {.async, gcsafe.} =
-        check cid == blocks[0].cid
-        if not want.finished:
-          want.complete()
+    blockDiscovery.findBlockProvidersHandler = proc(
+        d: MockDiscovery, cid: Cid
+    ): Future[seq[SignedPeerRecord]] {.async, gcsafe.} =
+      check cid == blocks[0].cid
+      if not want.finished:
+        want.complete()
 
     await discoveryEngine.start()
     discoveryEngine.queueFindBlocksReq(@[blocks[0].cid])
@@ -107,23 +115,24 @@ asyncchecksuite "Test Discovery Engine":
         blockDiscovery,
         pendingBlocks,
         discoveryLoopSleep = 5.minutes,
-        minPeersPerBlock = minPeers)
+        minPeersPerBlock = minPeers,
+      )
       want = newAsyncEvent()
 
     var pendingCids = newSeq[Cid]()
-    blockDiscovery.findBlockProvidersHandler =
-      proc(d: MockDiscovery, cid: Cid): Future[seq[SignedPeerRecord]] {.async, gcsafe.} =
-        check cid in pendingCids
-        pendingCids.keepItIf(it != cid)
-        check peerStore.len < minPeers
-        var
-          peerCtx = BlockExcPeerCtx(id: PeerId.example)
+    blockDiscovery.findBlockProvidersHandler = proc(
+        d: MockDiscovery, cid: Cid
+    ): Future[seq[SignedPeerRecord]] {.async, gcsafe.} =
+      check cid in pendingCids
+      pendingCids.keepItIf(it != cid)
+      check peerStore.len < minPeers
+      var peerCtx = BlockExcPeerCtx(id: PeerId.example)
 
-        let address = BlockAddress(leaf: false, cid: cid)
+      let address = BlockAddress(leaf: false, cid: cid)
 
-        peerCtx.blocks[address] = Presence(address: address, price: 0.u256)
-        peerStore.add(peerCtx)
-        want.fire()
+      peerCtx.blocks[address] = Presence(address: address, price: 0.u256)
+      peerStore.add(peerCtx)
+      want.fire()
 
     await discoveryEngine.start()
     var idx = 0
@@ -148,19 +157,20 @@ asyncchecksuite "Test Discovery Engine":
         blockDiscovery,
         pendingBlocks,
         discoveryLoopSleep = 100.millis,
-        concurrentDiscReqs = 2)
+        concurrentDiscReqs = 2,
+      )
       reqs = newFuture[void]()
       count = 0
 
-    blockDiscovery.findBlockProvidersHandler =
-      proc(d: MockDiscovery, cid: Cid):
-        Future[seq[SignedPeerRecord]] {.gcsafe, async.} =
-        check cid == blocks[0].cid
-        if count > 0:
-          check false
-        count.inc
+    blockDiscovery.findBlockProvidersHandler = proc(
+        d: MockDiscovery, cid: Cid
+    ): Future[seq[SignedPeerRecord]] {.gcsafe, async.} =
+      check cid == blocks[0].cid
+      if count > 0:
+        check false
+      count.inc
 
-        await reqs # queue the request
+      await reqs # queue the request
 
     await discoveryEngine.start()
     discoveryEngine.queueFindBlocksReq(@[blocks[0].cid])

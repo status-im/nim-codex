@@ -10,31 +10,34 @@ import ../checktest
 type MockProvider = ref object of Provider
   chainId*: UInt256
 
-method getChainId*(provider: MockProvider): Future[UInt256] {.async: (raises:[ProviderError]).} =
+method getChainId*(
+    provider: MockProvider
+): Future[UInt256] {.async: (raises: [ProviderError]).} =
   return provider.chainId
 
 proc configFactory(): CodexConf =
   CodexConf(
     cmd: StartUpCmd.persistence,
-    nat: NatConfig(
-          hasExtIp: false,
-          nat: NatNone),
-    metricsAddress: parseIpAddress("127.0.0.1"))
+    nat: NatConfig(hasExtIp: false, nat: NatNone),
+    metricsAddress: parseIpAddress("127.0.0.1"),
+  )
 
 proc configFactory(marketplace: Option[EthAddress]): CodexConf =
   CodexConf(
     cmd: StartUpCmd.persistence,
-    nat: NatConfig(
-          hasExtIp: false,
-          nat: NatNone),
+    nat: NatConfig(hasExtIp: false, nat: NatNone),
     metricsAddress: parseIpAddress("127.0.0.1"),
-    marketplaceAddress: marketplace)
+    marketplaceAddress: marketplace,
+  )
 
 asyncchecksuite "Deployment":
   let provider = MockProvider()
 
   test "uses conf value as priority":
-    let deployment = Deployment.new(provider, configFactory(EthAddress.init("0x59b670e9fA9D0A427751Af201D676719a970aaaa")))
+    let deployment = Deployment.new(
+      provider,
+      configFactory(EthAddress.init("0x59b670e9fA9D0A427751Af201D676719a970aaaa")),
+    )
     provider.chainId = 1.u256
 
     let address = await deployment.address(Marketplace)
@@ -55,4 +58,3 @@ asyncchecksuite "Deployment":
 
     let address = await deployment.address(Marketplace)
     check address.isNone
-

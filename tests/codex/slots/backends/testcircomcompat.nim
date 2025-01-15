@@ -36,19 +36,17 @@ suite "Test Circom Compat Backend - control inputs":
     circom = CircomCompat.init(r1cs, wasm, zkey)
 
   teardown:
-    circom.release()  # this comes from the rust FFI
+    circom.release() # this comes from the rust FFI
 
   test "Should verify with correct inputs":
-    let
-      proof = circom.prove(proofInputs).tryGet
+    let proof = circom.prove(proofInputs).tryGet
 
     check circom.verify(proof, proofInputs).tryGet
 
   test "Should not verify with incorrect inputs":
     proofInputs.slotIndex = 1 # change slot index
 
-    let
-      proof = circom.prove(proofInputs).tryGet
+    let proof = circom.prove(proofInputs).tryGet
 
     check circom.verify(proof, proofInputs).tryGet == false
 
@@ -87,13 +85,9 @@ suite "Test Circom Compat Backend":
 
     store = RepoStore.new(repoDs, metaDs)
 
-    (manifest, protected, verifiable) =
-        await createVerifiableManifest(
-          store,
-          numDatasetBlocks,
-          ecK, ecM,
-          blockSize,
-          cellSize)
+    (manifest, protected, verifiable) = await createVerifiableManifest(
+      store, numDatasetBlocks, ecK, ecM, blockSize, cellSize
+    )
 
     builder = Poseidon2Builder.new(store, verifiable).tryGet
     sampler = Poseidon2Sampler.new(slotId, store, builder).tryGet
@@ -104,21 +98,18 @@ suite "Test Circom Compat Backend":
     proofInputs = (await sampler.getProofInput(challenge, samples)).tryGet
 
   teardown:
-    circom.release()  # this comes from the rust FFI
+    circom.release() # this comes from the rust FFI
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
 
-
   test "Should verify with correct input":
-    var
-      proof = circom.prove(proofInputs).tryGet
+    var proof = circom.prove(proofInputs).tryGet
 
     check circom.verify(proof, proofInputs).tryGet
 
   test "Should not verify with incorrect input":
     proofInputs.slotIndex = 1 # change slot index
 
-    let
-      proof = circom.prove(proofInputs).tryGet
+    let proof = circom.prove(proofInputs).tryGet
 
     check circom.verify(proof, proofInputs).tryGet == false

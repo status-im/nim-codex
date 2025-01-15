@@ -18,6 +18,7 @@ method run*(state: PurchaseErrored, machine: Machine): Future[?State] {.async.} 
   codex_purchases_error.inc()
   let purchase = Purchase(machine)
 
-  error "Purchasing error", error=state.error.msgDetail, requestId = purchase.requestId
+  error "Purchasing error",
+    error = state.error.msgDetail, requestId = purchase.requestId
 
   purchase.future.fail(state.error)

@@ -23,7 +23,8 @@ logScope:
   topics = "codex asyncerasure"
 
 const
-  CompletitionTimeout = 1.seconds # Maximum await time for completition after receiving a signal
+  CompletitionTimeout = 1.seconds
+    # Maximum await time for completition after receiving a signal
   CompletitionRetryDelay = 10.millis
 
 type
@@ -62,12 +63,9 @@ proc encodeTask(args: EncodeTaskArgs, data: seq[seq[byte]]): EncodeTaskResult =
       let
         resDataSize = parity.len * args.blockSize
         resData = cast[ptr UncheckedArray[byte]](allocShared0(resDataSize))
-        arrHolder = SharedArrayHolder[byte](
-          data: resData,
-          size: resDataSize
-        )
+        arrHolder = SharedArrayHolder[byte](data: resData, size: resDataSize)
 
-      for i in 0..<parity.len:
+      for i in 0 ..< parity.len:
         copyMem(addr resData[i * args.blockSize], addr parity[i][0], args.blockSize)
 
       return ok(arrHolder)
@@ -79,7 +77,9 @@ proc encodeTask(args: EncodeTaskArgs, data: seq[seq[byte]]): EncodeTaskResult =
     if err =? args.signal.fireSync().mapFailure.errorOption():
       error "Error firing signal", msg = err.msg
 
-proc decodeTask(args: DecodeTaskArgs, data: seq[seq[byte]], parity: seq[seq[byte]]): DecodeTaskResult =
+proc decodeTask(
+    args: DecodeTaskArgs, data: seq[seq[byte]], parity: seq[seq[byte]]
+): DecodeTaskResult =
   var
     data = data.unsafeAddr
     parity = parity.unsafeAddr
@@ -92,12 +92,9 @@ proc decodeTask(args: DecodeTaskArgs, data: seq[seq[byte]], parity: seq[seq[byte
       let
         resDataSize = recovered.len * args.blockSize
         resData = cast[ptr UncheckedArray[byte]](allocShared0(resDataSize))
-        arrHolder = SharedArrayHolder[byte](
-          data: resData,
-          size: resDataSize
-        )
+        arrHolder = SharedArrayHolder[byte](data: resData, size: resDataSize)
 
-      for i in 0..<recovered.len:
+      for i in 0 ..< recovered.len:
         copyMem(addr resData[i * args.blockSize], addr recovered[i][0], args.blockSize)
 
       return ok(arrHolder)
@@ -110,9 +107,7 @@ proc decodeTask(args: DecodeTaskArgs, data: seq[seq[byte]], parity: seq[seq[byte
       error "Error firing signal", msg = err.msg
 
 proc proxySpawnEncodeTask(
-  tp: Taskpool,
-  args: EncodeTaskArgs,
-  data: ref seq[seq[byte]]
+    tp: Taskpool, args: EncodeTaskArgs, data: ref seq[seq[byte]]
 ): Flowvar[EncodeTaskResult] =
   # FIXME Uncomment the code below after addressing an issue:
   # https://github.com/codex-storage/nim-codex/issues/854
@@ -124,41 +119,45 @@ proc proxySpawnEncodeTask(
   return fv
 
 proc proxySpawnDecodeTask(
-  tp: Taskpool,
-  args: DecodeTaskArgs,
-  data: ref seq[seq[byte]],
-  parity: ref seq[seq[byte]]
+    tp: Taskpool,
+    args: DecodeTaskArgs,
+    data: ref seq[seq[byte]],
+    parity: ref seq[seq[byte]],
 ): Flowvar[DecodeTaskResult] =
   # FIXME Uncomment the code below after addressing an issue:
   # https://github.com/codex-storage/nim-codex/issues/854
-  
+
   # tp.spawn decodeTask(args, data[], parity[])
 
   let fv = DecodeTaskResult.newFlowVar
   fv.readyWith(decodeTask(args, data[], parity[]))
   return fv
 
-proc awaitResult[T](signal: ThreadSignalPtr, handle: Flowvar[T]): Future[?!T] {.async.} =
+proc awaitResult[T](
+    signal: ThreadSignalPtr, handle: Flowvar[T]
+): Future[?!T] {.async.} =
   await wait(signal)
 
   var
     res: T
     awaitTotal: Duration
   while awaitTotal < CompletitionTimeout:
-      if handle.tryComplete(res):
-        return success(res)
-      else:
-        awaitTotal += CompletitionRetryDelay
-        await sleepAsync(CompletitionRetryDelay)
+    if handle.tryComplete(res):
+      return success(res)
+    else:
+      awaitTotal += CompletitionRetryDelay
+      await sleepAsync(CompletitionRetryDelay)
 
-  return failure("Task signaled finish but didn't return any result within " & $CompletitionRetryDelay)
+  return failure(
+    "Task signaled finish but didn't return any result within " & $CompletitionRetryDelay
+  )
 
 proc asyncEncode*(
-  tp: Taskpool,
-  backend: EncoderBackend,
-  data: ref seq[seq[byte]],
-  blockSize: int,
-  ecM: int
+    tp: Taskpool,
+    backend: EncoderBackend,
+    data: ref seq[seq[byte]],
+    blockSize: int,
+    ecM: int,
 ): Future[?!ref seq[seq[byte]]] {.async.} =
   without signal =? ThreadSignalPtr.new().mapFailure, err:
     return failure(err)
@@ -166,7 +165,9 @@ proc asyncEncode*(
   try:
     let
       blockSize = data[0].len
-      args = EncodeTaskArgs(signal: signal, backend: unsafeAddr backend, blockSize: blockSize, ecM: ecM)
+      args = EncodeTaskArgs(
+        signal: signal, backend: unsafeAddr backend, blockSize: blockSize, ecM: ecM
+      )
       handle = proxySpawnEncodeTask(tp, args, data)
 
     without res =? await awaitResult(signal, handle), err:
@@ -176,7 +177,7 @@ proc asyncEncode*(
       var parity = seq[seq[byte]].new()
       parity[].setLen(ecM)
 
-      for i in 0..<parity[].len:
+      for i in 0 ..< parity[].len:
         parity[i] = newSeq[byte](blockSize)
         copyMem(addr parity[i][0], addr res.value.data[i * blockSize], blockSize)
 
@@ -190,10 +191,10 @@ proc asyncEncode*(
       error "Error closing signal", msg = $err.msg
 
 proc asyncDecode*(
-  tp: Taskpool,
-  backend: DecoderBackend,
-  data, parity: ref seq[seq[byte]],
-  blockSize: int
+    tp: Taskpool,
+    backend: DecoderBackend,
+    data, parity: ref seq[seq[byte]],
+    blockSize: int,
 ): Future[?!ref seq[seq[byte]]] {.async.} =
   without signal =? ThreadSignalPtr.new().mapFailure, err:
     return failure(err)
@@ -201,7 +202,9 @@ proc asyncDecode*(
   try:
     let
       ecK = data[].len
-      args = DecodeTaskArgs(signal: signal, backend: unsafeAddr backend, blockSize: blockSize, ecK: ecK)
+      args = DecodeTaskArgs(
+        signal: signal, backend: unsafeAddr backend, blockSize: blockSize, ecK: ecK
+      )
       handle = proxySpawnDecodeTask(tp, args, data, parity)
 
     without res =? await awaitResult(signal, handle), err:
@@ -211,7 +214,7 @@ proc asyncDecode*(
       var recovered = seq[seq[byte]].new()
       recovered[].setLen(ecK)
 
-      for i in 0..<recovered[].len:
+      for i in 0 ..< recovered[].len:
         recovered[i] = newSeq[byte](blockSize)
         copyMem(addr recovered[i][0], addr res.value.data[i * blockSize], blockSize)
 

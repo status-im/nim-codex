@@ -25,8 +25,7 @@ import ../../examples
 import ../../merkletree/helpers
 
 asyncchecksuite "Test proof sampler utils":
-  let
-    cellsPerBlock = DefaultBlockSize div DefaultCellSize
+  let cellsPerBlock = DefaultBlockSize div DefaultCellSize
 
   var
     inputData: string
@@ -57,11 +56,12 @@ asyncchecksuite "Test proof sampler utils":
 
   test "Can find single slot-cell index":
     proc slotCellIndex(i: Natural): Natural =
-      return cellIndex(proofInput.entropy, proofInput.slotRoot, proofInput.nCellsPerSlot, i)
+      return
+        cellIndex(proofInput.entropy, proofInput.slotRoot, proofInput.nCellsPerSlot, i)
 
     proc getExpectedIndex(i: int): Natural =
-      let
-        hash = Sponge.digest(@[proofInput.entropy, proofInput.slotRoot, toF(i)], rate = 2)
+      let hash =
+        Sponge.digest(@[proofInput.entropy, proofInput.slotRoot, toF(i)], rate = 2)
 
       return int(extractLowBits(hash.toBig(), ceilingLog2(proofInput.nCellsPerSlot)))
 
@@ -71,24 +71,36 @@ asyncchecksuite "Test proof sampler utils":
       slotCellIndex(3) == getExpectedIndex(3)
 
   test "Can find sequence of slot-cell indices":
-    proc slotCellIndices(n: int): seq[Natural]  =
-      cellIndices(proofInput.entropy, proofInput.slotRoot, numCells = proofInput.nCellsPerSlot, n)
+    proc slotCellIndices(n: int): seq[Natural] =
+      cellIndices(
+        proofInput.entropy, proofInput.slotRoot, numCells = proofInput.nCellsPerSlot, n
+      )
 
-    proc getExpectedIndices(n: int): seq[Natural]  =
-      return collect(newSeq, (for i in 1..n: cellIndex(proofInput.entropy, proofInput.slotRoot, proofInput.nCellsPerSlot, i)))
+    proc getExpectedIndices(n: int): seq[Natural] =
+      return collect(
+        newSeq,
+        (;
+          for i in 1 .. n:
+            cellIndex(
+              proofInput.entropy, proofInput.slotRoot, proofInput.nCellsPerSlot, i
+            )
+        ),
+      )
 
     check:
       slotCellIndices(3) == getExpectedIndices(3)
 
   for (input, expected) in [(10, 0), (31, 0), (32, 1), (63, 1), (64, 2)]:
-    test "Can get slotBlockIndex from slotCellIndex (" & $input & " -> " & $expected & ")":
+    test "Can get slotBlockIndex from slotCellIndex (" & $input & " -> " & $expected &
+      ")":
       let slotBlockIndex = toBlkInSlot(input, numCells = cellsPerBlock)
 
       check:
         slotBlockIndex == expected
 
   for (input, expected) in [(10, 10), (31, 31), (32, 0), (63, 31), (64, 0)]:
-    test "Can get blockCellIndex from slotCellIndex (" & $input & " -> " & $expected & ")":
+    test "Can get blockCellIndex from slotCellIndex (" & $input & " -> " & $expected &
+      ")":
       let blockCellIndex = toCellInBlk(input, numCells = cellsPerBlock)
 
       check:

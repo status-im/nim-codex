@@ -9,4 +9,4 @@ import ./integration/testproofs
 import ./integration/testvalidator
 import ./integration/testecbug
 
-{.warning[UnusedImport]:off.}
+{.warning[UnusedImport]: off.}

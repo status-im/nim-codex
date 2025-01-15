@@ -14,7 +14,8 @@ export tables
 
 import pkg/upraises
 
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import pkg/libp2p/[cid, multicodec, multihash]
 import pkg/stew/byteutils
@@ -49,16 +50,16 @@ logutils.formatIt(LogFormat.textLines, BlockAddress):
   else:
     "cid: " & shortLog($it.cid)
 
-logutils.formatIt(LogFormat.json, BlockAddress): %it
+logutils.formatIt(LogFormat.json, BlockAddress):
+  %it
 
 proc `==`*(a, b: BlockAddress): bool =
-  a.leaf == b.leaf and
-    (
-      if a.leaf:
-        a.treeCid == b.treeCid and a.index == b.index
-      else:
-        a.cid == b.cid
-    )
+  a.leaf == b.leaf and (
+    if a.leaf:
+      a.treeCid == b.treeCid and a.index == b.index
+    else:
+      a.cid == b.cid
+  )
 
 proc `$`*(a: BlockAddress): string =
   if a.leaf:
@@ -67,10 +68,7 @@ proc `$`*(a: BlockAddress): string =
     "cid: " & $a.cid
 
 proc cidOrTreeCid*(a: BlockAddress): Cid =
-  if a.leaf:
-    a.treeCid
-  else:
-    a.cid
+  if a.leaf: a.treeCid else: a.cid
 
 proc address*(b: Block): BlockAddress =
   BlockAddress(leaf: false, cid: b.cid)
@@ -86,57 +84,55 @@ proc `$`*(b: Block): string =
   result &= "\ndata: " & string.fromBytes(b.data)
 
 func new*(
-  T: type Block,
-  data: openArray[byte] = [],
-  version = CIDv1,
-  mcodec = Sha256HashCodec,
-  codec = BlockCodec): ?!Block =
+    T: type Block,
+    data: openArray[byte] = [],
+    version = CIDv1,
+    mcodec = Sha256HashCodec,
+    codec = BlockCodec,
+): ?!Block =
   ## creates a new block for both storage and network IO
   ##
 
   let
-    hash = ? MultiHash.digest($mcodec, data).mapFailure
-    cid = ? Cid.init(version, codec, hash).mapFailure
+    hash = ?MultiHash.digest($mcodec, data).mapFailure
+    cid = ?Cid.init(version, codec, hash).mapFailure
 
   # TODO: If the hash is `>=` to the data,
   # use the Cid as a container!
-  Block(
-    cid: cid,
-    data: @data).success
+
+  Block(cid: cid, data: @data).success
 
 proc new*(
-    T: type Block,
-    cid: Cid,
-    data: openArray[byte],
-    verify: bool = true
+    T: type Block, cid: Cid, data: openArray[byte], verify: bool = true
 ): ?!Block =
   ## creates a new block for both storage and network IO
   ##
 
   if verify:
     let
-      mhash = ? cid.mhash.mapFailure
-      computedMhash = ? MultiHash.digest($mhash.mcodec, data).mapFailure
-      computedCid = ? Cid.init(cid.cidver, cid.mcodec, computedMhash).mapFailure
+      mhash = ?cid.mhash.mapFailure
+      computedMhash = ?MultiHash.digest($mhash.mcodec, data).mapFailure
+      computedCid = ?Cid.init(cid.cidver, cid.mcodec, computedMhash).mapFailure
     if computedCid != cid:
       return "Cid doesn't match the data".failure
 
-  return Block(
-    cid: cid,
-    data: @data
-  ).success
+  return Block(cid: cid, data: @data).success
 
 proc emptyBlock*(version: CidVersion, hcodec: MultiCodec): ?!Block =
-  emptyCid(version, hcodec, BlockCodec)
-    .flatMap((cid: Cid) => Block.new(cid = cid, data = @[]))
+  emptyCid(version, hcodec, BlockCodec).flatMap(
+    (cid: Cid) => Block.new(cid = cid, data = @[])
+  )
 
 proc emptyBlock*(cid: Cid): ?!Block =
-  cid.mhash.mapFailure.flatMap((mhash: MultiHash) =>
-      emptyBlock(cid.cidver, mhash.mcodec))
+  cid.mhash.mapFailure.flatMap(
+    (mhash: MultiHash) => emptyBlock(cid.cidver, mhash.mcodec)
+  )
 
 proc isEmpty*(cid: Cid): bool =
-  success(cid) == cid.mhash.mapFailure.flatMap((mhash: MultiHash) =>
-      emptyCid(cid.cidver, mhash.mcodec, cid.mcodec))
+  success(cid) ==
+    cid.mhash.mapFailure.flatMap(
+      (mhash: MultiHash) => emptyCid(cid.cidver, mhash.mcodec, cid.mcodec)
+    )
 
 proc isEmpty*(blk: Block): bool =
   blk.cid.isEmpty

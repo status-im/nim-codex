@@ -6,5 +6,5 @@ when not defined(nimscript):
 
   defaultChroniclesStream.output.writer = ignoreLogging
 
-  {.warning[UnusedImport]:off.}
+  {.warning[UnusedImport]: off.}
   {.used.}

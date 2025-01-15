@@ -15,7 +15,6 @@ import ../../examples
 import ../../helpers
 
 checksuite "sales state 'filled'":
-
   let request = StorageRequest.example
   let slotIndex = (request.ask.slots div 2).u256
 
@@ -27,22 +26,23 @@ checksuite "sales state 'filled'":
 
   setup:
     market = MockMarket.new()
-    slot = MockSlot(requestId: request.id,
-                    host: Address.example,
-                    slotIndex: slotIndex,
-                    proof: Groth16Proof.default)
+    slot = MockSlot(
+      requestId: request.id,
+      host: Address.example,
+      slotIndex: slotIndex,
+      proof: Groth16Proof.default,
+    )
 
     market.requestEnds[request.id] = 321
     onExpiryUpdatePassedExpiry = -1
-    let onExpiryUpdate = proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] {.async.} =
+    let onExpiryUpdate = proc(
+        rootCid: string, expiry: SecondsSince1970
+    ): Future[?!void] {.async.} =
       onExpiryUpdatePassedExpiry = expiry
       return success()
     let context = SalesContext(market: market, onExpiryUpdate: some onExpiryUpdate)
 
-    agent = newSalesAgent(context,
-                          request.id,
-                          slotIndex,
-                          some request)
+    agent = newSalesAgent(context, request.id, slotIndex, some request)
     state = SaleFilled.new()
 
   test "switches to proving state when slot is filled by me":

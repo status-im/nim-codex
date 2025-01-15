@@ -12,8 +12,9 @@ logScope:
 proc raiseProviderError(message: string) {.raises: [ProviderError].} =
   raise newException(ProviderError, message)
 
-proc blockNumberAndTimestamp*(provider: Provider, blockTag: BlockTag):
-    Future[(UInt256, UInt256)] {.async: (raises: [ProviderError]).} =
+proc blockNumberAndTimestamp*(
+    provider: Provider, blockTag: BlockTag
+): Future[(UInt256, UInt256)] {.async: (raises: [ProviderError]).} =
   without latestBlock =? await provider.getBlock(blockTag):
     raiseProviderError("Could not get latest block")
 
@@ -23,14 +24,10 @@ proc blockNumberAndTimestamp*(provider: Provider, blockTag: BlockTag):
   return (latestBlockNumber, latestBlock.timestamp)
 
 proc binarySearchFindClosestBlock(
-    provider: Provider,
-    epochTime: int,
-    low: UInt256,
-    high: UInt256): Future[UInt256] {.async: (raises: [ProviderError]).} =
-  let (_, lowTimestamp) =
-    await provider.blockNumberAndTimestamp(BlockTag.init(low))
-  let (_, highTimestamp) =
-    await provider.blockNumberAndTimestamp(BlockTag.init(high))
+    provider: Provider, epochTime: int, low: UInt256, high: UInt256
+): Future[UInt256] {.async: (raises: [ProviderError]).} =
+  let (_, lowTimestamp) = await provider.blockNumberAndTimestamp(BlockTag.init(low))
+  let (_, highTimestamp) = await provider.blockNumberAndTimestamp(BlockTag.init(high))
   if abs(lowTimestamp.truncate(int) - epochTime) <
       abs(highTimestamp.truncate(int) - epochTime):
     return low
@@ -41,8 +38,8 @@ proc binarySearchBlockNumberForEpoch(
     provider: Provider,
     epochTime: UInt256,
     latestBlockNumber: UInt256,
-    earliestBlockNumber: UInt256): Future[UInt256]
-      {.async: (raises: [ProviderError]).} =
+    earliestBlockNumber: UInt256,
+): Future[UInt256] {.async: (raises: [ProviderError]).} =
   var low = earliestBlockNumber
   var high = latestBlockNumber
 
@@ -52,7 +49,7 @@ proc binarySearchBlockNumberForEpoch(
     let mid = (low + high) div 2
     let (midBlockNumber, midBlockTimestamp) =
       await provider.blockNumberAndTimestamp(BlockTag.init(mid))
-    
+
     if midBlockTimestamp < epochTime:
       low = mid + 1
     elif midBlockTimestamp > epochTime:
@@ -63,16 +60,16 @@ proc binarySearchBlockNumberForEpoch(
   # low is always greater than high - this is why we use high, where
   # intuitively we would use low:
   await provider.binarySearchFindClosestBlock(
-    epochTime.truncate(int), low=high, high=low)
+    epochTime.truncate(int), low = high, high = low
+  )
 
 proc blockNumberForEpoch*(
-    provider: Provider,
-    epochTime: SecondsSince1970): Future[UInt256]
-      {.async: (raises: [ProviderError]).} =
+    provider: Provider, epochTime: SecondsSince1970
+): Future[UInt256] {.async: (raises: [ProviderError]).} =
   let epochTimeUInt256 = epochTime.u256
-  let (latestBlockNumber, latestBlockTimestamp) = 
+  let (latestBlockNumber, latestBlockTimestamp) =
     await provider.blockNumberAndTimestamp(BlockTag.latest)
-  let (earliestBlockNumber, earliestBlockTimestamp) = 
+  let (earliestBlockNumber, earliestBlockTimestamp) =
     await provider.blockNumberAndTimestamp(BlockTag.earliest)
 
   # Initially we used the average block time to predict
@@ -109,18 +106,18 @@ proc blockNumberForEpoch*(
     return latestBlockNumber
 
   if earliestBlockNumber > 0 and earliestBlockTimestamp > epochTimeUInt256:
-    let availableHistoryInDays = 
-        (latestBlockTimestamp - earliestBlockTimestamp) div
-          1.days.secs.u256
-    warn "Short block history detected.", earliestBlockTimestamp =  
-      earliestBlockTimestamp, days = availableHistoryInDays
+    let availableHistoryInDays =
+      (latestBlockTimestamp - earliestBlockTimestamp) div 1.days.secs.u256
+    warn "Short block history detected.",
+      earliestBlockTimestamp = earliestBlockTimestamp, days = availableHistoryInDays
     return earliestBlockNumber
 
   return await provider.binarySearchBlockNumberForEpoch(
-    epochTimeUInt256, latestBlockNumber, earliestBlockNumber)
+    epochTimeUInt256, latestBlockNumber, earliestBlockNumber
+  )
 
-proc pastBlockTag*(provider: Provider,
-                   blocksAgo: int):
-                     Future[BlockTag] {.async: (raises: [ProviderError]).} =
+proc pastBlockTag*(
+    provider: Provider, blocksAgo: int
+): Future[BlockTag] {.async: (raises: [ProviderError]).} =
   let head = await provider.getBlockNumber()
   return BlockTag.init(head - blocksAgo.abs.u256)

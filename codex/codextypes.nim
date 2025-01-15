@@ -25,15 +25,15 @@ export tables
 
 const
   # Size of blocks for storage / network exchange,
-  DefaultBlockSize* = NBytes 1024*64
+  DefaultBlockSize* = NBytes 1024 * 64
   DefaultCellSize* = NBytes 2048
 
   # Proving defaults
-  DefaultMaxSlotDepth*    = 32
+  DefaultMaxSlotDepth* = 32
   DefaultMaxDatasetDepth* = 8
-  DefaultBlockDepth*      = 5
-  DefaultCellElms*        = 67
-  DefaultSamplesNum*      = 5
+  DefaultBlockDepth* = 5
+  DefaultCellElms* = 67
+  DefaultSamplesNum* = 5
 
   # hashes
   Sha256HashCodec* = multiCodec("sha2-256")
@@ -48,18 +48,10 @@ const
   SlotProvingRootCodec* = multiCodec("codex-proving-root")
   CodexSlotCellCodec* = multiCodec("codex-slot-cell")
 
-  CodexHashesCodecs* = [
-    Sha256HashCodec,
-    Pos2Bn128SpngCodec,
-    Pos2Bn128MrklCodec
-  ]
+  CodexHashesCodecs* = [Sha256HashCodec, Pos2Bn128SpngCodec, Pos2Bn128MrklCodec]
 
   CodexPrimitivesCodecs* = [
-    ManifestCodec,
-    DatasetRootCodec,
-    BlockCodec,
-    SlotRootCodec,
-    SlotProvingRootCodec,
+    ManifestCodec, DatasetRootCodec, BlockCodec, SlotRootCodec, SlotProvingRootCodec,
     CodexSlotCellCodec,
   ]
 
@@ -74,40 +66,34 @@ proc initEmptyCidTable(): ?!Table[(CidVersion, MultiCodec, MultiCodec), Cid] =
   let
     emptyData: seq[byte] = @[]
     PadHashes = {
-      Sha256HashCodec: ? MultiHash.digest($Sha256HashCodec, emptyData).mapFailure,
-      Sha512HashCodec: ? MultiHash.digest($Sha512HashCodec, emptyData).mapFailure,
+      Sha256HashCodec: ?MultiHash.digest($Sha256HashCodec, emptyData).mapFailure,
+      Sha512HashCodec: ?MultiHash.digest($Sha512HashCodec, emptyData).mapFailure,
     }.toTable
 
-  var
-    table = initTable[(CidVersion, MultiCodec, MultiCodec), Cid]()
+  var table = initTable[(CidVersion, MultiCodec, MultiCodec), Cid]()
 
   for hcodec, mhash in PadHashes.pairs:
-    table[(CIDv1, hcodec, BlockCodec)] = ? Cid.init(CIDv1, BlockCodec, mhash).mapFailure
+    table[(CIDv1, hcodec, BlockCodec)] = ?Cid.init(CIDv1, BlockCodec, mhash).mapFailure
 
   success table
 
-proc emptyCid*(
-  version: CidVersion,
-  hcodec: MultiCodec,
-  dcodec: MultiCodec): ?!Cid =
+proc emptyCid*(version: CidVersion, hcodec: MultiCodec, dcodec: MultiCodec): ?!Cid =
   ## Returns cid representing empty content,
   ## given cid version, hash codec and data codec
   ##
 
-  var
-    table {.global, threadvar.}: Table[(CidVersion, MultiCodec, MultiCodec), Cid]
+  var table {.global, threadvar.}: Table[(CidVersion, MultiCodec, MultiCodec), Cid]
 
   once:
-    table = ? initEmptyCidTable()
+    table = ?initEmptyCidTable()
 
   table[(version, hcodec, dcodec)].catch
 
 proc emptyDigest*(
-  version: CidVersion,
-  hcodec: MultiCodec,
-  dcodec: MultiCodec): ?!MultiHash =
+    version: CidVersion, hcodec: MultiCodec, dcodec: MultiCodec
+): ?!MultiHash =
   ## Returns hash representing empty content,
   ## given cid version, hash codec and data codec
   ##
-  emptyCid(version, hcodec, dcodec)
-    .flatMap((cid: Cid) => cid.mhash.mapFailure)
+
+  emptyCid(version, hcodec, dcodec).flatMap((cid: Cid) => cid.mhash.mapFailure)

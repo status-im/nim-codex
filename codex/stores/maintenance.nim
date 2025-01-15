@@ -25,14 +25,13 @@ const
   DefaultBlockMaintenanceInterval* = 10.minutes
   DefaultNumberOfBlocksToMaintainPerInterval* = 1000
 
-type
-  BlockMaintainer* = ref object of RootObj
-    repoStore: RepoStore
-    interval: Duration
-    timer: Timer
-    clock: Clock
-    numberOfBlocksPerInterval: int
-    offset: int
+type BlockMaintainer* = ref object of RootObj
+  repoStore: RepoStore
+  interval: Duration
+  timer: Timer
+  clock: Clock
+  numberOfBlocksPerInterval: int
+  offset: int
 
 proc new*(
     T: type BlockMaintainer,
@@ -40,7 +39,7 @@ proc new*(
     interval: Duration,
     numberOfBlocksPerInterval = 100,
     timer = Timer.new(),
-    clock: Clock = SystemClock.new()
+    clock: Clock = SystemClock.new(),
 ): BlockMaintainer =
   ## Create new BlockMaintainer instance
   ##
@@ -52,13 +51,16 @@ proc new*(
     numberOfBlocksPerInterval: numberOfBlocksPerInterval,
     timer: timer,
     clock: clock,
-    offset: 0)
+    offset: 0,
+  )
 
 proc deleteExpiredBlock(self: BlockMaintainer, cid: Cid): Future[void] {.async.} =
   if isErr (await self.repoStore.delBlock(cid)):
     trace "Unable to delete block from repoStore"
 
-proc processBlockExpiration(self: BlockMaintainer, be: BlockExpiration): Future[void] {.async.} =
+proc processBlockExpiration(
+    self: BlockMaintainer, be: BlockExpiration
+): Future[void] {.async.} =
   if be.expiry < self.clock.now:
     await self.deleteExpiredBlock(be.cid)
   else:
@@ -66,8 +68,7 @@ proc processBlockExpiration(self: BlockMaintainer, be: BlockExpiration): Future[
 
 proc runBlockCheck(self: BlockMaintainer): Future[void] {.async.} =
   let expirations = await self.repoStore.getBlockExpirations(
-    maxNumber = self.numberOfBlocksPerInterval,
-    offset = self.offset
+    maxNumber = self.numberOfBlocksPerInterval, offset = self.offset
   )
 
   without iter =? expirations, err:
@@ -93,7 +94,7 @@ proc start*(self: BlockMaintainer) =
     except CancelledError as error:
       raise error
     except CatchableError as exc:
-      error "Unexpected exception in BlockMaintainer.onTimer(): ", msg=exc.msg
+      error "Unexpected exception in BlockMaintainer.onTimer(): ", msg = exc.msg
 
   self.timer.start(onTimer, self.interval)
 

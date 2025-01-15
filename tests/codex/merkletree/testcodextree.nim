@@ -15,19 +15,18 @@ import ./generictreetests
 # TODO: Generalize to other hashes
 
 const
-  data =
-    [
-      "00000000000000000000000000000001".toBytes,
-      "00000000000000000000000000000002".toBytes,
-      "00000000000000000000000000000003".toBytes,
-      "00000000000000000000000000000004".toBytes,
-      "00000000000000000000000000000005".toBytes,
-      "00000000000000000000000000000006".toBytes,
-      "00000000000000000000000000000007".toBytes,
-      "00000000000000000000000000000008".toBytes,
-      "00000000000000000000000000000009".toBytes,
-      "00000000000000000000000000000010".toBytes,
-    ]
+  data = [
+    "00000000000000000000000000000001".toBytes,
+    "00000000000000000000000000000002".toBytes,
+    "00000000000000000000000000000003".toBytes,
+    "00000000000000000000000000000004".toBytes,
+    "00000000000000000000000000000005".toBytes,
+    "00000000000000000000000000000006".toBytes,
+    "00000000000000000000000000000007".toBytes,
+    "00000000000000000000000000000008".toBytes,
+    "00000000000000000000000000000009".toBytes,
+    "00000000000000000000000000000010".toBytes,
+  ]
   sha256 = Sha256HashCodec
 
 suite "Test CodexTree":
@@ -41,38 +40,31 @@ suite "Test CodexTree":
 
   test "Cannot init tree without any byte leaves":
     check:
-      CodexTree.init(sha256, leaves =  newSeq[ByteHash]()).isErr
+      CodexTree.init(sha256, leaves = newSeq[ByteHash]()).isErr
 
   test "Should build tree from multihash leaves":
-    var
-      expectedLeaves = data.mapIt(  MultiHash.digest($sha256, it).tryGet() )
+    var expectedLeaves = data.mapIt(MultiHash.digest($sha256, it).tryGet())
 
     var tree = CodexTree.init(leaves = expectedLeaves)
     check:
       tree.isOk
-      tree.get().leaves == expectedLeaves.mapIt( it.digestBytes )
+      tree.get().leaves == expectedLeaves.mapIt(it.digestBytes)
       tree.get().mcodec == sha256
 
   test "Should build tree from cid leaves":
-    var
-      expectedLeaves = data.mapIt(
-        Cid.init(
-          CidVersion.CIDv1,
-          BlockCodec,
-          MultiHash.digest($sha256, it).tryGet
-      ).tryGet )
+    var expectedLeaves = data.mapIt(
+      Cid.init(CidVersion.CIDv1, BlockCodec, MultiHash.digest($sha256, it).tryGet).tryGet
+    )
 
-    let
-      tree = CodexTree.init(leaves = expectedLeaves)
+    let tree = CodexTree.init(leaves = expectedLeaves)
 
     check:
       tree.isOk
-      tree.get().leaves == expectedLeaves.mapIt( it.mhash.tryGet.digestBytes )
+      tree.get().leaves == expectedLeaves.mapIt(it.mhash.tryGet.digestBytes)
       tree.get().mcodec == sha256
 
   test "Should build from raw digestbytes (should not hash leaves)":
-    let
-      tree = CodexTree.init(sha256, leaves = data).tryGet
+    let tree = CodexTree.init(sha256, leaves = data).tryGet
 
     check:
       tree.mcodec == sha256
@@ -82,8 +74,8 @@ suite "Test CodexTree":
     let
       tree = CodexTree.init(sha256, leaves = data).tryGet
       fromNodes = CodexTree.fromNodes(
-        nodes = toSeq(tree.nodes),
-        nleaves = tree.leavesCount).tryGet
+        nodes = toSeq(tree.nodes), nleaves = tree.leavesCount
+      ).tryGet
 
     check:
       tree.mcodec == sha256
@@ -98,9 +90,4 @@ let
   makeTree = proc(data: seq[seq[byte]]): CodexTree =
     CodexTree.init(sha256, leaves = data).tryGet
 
-testGenericTree(
-  "CodexTree",
-  @data,
-  zero,
-  compress,
-  makeTree)
+testGenericTree("CodexTree", @data, zero, compress, makeTree)

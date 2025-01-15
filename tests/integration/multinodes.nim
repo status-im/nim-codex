@@ -27,18 +27,19 @@ type
   RunningNode* = ref object
     role*: Role
     node*: NodeProcess
+
   Role* {.pure.} = enum
-    Client,
-    Provider,
-    Validator,
+    Client
+    Provider
+    Validator
     Hardhat
+
   MultiNodeSuiteError = object of CatchableError
 
 proc raiseMultiNodeSuiteError(msg: string) =
   raise newException(MultiNodeSuiteError, msg)
 
 proc nextFreePort(startPort: int): Future[int] {.async.} =
-
   proc client(server: StreamServer, transp: StreamTransport) {.async.} =
     await transp.closeWait()
 
@@ -59,7 +60,6 @@ proc nextFreePort(startPort: int): Future[int] {.async.} =
       inc port
 
 template multinodesuite*(name: string, body: untyped) =
-
   asyncchecksuite name:
     # Following the problem described here:
     # https://github.com/NomicFoundation/hardhat/issues/2053
@@ -100,17 +100,15 @@ template multinodesuite*(name: string, body: untyped) =
     proc sanitize(pathSegment: string): string =
       var sanitized = pathSegment
       for invalid in invalidFilenameChars.items:
-        sanitized = sanitized.replace(invalid, '_')
-                             .replace(' ', '_')
+        sanitized = sanitized.replace(invalid, '_').replace(' ', '_')
       sanitized
 
     proc getLogFile(role: Role, index: ?int): string =
       # create log file path, format:
       # tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
 
-      var logDir = currentSourcePath.parentDir() /
-        "logs" /
-        sanitize($starttime & "__" & name) /
+      var logDir =
+        currentSourcePath.parentDir() / "logs" / sanitize($starttime & "__" & name) /
         sanitize($currentTestName)
       createDir(logDir)
 
@@ -123,10 +121,8 @@ template multinodesuite*(name: string, body: untyped) =
       return fileName
 
     proc newHardhatProcess(
-      config: HardhatConfig,
-      role: Role
+        config: HardhatConfig, role: Role
     ): Future[NodeProcess] {.async.} =
-
       var args: seq[string] = @[]
       if config.logFile:
         let updatedLogFile = getLogFile(role, none int)
@@ -141,11 +137,9 @@ template multinodesuite*(name: string, body: untyped) =
       trace "hardhat node started"
       return node
 
-    proc newCodexProcess(roleIdx: int,
-                        conf: CodexConfig,
-                        role: Role
+    proc newCodexProcess(
+        roleIdx: int, conf: CodexConfig, role: Role
     ): Future[NodeProcess] {.async.} =
-
       let nodeIdx = running.len
       var config = conf
 
@@ -153,9 +147,8 @@ template multinodesuite*(name: string, body: untyped) =
         raiseMultiNodeSuiteError "Cannot start node at nodeIdx " & $nodeIdx &
           ", not enough eth accounts."
 
-      let datadir = getTempDir() / "Codex" /
-        sanitize($starttime) /
-        sanitize($role & "_" & $roleIdx)
+      let datadir =
+        getTempDir() / "Codex" / sanitize($starttime) / sanitize($role & "_" & $roleIdx)
 
       try:
         if config.logFile.isSome:
@@ -164,19 +157,16 @@ template multinodesuite*(name: string, body: untyped) =
 
         for bootstrapNode in bootstrapNodes:
           config.addCliOption("--bootstrap-node", bootstrapNode)
-        config.addCliOption("--api-port", $ await nextFreePort(8080 + nodeIdx))
+        config.addCliOption("--api-port", $await nextFreePort(8080 + nodeIdx))
         config.addCliOption("--data-dir", datadir)
         config.addCliOption("--nat", "none")
         config.addCliOption("--listen-addrs", "/ip4/127.0.0.1/tcp/0")
-        config.addCliOption("--disc-port", $ await nextFreePort(8090 + nodeIdx))
-
+        config.addCliOption("--disc-port", $await nextFreePort(8090 + nodeIdx))
       except CodexConfigError as e:
         raiseMultiNodeSuiteError "invalid cli option, error: " & e.msg
 
       let node = await CodexProcess.startNode(
-        config.cliArgs,
-        config.debugEnabled,
-        $role & $roleIdx
+        config.cliArgs, config.debugEnabled, $role & $roleIdx
       )
 
       try:
@@ -187,25 +177,25 @@ template multinodesuite*(name: string, body: untyped) =
 
       return node
 
-    proc hardhat: HardhatProcess =
+    proc hardhat(): HardhatProcess =
       for r in running:
         if r.role == Role.Hardhat:
           return HardhatProcess(r.node)
       return nil
 
-    proc clients: seq[CodexProcess] {.used.} =
+    proc clients(): seq[CodexProcess] {.used.} =
       return collect:
         for r in running:
           if r.role == Role.Client:
             CodexProcess(r.node)
 
-    proc providers: seq[CodexProcess] {.used.} =
+    proc providers(): seq[CodexProcess] {.used.} =
       return collect:
         for r in running:
           if r.role == Role.Provider:
             CodexProcess(r.node)
 
-    proc validators: seq[CodexProcess] {.used.} =
+    proc validators(): seq[CodexProcess] {.used.} =
       return collect:
         for r in running:
           if r.role == Role.Validator:
@@ -218,20 +208,30 @@ template multinodesuite*(name: string, body: untyped) =
       let clientIdx = clients().len
       var config = conf
       config.addCliOption(StartUpCmd.persistence, "--eth-provider", jsonRpcProviderUrl)
-      config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
+      config.addCliOption(
+        StartUpCmd.persistence, "--eth-account", $accounts[running.len]
+      )
       return await newCodexProcess(clientIdx, config, Role.Client)
 
     proc startProviderNode(conf: CodexConfig): Future[NodeProcess] {.async.} =
       let providerIdx = providers().len
       var config = conf
       config.addCliOption(StartUpCmd.persistence, "--eth-provider", jsonRpcProviderUrl)
-      config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
-      config.addCliOption(PersistenceCmd.prover, "--circom-r1cs",
-        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs")
-      config.addCliOption(PersistenceCmd.prover, "--circom-wasm",
-        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.wasm")
-      config.addCliOption(PersistenceCmd.prover, "--circom-zkey",
-        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.zkey")
+      config.addCliOption(
+        StartUpCmd.persistence, "--eth-account", $accounts[running.len]
+      )
+      config.addCliOption(
+        PersistenceCmd.prover, "--circom-r1cs",
+        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs",
+      )
+      config.addCliOption(
+        PersistenceCmd.prover, "--circom-wasm",
+        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.wasm",
+      )
+      config.addCliOption(
+        PersistenceCmd.prover, "--circom-zkey",
+        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.zkey",
+      )
 
       return await newCodexProcess(providerIdx, config, Role.Provider)
 
@@ -239,7 +239,9 @@ template multinodesuite*(name: string, body: untyped) =
       let validatorIdx = validators().len
       var config = conf
       config.addCliOption(StartUpCmd.persistence, "--eth-provider", jsonRpcProviderUrl)
-      config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
+      config.addCliOption(
+        StartUpCmd.persistence, "--eth-account", $accounts[running.len]
+      )
       config.addCliOption(StartUpCmd.persistence, "--validator")
 
       return await newCodexProcess(validatorIdx, config, Role.Validator)
@@ -264,7 +266,7 @@ template multinodesuite*(name: string, body: untyped) =
       try:
         tryBody
       except CatchableError as er:
-        fatal message, error=er.msg
+        fatal message, error = er.msg
         echo "[FATAL] ", message, ": ", er.msg
         await teardownImpl()
         when declared(teardownAllIMPL):
@@ -294,8 +296,7 @@ template multinodesuite*(name: string, body: untyped) =
         # Do not use websockets, but use http and polling to stop subscriptions
         # from being removed after 5 minutes
         ethProvider = JsonRpcProvider.new(
-          jsonRpcProviderUrl,
-          pollingInterval = chronos.milliseconds(100)
+          jsonRpcProviderUrl, pollingInterval = chronos.milliseconds(100)
         )
         # if hardhat was NOT started by the test, take a snapshot so it can be
         # reverted in the test teardown
@@ -304,8 +305,7 @@ template multinodesuite*(name: string, body: untyped) =
         accounts = await ethProvider.listAccounts()
       except CatchableError as e:
         echo "Hardhat not running. Run hardhat manually " &
-            "before executing tests, or include a " &
-            "HardhatConfig in the test setup."
+          "before executing tests, or include a " & "HardhatConfig in the test setup."
         fail()
         quit(1)
 
@@ -313,30 +313,21 @@ template multinodesuite*(name: string, body: untyped) =
         failAndTeardownOnError "failed to start client nodes":
           for config in clients.configs:
             let node = await startClientNode(config)
-            running.add RunningNode(
-                          role: Role.Client,
-                          node: node
-                        )
+            running.add RunningNode(role: Role.Client, node: node)
             CodexProcess(node).updateBootstrapNodes()
 
       if var providers =? nodeConfigs.providers:
         failAndTeardownOnError "failed to start provider nodes":
           for config in providers.configs.mitems:
             let node = await startProviderNode(config)
-            running.add RunningNode(
-                          role: Role.Provider,
-                          node: node
-                        )
+            running.add RunningNode(role: Role.Provider, node: node)
             CodexProcess(node).updateBootstrapNodes()
 
       if var validators =? nodeConfigs.validators:
         failAndTeardownOnError "failed to start validator nodes":
           for config in validators.configs.mitems:
             let node = await startValidatorNode(config)
-            running.add RunningNode(
-                          role: Role.Validator,
-                          node: node
-                        )
+            running.add RunningNode(role: Role.Validator, node: node)
 
       # ensure that we have a recent block with a fresh timestamp
       discard await send(ethProvider, "evm_mine")

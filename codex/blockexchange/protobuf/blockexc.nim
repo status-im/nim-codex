@@ -42,7 +42,6 @@ proc `==`*(a: WantListEntry, b: BlockAddress): bool =
 proc `<`*(a, b: WantListEntry): bool =
   a.priority < b.priority
 
-
 proc `==`*(a: BlockPresence, b: BlockAddress): bool =
   return a.address == b
 

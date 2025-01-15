@@ -32,15 +32,15 @@ export discv5
 logScope:
   topics = "codex discovery"
 
-type
-  Discovery* = ref object of RootObj
-    protocol*: discv5.Protocol          # dht protocol
-    key: PrivateKey                     # private key
-    peerId: PeerId                      # the peer id of the local node
-    announceAddrs*: seq[MultiAddress]   # addresses announced as part of the provider records
-    providerRecord*: ?SignedPeerRecord  # record to advertice node connection information, this carry any
-                                        # address that the node can be connected on
-    dhtRecord*: ?SignedPeerRecord       # record to advertice DHT connection information
+type Discovery* = ref object of RootObj
+  protocol*: discv5.Protocol # dht protocol
+  key: PrivateKey # private key
+  peerId: PeerId # the peer id of the local node
+  announceAddrs*: seq[MultiAddress] # addresses announced as part of the provider records
+  providerRecord*: ?SignedPeerRecord
+    # record to advertice node connection information, this carry any
+    # address that the node can be connected on
+  dhtRecord*: ?SignedPeerRecord # record to advertice DHT connection information
 
 proc toNodeId*(cid: Cid): NodeId =
   ## Cid to discovery id
@@ -54,14 +54,11 @@ proc toNodeId*(host: ca.Address): NodeId =
 
   readUintBE[256](keccak256.digest(host.toArray).data)
 
-proc findPeer*(
-  d: Discovery,
-  peerId: PeerId): Future[?PeerRecord] {.async.} =
+proc findPeer*(d: Discovery, peerId: PeerId): Future[?PeerRecord] {.async.} =
   trace "protocol.resolve..."
   ## Find peer using the given Discovery object
   ##
-  let
-    node = await d.protocol.resolve(toNodeId(peerId))
+  let node = await d.protocol.resolve(toNodeId(peerId))
 
   return
     if node.isSome():
@@ -69,37 +66,31 @@ proc findPeer*(
     else:
       PeerRecord.none
 
-method find*(
-  d: Discovery,
-  cid: Cid): Future[seq[SignedPeerRecord]] {.async, base.} =
+method find*(d: Discovery, cid: Cid): Future[seq[SignedPeerRecord]] {.async, base.} =
   ## Find block providers
   ##
-  without providers =?
-    (await d.protocol.getProviders(cid.toNodeId())).mapFailure, error:
+  without providers =? (await d.protocol.getProviders(cid.toNodeId())).mapFailure, error:
     warn "Error finding providers for block", cid, error = error.msg
 
-  return providers.filterIt( not (it.data.peerId == d.peerId) )
+  return providers.filterIt(not (it.data.peerId == d.peerId))
 
 method provide*(d: Discovery, cid: Cid) {.async, base.} =
   ## Provide a block Cid
   ##
-  let
-    nodes = await d.protocol.addProvider(
-      cid.toNodeId(), d.providerRecord.get)
+  let nodes = await d.protocol.addProvider(cid.toNodeId(), d.providerRecord.get)
 
   if nodes.len <= 0:
     warn "Couldn't provide to any nodes!"
 
-
 method find*(
-  d: Discovery,
-  host: ca.Address): Future[seq[SignedPeerRecord]] {.async, base.} =
+    d: Discovery, host: ca.Address
+): Future[seq[SignedPeerRecord]] {.async, base.} =
   ## Find host providers
   ##
 
   trace "Finding providers for host", host = $host
-  without var providers =?
-    (await d.protocol.getProviders(host.toNodeId())).mapFailure, error:
+  without var providers =? (await d.protocol.getProviders(host.toNodeId())).mapFailure,
+    error:
     trace "Error finding providers for host", host = $host, exc = error.msg
     return
 
@@ -117,15 +108,11 @@ method provide*(d: Discovery, host: ca.Address) {.async, base.} =
   ##
 
   trace "Providing host", host = $host
-  let
-    nodes = await d.protocol.addProvider(
-      host.toNodeId(), d.providerRecord.get)
+  let nodes = await d.protocol.addProvider(host.toNodeId(), d.providerRecord.get)
   if nodes.len > 0:
     trace "Provided to nodes", nodes = nodes.len
 
-method removeProvider*(
-  d: Discovery,
-  peerId: PeerId): Future[void] {.base, gcsafe.} =
+method removeProvider*(d: Discovery, peerId: PeerId): Future[void] {.base, gcsafe.} =
   ## Remove provider from providers table
   ##
 
@@ -139,26 +126,24 @@ proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
   d.announceAddrs = @addrs
 
   trace "Updating announce record", addrs = d.announceAddrs
-  d.providerRecord = SignedPeerRecord.init(
-    d.key, PeerRecord.init(d.peerId, d.announceAddrs))
-      .expect("Should construct signed record").some
+  d.providerRecord = SignedPeerRecord
+    .init(d.key, PeerRecord.init(d.peerId, d.announceAddrs))
+    .expect("Should construct signed record").some
 
   if not d.protocol.isNil:
-    d.protocol.updateRecord(d.providerRecord)
-      .expect("Should update SPR")
+    d.protocol.updateRecord(d.providerRecord).expect("Should update SPR")
 
 proc updateDhtRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
   ## Update providers record
   ##
 
   trace "Updating Dht record", addrs = addrs
-  d.dhtRecord = SignedPeerRecord.init(
-    d.key, PeerRecord.init(d.peerId, @addrs))
-      .expect("Should construct signed record").some
+  d.dhtRecord = SignedPeerRecord
+    .init(d.key, PeerRecord.init(d.peerId, @addrs))
+    .expect("Should construct signed record").some
 
   if not d.protocol.isNil:
-    d.protocol.updateRecord(d.dhtRecord)
-      .expect("Should update SPR")
+    d.protocol.updateRecord(d.dhtRecord).expect("Should update SPR")
 
 proc start*(d: Discovery) {.async.} =
   d.protocol.open()
@@ -174,15 +159,13 @@ proc new*(
     bindPort = 0.Port,
     announceAddrs: openArray[MultiAddress],
     bootstrapNodes: openArray[SignedPeerRecord] = [],
-    store: Datastore = SQLiteDatastore.new(Memory).expect("Should not fail!")
+    store: Datastore = SQLiteDatastore.new(Memory).expect("Should not fail!"),
 ): Discovery =
   ## Create a new Discovery node instance for the given key and datastore
   ##
 
-  var
-    self = Discovery(
-      key: key,
-      peerId: PeerId.init(key).expect("Should construct PeerId"))
+  var self =
+    Discovery(key: key, peerId: PeerId.init(key).expect("Should construct PeerId"))
 
   self.updateAnnounceRecord(announceAddrs)
 
@@ -190,11 +173,8 @@ proc new*(
   # FIXME disable IP limits temporarily so we can run our workshop. Re-enable
   #   and figure out proper solution.
   let discoveryConfig = DiscoveryConfig(
-    tableIpLimits: TableIpLimits(
-      tableIpLimit: high(uint),
-      bucketIpLimit:high(uint)
-    ),
-    bitsPerHop: DefaultBitsPerHop
+    tableIpLimits: TableIpLimits(tableIpLimit: high(uint), bucketIpLimit: high(uint)),
+    bitsPerHop: DefaultBitsPerHop,
   )
   # --------------------------------------------------------------------------
 
@@ -206,6 +186,7 @@ proc new*(
     bootstrapRecords = bootstrapNodes,
     rng = Rng.instance(),
     providers = ProvidersManager.new(store),
-    config = discoveryConfig)
+    config = discoveryConfig,
+  )
 
   self

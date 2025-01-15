@@ -123,8 +123,9 @@ func shortLog*(long: string, ellipses = "*", start = 3, stop = 6): string =
   short
 
 func shortHexLog*(long: string): string =
-  if long[0..1] == "0x": result &= "0x"
-  result &= long[2..long.high].shortLog("..", 4, 4)
+  if long[0 .. 1] == "0x":
+    result &= "0x"
+  result &= long[2 .. long.high].shortLog("..", 4, 4)
 
 func short0xHexLog*[N: static[int], T: array[N, byte]](v: T): string =
   v.to0xHex.shortHexLog
@@ -182,12 +183,16 @@ template formatIt*(format: LogFormat, T: typedesc, body: untyped) =
       let v = opts.map(opt => opt.formatJsonOption)
       setProperty(r, key, json.`%`(v))
 
-    proc setProperty*(r: var JsonRecord, key: string, val: seq[T]) {.raises:[ValueError, IOError].} =
+    proc setProperty*(
+        r: var JsonRecord, key: string, val: seq[T]
+    ) {.raises: [ValueError, IOError].} =
       var it {.inject, used.}: T
       let v = val.map(it => body)
       setProperty(r, key, json.`%`(v))
 
-    proc setProperty*(r: var JsonRecord, key: string, val: T) {.raises:[ValueError, IOError].} =
+    proc setProperty*(
+        r: var JsonRecord, key: string, val: T
+    ) {.raises: [ValueError, IOError].} =
       var it {.inject, used.}: T = val
       let v = body
       setProperty(r, key, json.`%`(v))
@@ -218,23 +223,35 @@ template formatIt*(format: LogFormat, T: typedesc, body: untyped) =
       let v = opts.map(opt => opt.formatTextLineOption)
       setProperty(r, key, v.formatTextLineSeq)
 
-    proc setProperty*(r: var TextLineRecord, key: string, val: seq[T]) {.raises:[ValueError, IOError].} =
+    proc setProperty*(
+        r: var TextLineRecord, key: string, val: seq[T]
+    ) {.raises: [ValueError, IOError].} =
       var it {.inject, used.}: T
       let v = val.map(it => body)
       setProperty(r, key, v.formatTextLineSeq)
 
-    proc setProperty*(r: var TextLineRecord, key: string, val: T) {.raises:[ValueError, IOError].} =
+    proc setProperty*(
+        r: var TextLineRecord, key: string, val: T
+    ) {.raises: [ValueError, IOError].} =
       var it {.inject, used.}: T = val
       let v = body
       setProperty(r, key, v)
 
 template formatIt*(T: type, body: untyped) {.dirty.} =
-  formatIt(LogFormat.textLines, T): body
-  formatIt(LogFormat.json, T): body
+  formatIt(LogFormat.textLines, T):
+    body
+  formatIt(LogFormat.json, T):
+    body
 
-formatIt(LogFormat.textLines, Cid): shortLog($it)
-formatIt(LogFormat.json, Cid): $it
-formatIt(UInt256): $it
-formatIt(MultiAddress): $it
-formatIt(LogFormat.textLines, array[32, byte]): it.short0xHexLog
-formatIt(LogFormat.json, array[32, byte]): it.to0xHex
+formatIt(LogFormat.textLines, Cid):
+  shortLog($it)
+formatIt(LogFormat.json, Cid):
+  $it
+formatIt(UInt256):
+  $it
+formatIt(MultiAddress):
+  $it
+formatIt(LogFormat.textLines, array[32, byte]):
+  it.short0xHexLog
+formatIt(LogFormat.json, array[32, byte]):
+  it.to0xHex

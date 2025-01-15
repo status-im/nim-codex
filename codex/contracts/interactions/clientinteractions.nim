@@ -9,13 +9,12 @@ import ./interactions
 export purchasing
 export logutils
 
-type
-  ClientInteractions* = ref object of ContractInteractions
-    purchasing*: Purchasing
+type ClientInteractions* = ref object of ContractInteractions
+  purchasing*: Purchasing
 
-proc new*(_: type ClientInteractions,
-          clock: OnChainClock,
-          purchasing: Purchasing): ClientInteractions =
+proc new*(
+    _: type ClientInteractions, clock: OnChainClock, purchasing: Purchasing
+): ClientInteractions =
   ClientInteractions(clock: clock, purchasing: purchasing)
 
 proc start*(self: ClientInteractions) {.async.} =

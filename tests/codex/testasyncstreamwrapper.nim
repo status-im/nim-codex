@@ -9,12 +9,10 @@ import ../asynctest
 import ./helpers
 
 asyncchecksuite "AsyncStreamWrapper":
-
   let data = "0123456789012345678901234567890123456789"
   let address = initTAddress("127.0.0.1:46001")
 
-  proc serveReadingClient(server: StreamServer,
-                          transp: StreamTransport) {.async.} =
+  proc serveReadingClient(server: StreamServer, transp: StreamTransport) {.async.} =
     var wstream = newAsyncStreamWriter(transp)
     await wstream.write(data)
     await wstream.finish()
@@ -73,7 +71,8 @@ asyncchecksuite "AsyncStreamWrapper":
   test "Write all data":
     var buf = newSeq[byte](data.len)
 
-    var server = createStreamServer(address, serveWritingClient(addr buf[0], buf.len), {ReuseAddr})
+    var server =
+      createStreamServer(address, serveWritingClient(addr buf[0], buf.len), {ReuseAddr})
     server.start()
 
     var transp = await connect(address)

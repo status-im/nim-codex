@@ -5,15 +5,15 @@ import ../logutils
 
 {.push raises: [].}
 
-type
-  TrackedFutures* = ref object
-    futures: Table[uint, FutureBase]
-    cancelling: bool
+type TrackedFutures* = ref object
+  futures: Table[uint, FutureBase]
+  cancelling: bool
 
 logScope:
   topics = "trackable futures"
 
-proc len*(self: TrackedFutures): int = self.futures.len
+proc len*(self: TrackedFutures): int =
+  self.futures.len
 
 proc removeFuture(self: TrackedFutures, future: FutureBase) =
   if not self.cancelling and not future.isNil:

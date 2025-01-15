@@ -8,7 +8,8 @@
 ## those terms.
 
 import pkg/upraises
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import std/sugar
 import pkg/questionable/results
@@ -30,10 +31,9 @@ const
   QuotaReservedKey* = (QuotaKey / "reserved").tryGet
 
 func makePrefixKey*(postFixLen: int, cid: Cid): ?!Key =
-  let
-    cidKey = ? Key.init(($cid)[^postFixLen..^1] & "/" & $cid)
+  let cidKey = ?Key.init(($cid)[^postFixLen ..^ 1] & "/" & $cid)
 
-  if ? cid.isManifest:
+  if ?cid.isManifest:
     success CodexManifestKey / cidKey
   else:
     success CodexBlocksKey / cidKey
@@ -42,7 +42,7 @@ proc createBlockExpirationMetadataKey*(cid: Cid): ?!Key =
   BlocksTtlKey / $cid
 
 proc createBlockExpirationMetadataQueryKey*(): ?!Key =
-  let queryString = ? (BlocksTtlKey / "*")
+  let queryString = ?(BlocksTtlKey / "*")
   Key.init(queryString)
 
 proc createBlockCidAndProofMetadataKey*(treeCid: Cid, index: Natural): ?!Key =

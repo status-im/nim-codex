@@ -18,28 +18,40 @@ import ../checktest
 
 export logutils
 
-logStream testlines[textlines[nocolors,notimestamps,dynamic]]
-logStream testjson[json[nocolors,notimestamps,dynamic]]
+logStream testlines[textlines[nocolors, notimestamps, dynamic]]
+logStream testjson[json[nocolors, notimestamps, dynamic]]
 
 type
   ObjectType = object
     a: string
+
   DistinctType {.borrow: `.`.} = distinct ObjectType
   RefType = ref object
     a: string
+
   AnotherType = object
     a: int
 
 # must be defined at the top-level
-proc `$`*(t: ObjectType): string = "used `$`"
-func `%`*(t: RefType): JsonNode = % t.a
-logutils.formatIt(LogFormat.textLines, ObjectType): "formatted_" & it.a
-logutils.formatIt(LogFormat.textLines, RefType): "formatted_" & it.a
-logutils.formatIt(LogFormat.textLines, DistinctType): "formatted_" & it.a
-logutils.formatIt(LogFormat.json, ObjectType): "formatted_" & it.a
-logutils.formatIt(LogFormat.json, RefType): %it
-logutils.formatIt(LogFormat.json, DistinctType): "formatted_" & it.a
-logutils.formatIt(AnotherType): it.a
+proc `$`*(t: ObjectType): string =
+  "used `$`"
+
+func `%`*(t: RefType): JsonNode =
+  %t.a
+logutils.formatIt(LogFormat.textLines, ObjectType):
+  "formatted_" & it.a
+logutils.formatIt(LogFormat.textLines, RefType):
+  "formatted_" & it.a
+logutils.formatIt(LogFormat.textLines, DistinctType):
+  "formatted_" & it.a
+logutils.formatIt(LogFormat.json, ObjectType):
+  "formatted_" & it.a
+logutils.formatIt(LogFormat.json, RefType):
+  %it
+logutils.formatIt(LogFormat.json, DistinctType):
+  "formatted_" & it.a
+logutils.formatIt(AnotherType):
+  it.a
 
 checksuite "Test logging output":
   var outputLines: string
@@ -63,7 +75,7 @@ checksuite "Test logging output":
 
   template loggedJson(prop, expected): auto =
     let jsonVal = !JsonNode.parse(outputJson)
-    $ jsonVal{prop} == expected
+    $jsonVal{prop} == expected
 
   template log(val) =
     testlines.trace "test", val
@@ -164,7 +176,10 @@ checksuite "Test logging output":
     let ba = BlockAddress.init(cid, 0)
     log ba
     check logged("ba", "\"treeCid: zb2*fndjU1, index: 0\"")
-    check loggedJson("ba", """{"treeCid":"zb2rhgsDE16rLtbwTFeNKbdSobtKiWdjJPvKEuPgrQAfndjU1","index":0}""")
+    check loggedJson(
+      "ba",
+      """{"treeCid":"zb2rhgsDE16rLtbwTFeNKbdSobtKiWdjJPvKEuPgrQAfndjU1","index":0}""",
+    )
 
   test "logs Cid correctly":
     let cid = Cid.init("zb2rhmfWaXASbyi15iLqbz5yp3awnSyecpt9jcFnc2YA5TgiD").tryGet
@@ -191,35 +206,55 @@ checksuite "Test logging output":
     check loggedJson("address", "\"0xf75e076f650cd51dbfa0fd9c465d5037f22e1b1b\"")
 
   test "logs PurchaseId correctly":
-    let id = PurchaseId.fromHex("0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea")
+    let id = PurchaseId.fromHex(
+      "0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea"
+    )
     log id
     check logged("id", "0x7120..3dea")
 
   test "logs RequestId correctly":
-    let id = RequestId.fromHex("0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea")
+    let id = RequestId.fromHex(
+      "0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea"
+    )
     log id
     check logged("id", "0x7120..3dea")
-    check loggedJson("id", "\"0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea\"")
+    check loggedJson(
+      "id", "\"0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea\""
+    )
 
   test "logs seq[RequestId] correctly":
-    let id = RequestId.fromHex("0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea")
-    let id2 = RequestId.fromHex("0x9ab2c4d102a95d990facb022d67b3c9b39052597c006fddf122bed2cb594c282")
+    let id = RequestId.fromHex(
+      "0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea"
+    )
+    let id2 = RequestId.fromHex(
+      "0x9ab2c4d102a95d990facb022d67b3c9b39052597c006fddf122bed2cb594c282"
+    )
     let ids = @[id, id2]
     log ids
     check logged("ids", "\"@[0x7120..3dea, 0x9ab2..c282]\"")
-    check loggedJson("ids", """["0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea","0x9ab2c4d102a95d990facb022d67b3c9b39052597c006fddf122bed2cb594c282"]""")
+    check loggedJson(
+      "ids",
+      """["0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea","0x9ab2c4d102a95d990facb022d67b3c9b39052597c006fddf122bed2cb594c282"]""",
+    )
 
   test "logs SlotId correctly":
-    let id = SlotId.fromHex("0x9ab2c4d102a95d990facb022d67b3c9b39052597c006fddf122bed2cb594c282")
+    let id = SlotId.fromHex(
+      "0x9ab2c4d102a95d990facb022d67b3c9b39052597c006fddf122bed2cb594c282"
+    )
     log id
     check logged("id", "0x9ab2..c282")
-    check loggedJson("id", "\"0x9ab2c4d102a95d990facb022d67b3c9b39052597c006fddf122bed2cb594c282\"")
+    check loggedJson(
+      "id", "\"0x9ab2c4d102a95d990facb022d67b3c9b39052597c006fddf122bed2cb594c282\""
+    )
 
   test "logs Nonce correctly":
-    let n = Nonce.fromHex("ce88f368a7b776172ebd29a212456eb66acb60f169ee76eae91935e7fafad6ea")
+    let n =
+      Nonce.fromHex("ce88f368a7b776172ebd29a212456eb66acb60f169ee76eae91935e7fafad6ea")
     log n
     check logged("n", "0xce88..d6ea")
-    check loggedJson("n", "\"0xce88f368a7b776172ebd29a212456eb66acb60f169ee76eae91935e7fafad6ea\"")
+    check loggedJson(
+      "n", "\"0xce88f368a7b776172ebd29a212456eb66acb60f169ee76eae91935e7fafad6ea\""
+    )
 
   test "logs MultiAddress correctly":
     let ma = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet
@@ -228,8 +263,11 @@ checksuite "Test logging output":
     check loggedJson("ma", "\"/ip4/127.0.0.1/tcp/0\"")
 
   test "logs seq[MultiAddress] correctly":
-    let ma = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet,
-               MultiAddress.init("/ip4/127.0.0.2/tcp/1").tryGet]
+    let ma =
+      @[
+        MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet,
+        MultiAddress.init("/ip4/127.0.0.2/tcp/1").tryGet,
+      ]
     log ma
     check logged("ma", "\"@[/ip4/127.0.0.1/tcp/0, /ip4/127.0.0.2/tcp/1]\"")
     check loggedJson("ma", "[\"/ip4/127.0.0.1/tcp/0\",\"/ip4/127.0.0.2/tcp/1\"]")

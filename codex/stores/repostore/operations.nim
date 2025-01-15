@@ -32,12 +32,17 @@ declareGauge(codex_repostore_blocks, "codex repostore blocks")
 declareGauge(codex_repostore_bytes_used, "codex repostore bytes used")
 declareGauge(codex_repostore_bytes_reserved, "codex repostore bytes reserved")
 
-proc putLeafMetadata*(self: RepoStore, treeCid: Cid, index: Natural, blkCid: Cid, proof: CodexProof): Future[?!StoreResultKind] {.async.} =
+proc putLeafMetadata*(
+    self: RepoStore, treeCid: Cid, index: Natural, blkCid: Cid, proof: CodexProof
+): Future[?!StoreResultKind] {.async.} =
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
-  await self.metaDs.modifyGet(key,
-    proc (maybeCurrMd: ?LeafMetadata): Future[(?LeafMetadata, StoreResultKind)] {.async.} =
+  await self.metaDs.modifyGet(
+    key,
+    proc(
+        maybeCurrMd: ?LeafMetadata
+    ): Future[(?LeafMetadata, StoreResultKind)] {.async.} =
       var
         md: LeafMetadata
         res: StoreResultKind
@@ -49,10 +54,12 @@ proc putLeafMetadata*(self: RepoStore, treeCid: Cid, index: Natural, blkCid: Cid
         md = LeafMetadata(blkCid: blkCid, proof: proof)
         res = Stored
 
-      (md.some, res)
+      (md.some, res),
   )
 
-proc getLeafMetadata*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!LeafMetadata] {.async.} =
+proc getLeafMetadata*(
+    self: RepoStore, treeCid: Cid, index: Natural
+): Future[?!LeafMetadata] {.async.} =
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
@@ -64,9 +71,12 @@ proc getLeafMetadata*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!L
 
   success(leafMd)
 
-proc updateTotalBlocksCount*(self: RepoStore, plusCount: Natural = 0, minusCount: Natural = 0): Future[?!void] {.async.} =
-  await self.metaDs.modify(CodexTotalBlocksKey,
-    proc (maybeCurrCount: ?Natural): Future[?Natural] {.async.} =
+proc updateTotalBlocksCount*(
+    self: RepoStore, plusCount: Natural = 0, minusCount: Natural = 0
+): Future[?!void] {.async.} =
+  await self.metaDs.modify(
+    CodexTotalBlocksKey,
+    proc(maybeCurrCount: ?Natural): Future[?Natural] {.async.} =
       let count: Natural =
         if currCount =? maybeCurrCount:
           currCount + plusCount - minusCount
@@ -75,42 +85,49 @@ proc updateTotalBlocksCount*(self: RepoStore, plusCount: Natural = 0, minusCount
 
       self.totalBlocks = count
       codex_repostore_blocks.set(count.int64)
-      count.some
+      count.some,
   )
 
 proc updateQuotaUsage*(
-  self: RepoStore,
-  plusUsed: NBytes = 0.NBytes,
-  minusUsed: NBytes = 0.NBytes,
-  plusReserved: NBytes = 0.NBytes,
-  minusReserved: NBytes = 0.NBytes
+    self: RepoStore,
+    plusUsed: NBytes = 0.NBytes,
+    minusUsed: NBytes = 0.NBytes,
+    plusReserved: NBytes = 0.NBytes,
+    minusReserved: NBytes = 0.NBytes,
 ): Future[?!void] {.async.} =
-  await self.metaDs.modify(QuotaUsedKey,
-    proc (maybeCurrUsage: ?QuotaUsage): Future[?QuotaUsage] {.async.} =
+  await self.metaDs.modify(
+    QuotaUsedKey,
+    proc(maybeCurrUsage: ?QuotaUsage): Future[?QuotaUsage] {.async.} =
       var usage: QuotaUsage
 
       if currUsage =? maybeCurrUsage:
-        usage = QuotaUsage(used: currUsage.used + plusUsed - minusUsed, reserved: currUsage.reserved + plusReserved - minusReserved)
+        usage = QuotaUsage(
+          used: currUsage.used + plusUsed - minusUsed,
+          reserved: currUsage.reserved + plusReserved - minusReserved,
+        )
       else:
-        usage = QuotaUsage(used: plusUsed - minusUsed, reserved: plusReserved - minusReserved)
+        usage =
+          QuotaUsage(used: plusUsed - minusUsed, reserved: plusReserved - minusReserved)
 
       if usage.used + usage.reserved > self.quotaMaxBytes:
-        raise newException(QuotaNotEnoughError,
+        raise newException(
+          QuotaNotEnoughError,
           "Quota usage would exceed the limit. Used: " & $usage.used & ", reserved: " &
-            $usage.reserved & ", limit: " & $self.quotaMaxBytes)
+            $usage.reserved & ", limit: " & $self.quotaMaxBytes,
+        )
       else:
         self.quotaUsage = usage
         codex_repostore_bytes_used.set(usage.used.int64)
         codex_repostore_bytes_reserved.set(usage.reserved.int64)
-        return usage.some
+        return usage.some,
   )
 
 proc updateBlockMetadata*(
-  self: RepoStore,
-  cid: Cid,
-  plusRefCount: Natural = 0,
-  minusRefCount: Natural = 0,
-  minExpiry: SecondsSince1970 = 0
+    self: RepoStore,
+    cid: Cid,
+    plusRefCount: Natural = 0,
+    minusRefCount: Natural = 0,
+    minExpiry: SecondsSince1970 = 0,
 ): Future[?!void] {.async.} =
   if cid.isEmpty:
     return success()
@@ -118,19 +135,24 @@ proc updateBlockMetadata*(
   without metaKey =? createBlockExpirationMetadataKey(cid), err:
     return failure(err)
 
-  await self.metaDs.modify(metaKey,
-    proc (maybeCurrBlockMd: ?BlockMetadata): Future[?BlockMetadata] {.async.} =
+  await self.metaDs.modify(
+    metaKey,
+    proc(maybeCurrBlockMd: ?BlockMetadata): Future[?BlockMetadata] {.async.} =
       if currBlockMd =? maybeCurrBlockMd:
         BlockMetadata(
           size: currBlockMd.size,
           expiry: max(currBlockMd.expiry, minExpiry),
-          refCount: currBlockMd.refCount + plusRefCount - minusRefCount
+          refCount: currBlockMd.refCount + plusRefCount - minusRefCount,
         ).some
       else:
-        raise newException(BlockNotFoundError, "Metadata for block with cid " & $cid & " not found")
+        raise newException(
+          BlockNotFoundError, "Metadata for block with cid " & $cid & " not found"
+        ),
   )
 
-proc storeBlock*(self: RepoStore, blk: Block, minExpiry: SecondsSince1970): Future[?!StoreResult] {.async.} =
+proc storeBlock*(
+    self: RepoStore, blk: Block, minExpiry: SecondsSince1970
+): Future[?!StoreResult] {.async.} =
   if blk.isEmpty:
     return success(StoreResult(kind: AlreadyInStore))
 
@@ -140,15 +162,20 @@ proc storeBlock*(self: RepoStore, blk: Block, minExpiry: SecondsSince1970): Futu
   without blkKey =? makePrefixKey(self.postFixLen, blk.cid), err:
     return failure(err)
 
-  await self.metaDs.modifyGet(metaKey,
-    proc (maybeCurrMd: ?BlockMetadata): Future[(?BlockMetadata, StoreResult)] {.async.} =
+  await self.metaDs.modifyGet(
+    metaKey,
+    proc(maybeCurrMd: ?BlockMetadata): Future[(?BlockMetadata, StoreResult)] {.async.} =
       var
         md: BlockMetadata
         res: StoreResult
 
       if currMd =? maybeCurrMd:
         if currMd.size == blk.data.len.NBytes:
-          md = BlockMetadata(size: currMd.size, expiry: max(currMd.expiry, minExpiry), refCount: currMd.refCount)
+          md = BlockMetadata(
+            size: currMd.size,
+            expiry: max(currMd.expiry, minExpiry),
+            refCount: currMd.refCount,
+          )
           res = StoreResult(kind: AlreadyInStore)
 
           # making sure that the block acutally is stored in the repoDs
@@ -156,21 +183,28 @@ proc storeBlock*(self: RepoStore, blk: Block, minExpiry: SecondsSince1970): Futu
             raise err
 
           if not hasBlock:
-            warn "Block metadata is present, but block is absent. Restoring block.", cid = blk.cid
+            warn "Block metadata is present, but block is absent. Restoring block.",
+              cid = blk.cid
             if err =? (await self.repoDs.put(blkKey, blk.data)).errorOption:
               raise err
         else:
-          raise newException(CatchableError, "Repo already stores a block with the same cid but with a different size, cid: " & $blk.cid)
+          raise newException(
+            CatchableError,
+            "Repo already stores a block with the same cid but with a different size, cid: " &
+              $blk.cid,
+          )
       else:
         md = BlockMetadata(size: blk.data.len.NBytes, expiry: minExpiry, refCount: 0)
         res = StoreResult(kind: Stored, used: blk.data.len.NBytes)
         if err =? (await self.repoDs.put(blkKey, blk.data)).errorOption:
           raise err
 
-      (md.some, res)
+      (md.some, res),
   )
 
-proc tryDeleteBlock*(self: RepoStore, cid: Cid, expiryLimit = SecondsSince1970.low): Future[?!DeleteResult] {.async.} =
+proc tryDeleteBlock*(
+    self: RepoStore, cid: Cid, expiryLimit = SecondsSince1970.low
+): Future[?!DeleteResult] {.async.} =
   if cid.isEmpty:
     return success(DeleteResult(kind: InUse))
 
@@ -180,8 +214,11 @@ proc tryDeleteBlock*(self: RepoStore, cid: Cid, expiryLimit = SecondsSince1970.l
   without blkKey =? makePrefixKey(self.postFixLen, cid), err:
     return failure(err)
 
-  await self.metaDs.modifyGet(metaKey,
-    proc (maybeCurrMd: ?BlockMetadata): Future[(?BlockMetadata, DeleteResult)] {.async.} =
+  await self.metaDs.modifyGet(
+    metaKey,
+    proc(
+        maybeCurrMd: ?BlockMetadata
+    ): Future[(?BlockMetadata, DeleteResult)] {.async.} =
       var
         maybeMeta: ?BlockMetadata
         res: DeleteResult
@@ -209,5 +246,5 @@ proc tryDeleteBlock*(self: RepoStore, cid: Cid, expiryLimit = SecondsSince1970.l
           if err =? (await self.repoDs.delete(blkKey)).errorOption:
             raise err
 
-      (maybeMeta, res)
+      (maybeMeta, res),
   )

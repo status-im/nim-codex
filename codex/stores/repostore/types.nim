@@ -56,17 +56,17 @@ type
     expiry*: SecondsSince1970
 
   DeleteResultKind* {.serialize.} = enum
-    Deleted = 0,    # block removed from store
-    InUse = 1,      # block not removed, refCount > 0 and not expired
-    NotFound = 2    # block not found in store
+    Deleted = 0 # block removed from store
+    InUse = 1 # block not removed, refCount > 0 and not expired
+    NotFound = 2 # block not found in store
 
   DeleteResult* {.serialize.} = object
     kind*: DeleteResultKind
     released*: NBytes
 
   StoreResultKind* {.serialize.} = enum
-    Stored = 0,         # new block stored
-    AlreadyInStore = 1  # block already in store
+    Stored = 0 # new block stored
+    AlreadyInStore = 1 # block already in store
 
   StoreResult* {.serialize.} = object
     kind*: StoreResultKind
@@ -94,7 +94,7 @@ func new*(
     clock: Clock = SystemClock.new(),
     postFixLen = 2,
     quotaMaxBytes = DefaultQuotaBytes,
-    blockTtl = DefaultBlockTtl
+    blockTtl = DefaultBlockTtl,
 ): RepoStore =
   ## Create new instance of a RepoStore
   ##
@@ -105,5 +105,5 @@ func new*(
     postFixLen: postFixLen,
     quotaMaxBytes: quotaMaxBytes,
     blockTtl: blockTtl,
-    onBlockStored: CidCallback.none
+    onBlockStored: CidCallback.none,
   )

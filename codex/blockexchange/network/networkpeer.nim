@@ -8,7 +8,8 @@
 ## those terms.
 
 import pkg/upraises
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import pkg/chronos
 import pkg/libp2p
@@ -33,8 +34,7 @@ type
     getConn: ConnProvider
 
 proc connected*(b: NetworkPeer): bool =
-  not(isNil(b.sendConn)) and
-  not(b.sendConn.closed or b.sendConn.atEof)
+  not (isNil(b.sendConn)) and not (b.sendConn.closed or b.sendConn.atEof)
 
 proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
   if isNil(conn):
@@ -80,15 +80,11 @@ proc broadcast*(b: NetworkPeer, msg: Message) =
   asyncSpawn sendAwaiter()
 
 func new*(
-  T: type NetworkPeer,
-  peer: PeerId,
-  connProvider: ConnProvider,
-  rpcHandler: RPCHandler): NetworkPeer =
+    T: type NetworkPeer,
+    peer: PeerId,
+    connProvider: ConnProvider,
+    rpcHandler: RPCHandler,
+): NetworkPeer =
+  doAssert(not isNil(connProvider), "should supply connection provider")
 
-  doAssert(not isNil(connProvider),
-    "should supply connection provider")
-
-  NetworkPeer(
-    id: peer,
-    getConn: connProvider,
-    handler: rpcHandler)
+  NetworkPeer(id: peer, getConn: connProvider, handler: rpcHandler)

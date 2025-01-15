@@ -11,8 +11,8 @@ import pkg/codex/blockexchange
 
 import ../examples
 
-type
-  NodesComponents* = tuple[
+type NodesComponents* =
+  tuple[
     switch: Switch,
     blockDiscovery: Discovery,
     wallet: WalletRef,
@@ -22,42 +22,44 @@ type
     pendingBlocks: PendingBlocksManager,
     discovery: DiscoveryEngine,
     engine: BlockExcEngine,
-    networkStore: NetworkStore]
+    networkStore: NetworkStore,
+  ]
 
 proc generateNodes*(
-    num: Natural,
-    blocks: openArray[bt.Block] = []
+    num: Natural, blocks: openArray[bt.Block] = []
 ): seq[NodesComponents] =
-  for i in 0..<num:
+  for i in 0 ..< num:
     let
       switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
       discovery = Discovery.new(
         switch.peerInfo.privateKey,
-        announceAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0")
-          .expect("Should return multiaddress")])
+        announceAddrs =
+          @[
+            MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect(
+              "Should return multiaddress"
+            )
+          ],
+      )
       wallet = WalletRef.example
       network = BlockExcNetwork.new(switch)
-      localStore = CacheStore.new(blocks.mapIt( it ))
+      localStore = CacheStore.new(blocks.mapIt(it))
       peerStore = PeerCtxStore.new()
       pendingBlocks = PendingBlocksManager.new()
       advertiser = Advertiser.new(localStore, discovery)
-      blockDiscovery = DiscoveryEngine.new(localStore, peerStore, network, discovery, pendingBlocks)
-      engine = BlockExcEngine.new(localStore, wallet, network, blockDiscovery, advertiser, peerStore, pendingBlocks)
+      blockDiscovery =
+        DiscoveryEngine.new(localStore, peerStore, network, discovery, pendingBlocks)
+      engine = BlockExcEngine.new(
+        localStore, wallet, network, blockDiscovery, advertiser, peerStore,
+        pendingBlocks,
+      )
       networkStore = NetworkStore.new(engine, localStore)
 
     switch.mount(network)
 
-    let nc : NodesComponents = (
-      switch,
-      discovery,
-      wallet,
-      network,
-      localStore,
-      peerStore,
-      pendingBlocks,
-      blockDiscovery,
-      engine,
-      networkStore)
+    let nc: NodesComponents = (
+      switch, discovery, wallet, network, localStore, peerStore, pendingBlocks,
+      blockDiscovery, engine, networkStore,
+    )
 
     result.add(nc)
 
@@ -68,4 +70,4 @@ proc connectNodes*(nodes: seq[Switch]) {.async.} =
         await dialer.connect(node.peerInfo.peerId, node.peerInfo.addrs)
 
 proc connectNodes*(nodes: seq[NodesComponents]) {.async.} =
-  await connectNodes(nodes.mapIt( it.switch ))
+  await connectNodes(nodes.mapIt(it.switch))

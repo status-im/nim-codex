@@ -11,7 +11,8 @@ import std/options
 
 import pkg/upraises
 
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import pkg/chronos
 import pkg/stew/ptrops
@@ -29,15 +30,14 @@ export stores, blocktype, manifest, chronos
 logScope:
   topics = "codex storestream"
 
-const
-  StoreStreamTrackerName* = "StoreStream"
+const StoreStreamTrackerName* = "StoreStream"
 
 type
   # Make SeekableStream from a sequence of blocks stored in Manifest
   # (only original file data - see StoreStream.size)
   StoreStream* = ref object of SeekableStream
-    store*: BlockStore          # Store where to lookup block contents
-    manifest*: Manifest         # List of block CIDs
+    store*: BlockStore # Store where to lookup block contents
+    manifest*: Manifest # List of block CIDs
 
 method initStream*(s: StoreStream) =
   if s.objName.len == 0:
@@ -46,17 +46,11 @@ method initStream*(s: StoreStream) =
   procCall SeekableStream(s).initStream()
 
 proc new*(
-    T: type StoreStream,
-    store: BlockStore,
-    manifest: Manifest,
-    pad = true
+    T: type StoreStream, store: BlockStore, manifest: Manifest, pad = true
 ): StoreStream =
   ## Create a new StoreStream instance for a given store and manifest
   ##
-  result = StoreStream(
-    store: store,
-    manifest: manifest,
-    offset: 0)
+  result = StoreStream(store: store, manifest: manifest, offset: 0)
 
   result.initStream()
 
@@ -66,15 +60,14 @@ method `size`*(self: StoreStream): int =
   let m = self.manifest
   (if m.protected: m.originalDatasetSize else: m.datasetSize).int
 
-proc `size=`*(self: StoreStream, size: int)
-  {.error: "Setting the size is forbidden".} =
+proc `size=`*(self: StoreStream, size: int) {.error: "Setting the size is forbidden".} =
   discard
 
 method atEof*(self: StoreStream): bool =
   self.offset >= self.size
 
 type LPStreamReadError* = object of LPStreamError
-    par*: ref CatchableError
+  par*: ref CatchableError
 
 proc newLPStreamReadError*(p: ref CatchableError): ref LPStreamReadError =
   var w = newException(LPStreamReadError, "Read stream failed")
@@ -83,9 +76,7 @@ proc newLPStreamReadError*(p: ref CatchableError): ref LPStreamReadError =
   result = w
 
 method readOnce*(
-    self: StoreStream,
-    pbytes: pointer,
-    nbytes: int
+    self: StoreStream, pbytes: pointer, nbytes: int
 ): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   ## Read `nbytes` from current position in the StoreStream into output buffer pointed by `pbytes`.
   ## Return how many bytes were actually read before EOF was encountered.
@@ -97,24 +88,34 @@ method readOnce*(
 
   # The loop iterates over blocks in the StoreStream,
   # reading them and copying their data into outbuf
-  var read = 0  # Bytes read so far, and thus write offset in the outbuf
+  var read = 0 # Bytes read so far, and thus write offset in the outbuf
   while read < nbytes and not self.atEof:
     # Compute from the current stream position `self.offset` the block num/offset to read
     # Compute how many bytes to read from this block
     let
-      blockNum    = self.offset div self.manifest.blockSize.int
+      blockNum = self.offset div self.manifest.blockSize.int
       blockOffset = self.offset mod self.manifest.blockSize.int
-      readBytes   = min([self.size - self.offset,
-                         nbytes - read,
-                         self.manifest.blockSize.int - blockOffset])
-      address     = BlockAddress(leaf: true, treeCid: self.manifest.treeCid, index: blockNum)
-
+      readBytes = min(
+        [
+          self.size - self.offset,
+          nbytes - read,
+          self.manifest.blockSize.int - blockOffset,
+        ]
+      )
+      address =
+        BlockAddress(leaf: true, treeCid: self.manifest.treeCid, index: blockNum)
 
     # Read contents of block `blockNum`
     without blk =? (await self.store.getBlock(address)).tryGet.catch, error:
       raise newLPStreamReadError(error)
 
-    trace "Reading bytes from store stream", manifestCid = self.manifest.cid.get(), numBlocks = self.manifest.blocksCount, blockNum, blkCid = blk.cid, bytes = readBytes, blockOffset
+    trace "Reading bytes from store stream",
+      manifestCid = self.manifest.cid.get(),
+      numBlocks = self.manifest.blocksCount,
+      blockNum,
+      blkCid = blk.cid,
+      bytes = readBytes,
+      blockOffset
 
     # Copy `readBytes` bytes starting at `blockOffset` from the block into the outbuf
     if blk.isEmpty:
@@ -130,5 +131,5 @@ method readOnce*(
 
 method closeImpl*(self: StoreStream) {.async.} =
   trace "Closing StoreStream"
-  self.offset = self.size  # set Eof
+  self.offset = self.size # set Eof
   await procCall LPStream(self).closeImpl()

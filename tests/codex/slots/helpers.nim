@@ -1,4 +1,3 @@
-
 import std/sugar
 
 import pkg/chronos
@@ -16,7 +15,9 @@ import pkg/codex/rng
 
 import ../helpers
 
-proc storeManifest*(store: BlockStore, manifest: Manifest): Future[?!bt.Block] {.async.} =
+proc storeManifest*(
+    store: BlockStore, manifest: Manifest
+): Future[?!bt.Block] {.async.} =
   without encodedVerifiable =? manifest.encode(), err:
     trace "Unable to encode manifest"
     return failure(err)
@@ -32,12 +33,13 @@ proc storeManifest*(store: BlockStore, manifest: Manifest): Future[?!bt.Block] {
   success blk
 
 proc makeManifest*(
-  cids: seq[Cid],
-  datasetSize: NBytes,
-  blockSize: NBytes,
-  store: BlockStore,
-  hcodec = Sha256HashCodec,
-  dataCodec = BlockCodec): Future[?!Manifest] {.async.} =
+    cids: seq[Cid],
+    datasetSize: NBytes,
+    blockSize: NBytes,
+    store: BlockStore,
+    hcodec = Sha256HashCodec,
+    dataCodec = BlockCodec,
+): Future[?!Manifest] {.async.} =
   without tree =? CodexTree.init(cids), err:
     return failure(err)
 
@@ -52,14 +54,14 @@ proc makeManifest*(
       # TODO add log here
       return failure(err)
 
-  let
-    manifest = Manifest.new(
-      treeCid = treeCid,
-      blockSize = blockSize,
-      datasetSize = datasetSize,
-      version = CIDv1,
-      hcodec = hcodec,
-      codec = dataCodec)
+  let manifest = Manifest.new(
+    treeCid = treeCid,
+    blockSize = blockSize,
+    datasetSize = datasetSize,
+    version = CIDv1,
+    hcodec = hcodec,
+    codec = dataCodec,
+  )
 
   without manifestBlk =? await store.storeManifest(manifest), err:
     trace "Unable to store manifest"
@@ -68,9 +70,8 @@ proc makeManifest*(
   success manifest
 
 proc createBlocks*(
-  chunker: Chunker,
-  store: BlockStore): Future[seq[bt.Block]] {.async.} =
-
+    chunker: Chunker, store: BlockStore
+): Future[seq[bt.Block]] {.async.} =
   collect(newSeq):
     while (let chunk = await chunker.getBytes(); chunk.len > 0):
       let blk = bt.Block.new(chunk).tryGet()
@@ -78,24 +79,24 @@ proc createBlocks*(
       blk
 
 proc createProtectedManifest*(
-  datasetBlocks: seq[bt.Block],
-  store: BlockStore,
-  numDatasetBlocks: int,
-  ecK: int, ecM: int,
-  blockSize: NBytes,
-  originalDatasetSize: int,
-  totalDatasetSize: int):
-  Future[tuple[manifest: Manifest, protected: Manifest]] {.async.} =
-
+    datasetBlocks: seq[bt.Block],
+    store: BlockStore,
+    numDatasetBlocks: int,
+    ecK: int,
+    ecM: int,
+    blockSize: NBytes,
+    originalDatasetSize: int,
+    totalDatasetSize: int,
+): Future[tuple[manifest: Manifest, protected: Manifest]] {.async.} =
   let
     cids = datasetBlocks.mapIt(it.cid)
-    datasetTree = CodexTree.init(cids[0..<numDatasetBlocks]).tryGet()
+    datasetTree = CodexTree.init(cids[0 ..< numDatasetBlocks]).tryGet()
     datasetTreeCid = datasetTree.rootCid().tryGet()
 
     protectedTree = CodexTree.init(cids).tryGet()
     protectedTreeCid = protectedTree.rootCid().tryGet()
 
-  for index, cid in cids[0..<numDatasetBlocks]:
+  for index, cid in cids[0 ..< numDatasetBlocks]:
     let proof = datasetTree.getProof(index).tryGet()
     (await store.putCidAndProof(datasetTreeCid, index, cid, proof)).tryGet
 
@@ -107,7 +108,8 @@ proc createProtectedManifest*(
     manifest = Manifest.new(
       treeCid = datasetTreeCid,
       blockSize = blockSize,
-      datasetSize = originalDatasetSize.NBytes)
+      datasetSize = originalDatasetSize.NBytes,
+    )
 
     protectedManifest = Manifest.new(
       manifest = manifest,
@@ -115,15 +117,14 @@ proc createProtectedManifest*(
       datasetSize = totalDatasetSize.NBytes,
       ecK = ecK,
       ecM = ecM,
-      strategy = SteppedStrategy)
+      strategy = SteppedStrategy,
+    )
 
-    manifestBlock = bt.Block.new(
-      manifest.encode().tryGet(),
-      codec = ManifestCodec).tryGet()
+    manifestBlock =
+      bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
 
-    protectedManifestBlock = bt.Block.new(
-      protectedManifest.encode().tryGet(),
-      codec = ManifestCodec).tryGet()
+    protectedManifestBlock =
+      bt.Block.new(protectedManifest.encode().tryGet(), codec = ManifestCodec).tryGet()
 
   (await store.putBlock(manifestBlock)).tryGet()
   (await store.putBlock(protectedManifestBlock)).tryGet()
@@ -131,32 +132,31 @@ proc createProtectedManifest*(
   (manifest, protectedManifest)
 
 proc createVerifiableManifest*(
-  store: BlockStore,
-  numDatasetBlocks: int,
-  ecK: int, ecM: int,
-  blockSize: NBytes,
-  cellSize: NBytes):
-  Future[tuple[manifest: Manifest, protected: Manifest, verifiable: Manifest]] {.async.} =
-
+    store: BlockStore,
+    numDatasetBlocks: int,
+    ecK: int,
+    ecM: int,
+    blockSize: NBytes,
+    cellSize: NBytes,
+): Future[tuple[manifest: Manifest, protected: Manifest, verifiable: Manifest]] {.
+    async
+.} =
   let
     numSlots = ecK + ecM
-    numTotalBlocks = calcEcBlocksCount(numDatasetBlocks, ecK, ecM)  # total number of blocks in the dataset after
-                                                                    # EC (should will match number of slots)
+    numTotalBlocks = calcEcBlocksCount(numDatasetBlocks, ecK, ecM)
+      # total number of blocks in the dataset after
+      # EC (should will match number of slots)
     originalDatasetSize = numDatasetBlocks * blockSize.int
-    totalDatasetSize    = numTotalBlocks * blockSize.int
+    totalDatasetSize = numTotalBlocks * blockSize.int
 
-    chunker = RandomChunker.new(Rng.instance(), size = totalDatasetSize, chunkSize = blockSize)
+    chunker =
+      RandomChunker.new(Rng.instance(), size = totalDatasetSize, chunkSize = blockSize)
     datasetBlocks = await chunker.createBlocks(store)
 
-    (manifest, protectedManifest) =
-        await createProtectedManifest(
-          datasetBlocks,
-          store,
-          numDatasetBlocks,
-          ecK, ecM,
-          blockSize,
-          originalDatasetSize,
-          totalDatasetSize)
+    (manifest, protectedManifest) = await createProtectedManifest(
+      datasetBlocks, store, numDatasetBlocks, ecK, ecM, blockSize, originalDatasetSize,
+      totalDatasetSize,
+    )
 
     builder = Poseidon2Builder.new(store, protectedManifest, cellSize = cellSize).tryGet
     verifiableManifest = (await builder.buildManifest()).tryGet

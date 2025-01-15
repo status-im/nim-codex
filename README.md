@@ -31,6 +31,7 @@ Run the client with:
 ```bash
 build/codex
 ```
+
 ## Configuration
 
 It is possible to configure a Codex node in several ways:
@@ -51,3 +52,15 @@ To get acquainted with Codex, consider:
 ## API
 
 The client exposes a REST API that can be used to interact with the clients. Overview of the API can be found on [api.codex.storage](https://api.codex.storage).
+
+## Contributing and development
+
+Feel free to dive in, contributions are welcomed! Open an issue or submit PRs.
+
+### Linting and formatting
+
+`nim-codex` uses [nph](https://github.com/arnetheduck/nph) for formatting our code and it is requrired to adhere to its styling.
+If you are setting up fresh setup, in order to get `nph` run `make build-nph`.
+In order to format files run `make nph/<file/folder you want to format>`. 
+If you want you can install Git pre-commit hook using `make install-nph-commit`, which will format modified files prior commiting them. 
+If you are using VSCode and the NimLang extension you can enable "Format On Save" that will format the files using `nph`.

@@ -20,9 +20,9 @@ method start*(clock: Clock) {.base, async.} =
 method stop*(clock: Clock) {.base, async.} =
   discard
 
-proc withTimeout*(future: Future[void],
-                  clock: Clock,
-                  expiry: SecondsSince1970) {.async.} =
+proc withTimeout*(
+    future: Future[void], clock: Clock, expiry: SecondsSince1970
+) {.async.} =
   let timeout = clock.waitUntil(expiry)
   try:
     await future or timeout

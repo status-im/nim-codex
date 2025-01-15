@@ -32,15 +32,15 @@ proc createManifestCid(): ?!Cid =
     codec = ManifestCodec
     version = CIDv1
 
-  let hash = ? MultiHash.digest($mcodec, bytes).mapFailure
-  let cid = ? Cid.init(version, codec, hash).mapFailure
+  let hash = ?MultiHash.digest($mcodec, bytes).mapFailure
+  let cid = ?Cid.init(version, codec, hash).mapFailure
   return success cid
 
 checksuite "KeyUtils":
   test "makePrefixKey should create block key":
     let length = 6
     let cid = Cid.example
-    let expectedPrefix = ($cid)[^length..^1]
+    let expectedPrefix = ($cid)[^length ..^ 1]
     let expectedPostfix = $cid
 
     let key = !makePrefixKey(length, cid).option
@@ -56,7 +56,7 @@ checksuite "KeyUtils":
   test "makePrefixKey should create manifest key":
     let length = 6
     let cid = !createManifestCid().option
-    let expectedPrefix = ($cid)[^length..^1]
+    let expectedPrefix = ($cid)[^length ..^ 1]
     let expectedPostfix = $cid
 
     let key = !makePrefixKey(length, cid).option

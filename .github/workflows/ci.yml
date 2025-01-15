@@ -47,6 +47,19 @@ jobs:
       matrix: ${{ needs.matrix.outputs.matrix }}
       cache_nonce: ${{ needs.matrix.outputs.cache_nonce }}
 
+  linting:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check `nph` formatting
+        uses: arnetheduck/nph-action@v1
+        with:
+          version: 0.6.1
+          options: "codex/ tests/"
+          fail: true
+          suggest: true
+
   coverage:
     # Force to stick to ubuntu 20.04 for coverage because
     # lcov was updated to 2.x version in ubuntu-latest

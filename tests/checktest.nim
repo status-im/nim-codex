@@ -3,7 +3,7 @@ import ./helpers
 ## Unit testing suite that calls checkTrackers in teardown to check for memory leaks using chronos trackers.
 template checksuite*(name, body) =
   suite name:
-    proc suiteProc =
+    proc suiteProc() =
       multisetup()
 
       teardown:
@@ -15,7 +15,7 @@ template checksuite*(name, body) =
 
 template asyncchecksuite*(name, body) =
   suite name:
-    proc suiteProc =
+    proc suiteProc() =
       asyncmultisetup()
 
       teardown:

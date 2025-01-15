@@ -13,11 +13,11 @@ import ./errored
 logScope:
   topics = "marketplace sales filling"
 
-type
-  SaleFilling* = ref object of ErrorHandlingState
-    proof*: Groth16Proof
+type SaleFilling* = ref object of ErrorHandlingState
+  proof*: Groth16Proof
 
-method `$`*(state: SaleFilling): string = "SaleFilling"
+method `$`*(state: SaleFilling): string =
+  "SaleFilling"
 
 method onCancelled*(state: SaleFilling, request: StorageRequest): ?State =
   return some State(SaleCancelled())
@@ -28,7 +28,7 @@ method onFailed*(state: SaleFilling, request: StorageRequest): ?State =
 method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
   let market = SalesAgent(machine).context.market
-  without (fullCollateral =? data.request.?ask.?collateral):
+  without (fullCollateral =? data.request .? ask .? collateral):
     raiseAssert "Request not set"
 
   logScope:
@@ -41,7 +41,8 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
   if slotState == SlotState.Repair:
     # When repairing the node gets "discount" on the collateral that it needs to
     let repairRewardPercentage = (await market.repairRewardPercentage).u256
-    collateral = fullCollateral - ((fullCollateral * repairRewardPercentage)).div(100.u256)
+    collateral =
+      fullCollateral - ((fullCollateral * repairRewardPercentage)).div(100.u256)
   else:
     collateral = fullCollateral
 
@@ -51,9 +52,9 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
   except MarketError as e:
     if e.msg.contains "Slot is not free":
       debug "Slot is already filled, ignoring slot"
-      return some State( SaleIgnored(reprocessSlot: false, returnBytes: true) )
+      return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
     else:
-      return some State( SaleErrored(error: e) )
+      return some State(SaleErrored(error: e))
   # other CatchableErrors are handled "automatically" by the ErrorHandlingState
 
   return some State(SaleFilled())

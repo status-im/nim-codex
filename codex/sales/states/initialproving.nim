@@ -12,10 +12,10 @@ import ./failed
 logScope:
   topics = "marketplace sales initial-proving"
 
-type
-  SaleInitialProving* = ref object of ErrorHandlingState
+type SaleInitialProving* = ref object of ErrorHandlingState
 
-method `$`*(state: SaleInitialProving): string = "SaleInitialProving"
+method `$`*(state: SaleInitialProving): string =
+  "SaleInitialProving"
 
 method onCancelled*(state: SaleInitialProving, request: StorageRequest): ?State =
   return some State(SaleCancelled())

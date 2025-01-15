@@ -5,7 +5,6 @@ import ../../examples
 import ../../helpers
 
 checksuite "engine payments":
-
   let address = EthAddress.example
   let amount = 42.u256
 
@@ -29,6 +28,6 @@ checksuite "engine payments":
 
   test "uses same channel for consecutive payments":
     let payment1, payment2 = wallet.pay(peer, amount)
-    let channel1 = payment1.?state.?channel.?getChannelId
-    let channel2 = payment2.?state.?channel.?getChannelId
+    let channel1 = payment1 .? state .? channel .? getChannelId
+    let channel2 = payment2 .? state .? channel .? getChannelId
     check channel1 == channel2

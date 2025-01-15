@@ -27,8 +27,7 @@ import pkg/codex/slots {.all.}
 privateAccess(Poseidon2Builder) # enable access to private fields
 privateAccess(Manifest) # enable access to private fields
 
-const
-  Strategy = SteppedStrategy
+const Strategy = SteppedStrategy
 
 suite "Slot builder":
   let
@@ -39,24 +38,27 @@ suite "Slot builder":
 
     numSlots = ecK + ecM
     numDatasetBlocks = 8
-    numTotalBlocks = calcEcBlocksCount(numDatasetBlocks, ecK, ecM)  # total number of blocks in the dataset after
-                                                                    # EC (should will match number of slots)
+    numTotalBlocks = calcEcBlocksCount(numDatasetBlocks, ecK, ecM)
+      # total number of blocks in the dataset after
+      # EC (should will match number of slots)
     originalDatasetSize = numDatasetBlocks * blockSize.int
-    totalDatasetSize    = numTotalBlocks * blockSize.int
+    totalDatasetSize = numTotalBlocks * blockSize.int
 
-    numSlotBlocks     = numTotalBlocks div numSlots
-    numBlockCells     = (blockSize div cellSize).int                      # number of cells per block
-    numSlotCells      = numSlotBlocks * numBlockCells                     # number of uncorrected slot cells
-    pow2SlotCells     = nextPowerOfTwo(numSlotCells)                      # pow2 cells per slot
-    numPadSlotBlocks  = (pow2SlotCells div numBlockCells) - numSlotBlocks # pow2 blocks per slot
+    numSlotBlocks = numTotalBlocks div numSlots
+    numBlockCells = (blockSize div cellSize).int # number of cells per block
+    numSlotCells = numSlotBlocks * numBlockCells # number of uncorrected slot cells
+    pow2SlotCells = nextPowerOfTwo(numSlotCells) # pow2 cells per slot
+    numPadSlotBlocks = (pow2SlotCells div numBlockCells) - numSlotBlocks
+      # pow2 blocks per slot
 
-    numSlotBlocksTotal  =                                                 # pad blocks per slot
+    numSlotBlocksTotal =
+      # pad blocks per slot
       if numPadSlotBlocks > 0:
-          numPadSlotBlocks + numSlotBlocks
-        else:
-          numSlotBlocks
+        numPadSlotBlocks + numSlotBlocks
+      else:
+        numSlotBlocks
 
-    numBlocksTotal  = numSlotBlocksTotal * numSlots
+    numBlocksTotal = numSlotBlocksTotal * numSlots
 
     # empty digest
     emptyDigest = SpongeMerkle.digest(newSeq[byte](blockSize.int), cellSize.int)
@@ -78,18 +80,14 @@ suite "Slot builder":
       metaDs = metaTmp.newDb()
 
     localStore = RepoStore.new(repoDs, metaDs)
-    chunker = RandomChunker.new(Rng.instance(), size = totalDatasetSize, chunkSize = blockSize)
+    chunker =
+      RandomChunker.new(Rng.instance(), size = totalDatasetSize, chunkSize = blockSize)
     datasetBlocks = await chunker.createBlocks(localStore)
 
-    (manifest, protectedManifest) =
-        await createProtectedManifest(
-          datasetBlocks,
-          localStore,
-          numDatasetBlocks,
-          ecK, ecM,
-          blockSize,
-          originalDatasetSize,
-          totalDatasetSize)
+    (manifest, protectedManifest) = await createProtectedManifest(
+      datasetBlocks, localStore, numDatasetBlocks, ecK, ecM, blockSize,
+      originalDatasetSize, totalDatasetSize,
+    )
 
   teardown:
     await localStore.close()
@@ -109,55 +107,55 @@ suite "Slot builder":
     reset(chunker)
 
   test "Can only create builder with protected manifest":
-    let
-      unprotectedManifest = Manifest.new(
-        treeCid = Cid.example,
-        blockSize = blockSize.NBytes,
-        datasetSize = originalDatasetSize.NBytes)
+    let unprotectedManifest = Manifest.new(
+      treeCid = Cid.example,
+      blockSize = blockSize.NBytes,
+      datasetSize = originalDatasetSize.NBytes,
+    )
 
     check:
-      Poseidon2Builder.new(localStore, unprotectedManifest, cellSize = cellSize)
-        .error.msg == "Manifest is not protected."
+      Poseidon2Builder.new(localStore, unprotectedManifest, cellSize = cellSize).error.msg ==
+        "Manifest is not protected."
 
   test "Number of blocks must be devisable by number of slots":
-    let
-      mismatchManifest = Manifest.new(
-        manifest = Manifest.new(
-          treeCid = Cid.example,
-          blockSize = blockSize.NBytes,
-          datasetSize = originalDatasetSize.NBytes),
+    let mismatchManifest = Manifest.new(
+      manifest = Manifest.new(
         treeCid = Cid.example,
-        datasetSize = totalDatasetSize.NBytes,
-        ecK = ecK - 1,
-        ecM = ecM,
-        strategy = Strategy)
+        blockSize = blockSize.NBytes,
+        datasetSize = originalDatasetSize.NBytes,
+      ),
+      treeCid = Cid.example,
+      datasetSize = totalDatasetSize.NBytes,
+      ecK = ecK - 1,
+      ecM = ecM,
+      strategy = Strategy,
+    )
 
     check:
-      Poseidon2Builder.new(localStore, mismatchManifest, cellSize = cellSize)
-        .error.msg == "Number of blocks must be divisable by number of slots."
+      Poseidon2Builder.new(localStore, mismatchManifest, cellSize = cellSize).error.msg ==
+        "Number of blocks must be divisable by number of slots."
 
   test "Block size must be divisable by cell size":
-    let
-      mismatchManifest = Manifest.new(
-        manifest = Manifest.new(
-          treeCid = Cid.example,
-          blockSize = (blockSize + 1).NBytes,
-          datasetSize = (originalDatasetSize - 1).NBytes),
+    let mismatchManifest = Manifest.new(
+      manifest = Manifest.new(
         treeCid = Cid.example,
-        datasetSize = (totalDatasetSize - 1).NBytes,
-        ecK = ecK,
-        ecM = ecM,
-        strategy = Strategy)
+        blockSize = (blockSize + 1).NBytes,
+        datasetSize = (originalDatasetSize - 1).NBytes,
+      ),
+      treeCid = Cid.example,
+      datasetSize = (totalDatasetSize - 1).NBytes,
+      ecK = ecK,
+      ecM = ecM,
+      strategy = Strategy,
+    )
 
     check:
-      Poseidon2Builder.new(localStore, mismatchManifest, cellSize = cellSize)
-        .error.msg == "Block size must be divisable by cell size."
+      Poseidon2Builder.new(localStore, mismatchManifest, cellSize = cellSize).error.msg ==
+        "Block size must be divisable by cell size."
 
   test "Should build correct slot builder":
-    builder = Poseidon2Builder.new(
-      localStore,
-      protectedManifest,
-      cellSize = cellSize).tryGet()
+    builder =
+      Poseidon2Builder.new(localStore, protectedManifest, cellSize = cellSize).tryGet()
 
     check:
       builder.cellSize == cellSize
@@ -169,15 +167,13 @@ suite "Slot builder":
 
   test "Should build slot hashes for all slots":
     let
-      steppedStrategy = Strategy.init(
-        0, numBlocksTotal - 1, numSlots)
+      steppedStrategy = Strategy.init(0, numBlocksTotal - 1, numSlots)
 
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
+      builder = Poseidon2Builder
+        .new(localStore, protectedManifest, cellSize = cellSize)
+        .tryGet()
 
-    for i in 0..<numSlots:
+    for i in 0 ..< numSlots:
       let
         expectedHashes = collect(newSeq):
           for j, idx in steppedStrategy.getIndicies(i):
@@ -194,15 +190,13 @@ suite "Slot builder":
 
   test "Should build slot trees for all slots":
     let
-      steppedStrategy = Strategy.init(
-        0, numBlocksTotal - 1, numSlots)
+      steppedStrategy = Strategy.init(0, numBlocksTotal - 1, numSlots)
 
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
+      builder = Poseidon2Builder
+        .new(localStore, protectedManifest, cellSize = cellSize)
+        .tryGet()
 
-    for i in 0..<numSlots:
+    for i in 0 ..< numSlots:
       let
         expectedHashes = collect(newSeq):
           for j, idx in steppedStrategy.getIndicies(i):
@@ -218,21 +212,19 @@ suite "Slot builder":
         slotTree.root().tryGet() == expectedRoot
 
   test "Should persist trees for all slots":
-    let
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
+    let builder =
+      Poseidon2Builder.new(localStore, protectedManifest, cellSize = cellSize).tryGet()
 
-    for i in 0..<numSlots:
+    for i in 0 ..< numSlots:
       let
         slotTree = (await builder.buildSlotTree(i)).tryGet()
         slotRoot = (await builder.buildSlot(i)).tryGet()
         slotCid = slotRoot.toSlotCid().tryGet()
 
-      for cellIndex in 0..<numPadSlotBlocks:
+      for cellIndex in 0 ..< numPadSlotBlocks:
         let
-          (cellCid, proof) = (await localStore.getCidAndProof(slotCid, cellIndex)).tryGet()
+          (cellCid, proof) =
+            (await localStore.getCidAndProof(slotCid, cellIndex)).tryGet()
           verifiableProof = proof.toVerifiableProof().tryGet()
           posProof = slotTree.getProof(cellIndex).tryGet()
 
@@ -244,22 +236,20 @@ suite "Slot builder":
   test "Should build correct verification root":
     let
       steppedStrategy = Strategy.init(0, numBlocksTotal - 1, numSlots)
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
+      builder = Poseidon2Builder
+        .new(localStore, protectedManifest, cellSize = cellSize)
+        .tryGet()
 
     (await builder.buildSlots()).tryGet
     let
       slotsHashes = collect(newSeq):
-        for i in 0..<numSlots:
-          let
-            slotHashes = collect(newSeq):
-              for j, idx in steppedStrategy.getIndicies(i):
-                if j > (protectedManifest.numSlotBlocks - 1):
-                  emptyDigest
-                else:
-                  SpongeMerkle.digest(datasetBlocks[idx].data, cellSize.int)
+        for i in 0 ..< numSlots:
+          let slotHashes = collect(newSeq):
+            for j, idx in steppedStrategy.getIndicies(i):
+              if j > (protectedManifest.numSlotBlocks - 1):
+                emptyDigest
+              else:
+                SpongeMerkle.digest(datasetBlocks[idx].data, cellSize.int)
 
           Merkle.digest(slotHashes)
 
@@ -272,20 +262,18 @@ suite "Slot builder":
   test "Should build correct verification root manifest":
     let
       steppedStrategy = Strategy.init(0, numBlocksTotal - 1, numSlots)
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
+      builder = Poseidon2Builder
+        .new(localStore, protectedManifest, cellSize = cellSize)
+        .tryGet()
 
       slotsHashes = collect(newSeq):
-        for i in 0..<numSlots:
-          let
-            slotHashes = collect(newSeq):
-              for j, idx in steppedStrategy.getIndicies(i):
-                if j > (protectedManifest.numSlotBlocks - 1):
-                  emptyDigest
-                else:
-                  SpongeMerkle.digest(datasetBlocks[idx].data, cellSize.int)
+        for i in 0 ..< numSlots:
+          let slotHashes = collect(newSeq):
+            for j, idx in steppedStrategy.getIndicies(i):
+              if j > (protectedManifest.numSlotBlocks - 1):
+                emptyDigest
+              else:
+                SpongeMerkle.digest(datasetBlocks[idx].data, cellSize.int)
 
           Merkle.digest(slotHashes)
 
@@ -300,68 +288,46 @@ suite "Slot builder":
 
   test "Should not build from verifiable manifest with 0 slots":
     var
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
+      builder = Poseidon2Builder
+        .new(localStore, protectedManifest, cellSize = cellSize)
+        .tryGet()
       verifyManifest = (await builder.buildManifest()).tryGet()
 
     verifyManifest.slotRoots = @[]
-    check Poseidon2Builder.new(
-        localStore,
-        verifyManifest,
-        cellSize = cellSize).isErr
+    check Poseidon2Builder.new(localStore, verifyManifest, cellSize = cellSize).isErr
 
   test "Should not build from verifiable manifest with incorrect number of slots":
     var
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
+      builder = Poseidon2Builder
+        .new(localStore, protectedManifest, cellSize = cellSize)
+        .tryGet()
 
       verifyManifest = (await builder.buildManifest()).tryGet()
 
-    verifyManifest.slotRoots.del(
-      verifyManifest.slotRoots.len - 1
-    )
+    verifyManifest.slotRoots.del(verifyManifest.slotRoots.len - 1)
 
-    check Poseidon2Builder.new(
-        localStore,
-        verifyManifest,
-        cellSize = cellSize).isErr
+    check Poseidon2Builder.new(localStore, verifyManifest, cellSize = cellSize).isErr
 
   test "Should not build from verifiable manifest with invalid verify root":
-    let
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
+    let builder =
+      Poseidon2Builder.new(localStore, protectedManifest, cellSize = cellSize).tryGet()
 
-    var
-      verifyManifest = (await builder.buildManifest()).tryGet()
+    var verifyManifest = (await builder.buildManifest()).tryGet()
 
-    rng.shuffle(
-      Rng.instance,
-      verifyManifest.verifyRoot.data.buffer)
+    rng.shuffle(Rng.instance, verifyManifest.verifyRoot.data.buffer)
 
-    check Poseidon2Builder.new(
-        localStore,
-        verifyManifest,
-        cellSize = cellSize).isErr
+    check Poseidon2Builder.new(localStore, verifyManifest, cellSize = cellSize).isErr
 
   test "Should build from verifiable manifest":
     let
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
+      builder = Poseidon2Builder
+        .new(localStore, protectedManifest, cellSize = cellSize)
+        .tryGet()
 
       verifyManifest = (await builder.buildManifest()).tryGet()
 
-      verificationBuilder = Poseidon2Builder.new(
-        localStore,
-        verifyManifest,
-        cellSize = cellSize).tryGet()
+      verificationBuilder =
+        Poseidon2Builder.new(localStore, verifyManifest, cellSize = cellSize).tryGet()
 
     check:
       builder.slotRoots == verificationBuilder.slotRoots

@@ -30,7 +30,7 @@ asyncchecksuite "Purchasing":
         slots: uint8.example.uint64,
         slotSize: uint32.example.u256,
         duration: uint16.example.u256,
-        reward: uint8.example.u256
+        reward: uint8.example.u256,
       )
     )
 
@@ -117,7 +117,6 @@ asyncchecksuite "Purchasing":
     check market.withdrawn == @[request.id]
 
 checksuite "Purchasing state machine":
-
   var purchasing: Purchasing
   var market: MockMarket
   var clock: MockClock
@@ -132,7 +131,7 @@ checksuite "Purchasing state machine":
         slots: uint8.example.uint64,
         slotSize: uint32.example.u256,
         duration: uint16.example.u256,
-        reward: uint8.example.u256
+        reward: uint8.example.u256,
       )
     )
 
@@ -150,7 +149,8 @@ checksuite "Purchasing state machine":
     let me = await market.getSigner()
     let request1, request2, request3, request4, request5 = StorageRequest.example
     market.requested = @[request1, request2, request3, request4, request5]
-    market.activeRequests[me] = @[request1.id, request2.id, request3.id, request4.id, request5.id]
+    market.activeRequests[me] =
+      @[request1.id, request2.id, request3.id, request4.id, request5.id]
     market.requestState[request1.id] = RequestState.New
     market.requestState[request2.id] = RequestState.Started
     market.requestState[request3.id] = RequestState.Cancelled
@@ -161,12 +161,17 @@ checksuite "Purchasing state machine":
     market.requestEnds[request2.id] = clock.now() - 1
 
     await purchasing.load()
-    check eventually purchasing.getPurchase(PurchaseId(request1.id)).?finished == false.some
-    check eventually purchasing.getPurchase(PurchaseId(request2.id)).?finished == true.some
-    check eventually purchasing.getPurchase(PurchaseId(request3.id)).?finished == true.some
-    check eventually purchasing.getPurchase(PurchaseId(request4.id)).?finished == true.some
-    check eventually purchasing.getPurchase(PurchaseId(request5.id)).?finished == true.some
-    check eventually purchasing.getPurchase(PurchaseId(request5.id)).?error.isSome
+    check eventually purchasing.getPurchase(PurchaseId(request1.id)) .? finished ==
+      false.some
+    check eventually purchasing.getPurchase(PurchaseId(request2.id)) .? finished ==
+      true.some
+    check eventually purchasing.getPurchase(PurchaseId(request3.id)) .? finished ==
+      true.some
+    check eventually purchasing.getPurchase(PurchaseId(request4.id)) .? finished ==
+      true.some
+    check eventually purchasing.getPurchase(PurchaseId(request5.id)) .? finished ==
+      true.some
+    check eventually purchasing.getPurchase(PurchaseId(request5.id)) .? error.isSome
 
   test "moves to PurchaseSubmitted when request state is New":
     let request = StorageRequest.example

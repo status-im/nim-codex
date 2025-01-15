@@ -45,13 +45,12 @@ export salescontext
 logScope:
   topics = "sales marketplace"
 
-type
-  Sales* = ref object
-    context*: SalesContext
-    agents*: seq[SalesAgent]
-    running: bool
-    subscriptions: seq[market.Subscription]
-    trackedFutures: TrackedFutures
+type Sales* = ref object
+  context*: SalesContext
+  agents*: seq[SalesAgent]
+  running: bool
+  subscriptions: seq[market.Subscription]
+  trackedFutures: TrackedFutures
 
 proc `onStore=`*(sales: Sales, onStore: OnStore) =
   sales.context.onStore = some onStore
@@ -68,28 +67,31 @@ proc `onProve=`*(sales: Sales, callback: OnProve) =
 proc `onExpiryUpdate=`*(sales: Sales, callback: OnExpiryUpdate) =
   sales.context.onExpiryUpdate = some callback
 
-proc onStore*(sales: Sales): ?OnStore = sales.context.onStore
+proc onStore*(sales: Sales): ?OnStore =
+  sales.context.onStore
 
-proc onClear*(sales: Sales): ?OnClear = sales.context.onClear
+proc onClear*(sales: Sales): ?OnClear =
+  sales.context.onClear
 
-proc onSale*(sales: Sales): ?OnSale = sales.context.onSale
+proc onSale*(sales: Sales): ?OnSale =
+  sales.context.onSale
 
-proc onProve*(sales: Sales): ?OnProve = sales.context.onProve
+proc onProve*(sales: Sales): ?OnProve =
+  sales.context.onProve
 
-proc onExpiryUpdate*(sales: Sales): ?OnExpiryUpdate = sales.context.onExpiryUpdate
+proc onExpiryUpdate*(sales: Sales): ?OnExpiryUpdate =
+  sales.context.onExpiryUpdate
 
-proc new*(_: type Sales,
-          market: Market,
-          clock: Clock,
-          repo: RepoStore): Sales =
+proc new*(_: type Sales, market: Market, clock: Clock, repo: RepoStore): Sales =
   Sales.new(market, clock, repo, 0)
 
-proc new*(_: type Sales,
-          market: Market,
-          clock: Clock,
-          repo: RepoStore,
-          simulateProofFailures: int): Sales =
-
+proc new*(
+    _: type Sales,
+    market: Market,
+    clock: Clock,
+    repo: RepoStore,
+    simulateProofFailures: int,
+): Sales =
   let reservations = Reservations.new(repo)
   Sales(
     context: SalesContext(
@@ -97,10 +99,10 @@ proc new*(_: type Sales,
       clock: clock,
       reservations: reservations,
       slotQueue: SlotQueue.new(),
-      simulateProofFailures: simulateProofFailures
+      simulateProofFailures: simulateProofFailures,
     ),
     trackedFutures: TrackedFutures.new(),
-    subscriptions: @[]
+    subscriptions: @[],
   )
 
 proc remove(sales: Sales, agent: SalesAgent) {.async.} =
@@ -108,20 +110,21 @@ proc remove(sales: Sales, agent: SalesAgent) {.async.} =
   if sales.running:
     sales.agents.keepItIf(it != agent)
 
-proc cleanUp(sales: Sales,
-             agent: SalesAgent,
-             returnBytes: bool,
-             reprocessSlot: bool,
-             processing: Future[void]) {.async.} =
-
+proc cleanUp(
+    sales: Sales,
+    agent: SalesAgent,
+    returnBytes: bool,
+    reprocessSlot: bool,
+    processing: Future[void],
+) {.async.} =
   let data = agent.data
 
   logScope:
     topics = "sales cleanUp"
     requestId = data.requestId
     slotIndex = data.slotIndex
-    reservationId = data.reservation.?id |? ReservationId.default
-    availabilityId = data.reservation.?availabilityId |? AvailabilityId.default
+    reservationId = data.reservation .? id |? ReservationId.default
+    availabilityId = data.reservation .? availabilityId |? AvailabilityId.default
 
   trace "cleaning up sales agent"
 
@@ -129,36 +132,37 @@ proc cleanUp(sales: Sales,
   # that the cleanUp was called before the sales process really started, so
   # there are not really any bytes to be returned
   if returnBytes and request =? data.request and reservation =? data.reservation:
-    if returnErr =? (await sales.context.reservations.returnBytesToAvailability(
-                        reservation.availabilityId,
-                        reservation.id,
-                        request.ask.slotSize
-                      )).errorOption:
-          error "failure returning bytes",
-            error = returnErr.msg,
-            bytes = request.ask.slotSize
+    if returnErr =? (
+      await sales.context.reservations.returnBytesToAvailability(
+        reservation.availabilityId, reservation.id, request.ask.slotSize
+      )
+    ).errorOption:
+      error "failure returning bytes",
+        error = returnErr.msg, bytes = request.ask.slotSize
 
   # delete reservation and return reservation bytes back to the availability
   if reservation =? data.reservation and
-     deleteErr =? (await sales.context.reservations.deleteReservation(
-                    reservation.id,
-                    reservation.availabilityId
-                  )).errorOption:
-      error "failure deleting reservation", error = deleteErr.msg
+      deleteErr =? (
+        await sales.context.reservations.deleteReservation(
+          reservation.id, reservation.availabilityId
+        )
+      ).errorOption:
+    error "failure deleting reservation", error = deleteErr.msg
 
   # Re-add items back into the queue to prevent small availabilities from
   # draining the queue. Seen items will be ordered last.
   if reprocessSlot and request =? data.request:
     let queue = sales.context.slotQueue
-    var seenItem = SlotQueueItem.init(data.requestId,
-                                      data.slotIndex.truncate(uint16),
-                                      data.ask,
-                                      request.expiry,
-                                      seen = true)
+    var seenItem = SlotQueueItem.init(
+      data.requestId,
+      data.slotIndex.truncate(uint16),
+      data.ask,
+      request.expiry,
+      seen = true,
+    )
     trace "pushing ignored item to queue, marked as seen"
     if err =? queue.push(seenItem).errorOption:
-      error "failed to readd slot to queue",
-        errorType = $(type err), error = err.msg
+      error "failed to readd slot to queue", errorType = $(type err), error = err.msg
 
   await sales.remove(agent)
 
@@ -167,11 +171,8 @@ proc cleanUp(sales: Sales,
     processing.complete()
 
 proc filled(
-  sales: Sales,
-  request: StorageRequest,
-  slotIndex: UInt256,
-  processing: Future[void]) =
-
+    sales: Sales, request: StorageRequest, slotIndex: UInt256, processing: Future[void]
+) =
   if onSale =? sales.context.onSale:
     onSale(request, slotIndex)
 
@@ -180,17 +181,13 @@ proc filled(
     processing.complete()
 
 proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
-  debug "Processing slot from queue", requestId = item.requestId,
-    slot = item.slotIndex
+  debug "Processing slot from queue", requestId = item.requestId, slot = item.slotIndex
 
   let agent = newSalesAgent(
-    sales.context,
-    item.requestId,
-    item.slotIndex.u256,
-    none StorageRequest
+    sales.context, item.requestId, item.slotIndex.u256, none StorageRequest
   )
 
-  agent.onCleanUp = proc (returnBytes = false, reprocessSlot = false) {.async.} =
+  agent.onCleanUp = proc(returnBytes = false, reprocessSlot = false) {.async.} =
     await sales.cleanUp(agent, returnBytes, reprocessSlot, done)
 
   agent.onFilled = some proc(request: StorageRequest, slotIndex: UInt256) =
@@ -204,10 +201,12 @@ proc deleteInactiveReservations(sales: Sales, activeSlots: seq[Slot]) {.async.} 
   without reservs =? await reservations.all(Reservation):
     return
 
-  let unused = reservs.filter(r => (
-    let slotId = slotId(r.requestId, r.slotIndex)
-    not activeSlots.any(slot => slot.id == slotId)
-  ))
+  let unused = reservs.filter(
+    r => (
+      let slotId = slotId(r.requestId, r.slotIndex)
+      not activeSlots.any(slot => slot.id == slotId)
+    )
+  )
 
   if unused.len == 0:
     return
@@ -215,14 +214,13 @@ proc deleteInactiveReservations(sales: Sales, activeSlots: seq[Slot]) {.async.} 
   info "Found unused reservations for deletion", unused = unused.len
 
   for reservation in unused:
-
     logScope:
       reservationId = reservation.id
       availabilityId = reservation.availabilityId
 
-    if err =? (await reservations.deleteReservation(
-      reservation.id, reservation.availabilityId
-    )).errorOption:
+    if err =? (
+      await reservations.deleteReservation(reservation.id, reservation.availabilityId)
+    ).errorOption:
       error "Failed to delete unused reservation", error = err.msg
     else:
       trace "Deleted unused reservation"
@@ -252,11 +250,8 @@ proc load*(sales: Sales) {.async.} =
   await sales.deleteInactiveReservations(activeSlots)
 
   for slot in activeSlots:
-    let agent = newSalesAgent(
-      sales.context,
-      slot.request.id,
-      slot.slotIndex,
-      some slot.request)
+    let agent =
+      newSalesAgent(sales.context, slot.request.id, slot.slotIndex, some slot.request)
 
     agent.onCleanUp = proc(returnBytes = false, reprocessSlot = false) {.async.} =
       # since workers are not being dispatched, this future has not been created
@@ -282,11 +277,9 @@ proc onAvailabilityAdded(sales: Sales, availability: Availability) {.async.} =
     trace "unpausing queue after new availability added"
     queue.unpause()
 
-proc onStorageRequested(sales: Sales,
-                        requestId: RequestId,
-                        ask: StorageAsk,
-                        expiry: UInt256) =
-
+proc onStorageRequested(
+    sales: Sales, requestId: RequestId, ask: StorageAsk, expiry: UInt256
+) =
   logScope:
     topics = "marketplace sales onStorageRequested"
     requestId
@@ -314,10 +307,7 @@ proc onStorageRequested(sales: Sales,
       else:
         warn "Error adding request to SlotQueue", error = err.msg
 
-proc onSlotFreed(sales: Sales,
-                 requestId: RequestId,
-                 slotIndex: UInt256) =
-
+proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: UInt256) =
   logScope:
     topics = "marketplace sales onSlotFreed"
     requestId
@@ -331,8 +321,7 @@ proc onSlotFreed(sales: Sales,
     let queue = context.slotQueue
 
     # first attempt to populate request using existing slot metadata in queue
-    without var found =? queue.populateItem(requestId,
-                                            slotIndex.truncate(uint16)):
+    without var found =? queue.populateItem(requestId, slotIndex.truncate(uint16)):
       trace "no existing request metadata, getting request info from contract"
       # if there's no existing slot for that request, retrieve the request
       # from the contract.
@@ -359,9 +348,7 @@ proc subscribeRequested(sales: Sales) {.async.} =
   let context = sales.context
   let market = context.market
 
-  proc onStorageRequested(requestId: RequestId,
-                          ask: StorageAsk,
-                          expiry: UInt256) =
+  proc onStorageRequested(requestId: RequestId, ask: StorageAsk, expiry: UInt256) =
     sales.onStorageRequested(requestId, ask, expiry)
 
   try:
@@ -485,10 +472,9 @@ proc startSlotQueue(sales: Sales) =
   let slotQueue = sales.context.slotQueue
   let reservations = sales.context.reservations
 
-  slotQueue.onProcessSlot =
-    proc(item: SlotQueueItem, done: Future[void]) {.async.} =
-      trace "processing slot queue item", reqId = item.requestId, slotIdx = item.slotIndex
-      sales.processSlot(item, done)
+  slotQueue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+    trace "processing slot queue item", reqId = item.requestId, slotIdx = item.slotIndex
+    sales.processSlot(item, done)
 
   slotQueue.start()
 

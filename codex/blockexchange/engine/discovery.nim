@@ -40,21 +40,21 @@ const
   DefaultMinPeersPerBlock = 3
   DefaultDiscoveryLoopSleep = 3.seconds
 
-type
-  DiscoveryEngine* = ref object of RootObj
-    localStore*: BlockStore                                      # Local block store for this instance
-    peers*: PeerCtxStore                                         # Peer context store
-    network*: BlockExcNetwork                                    # Network interface
-    discovery*: Discovery                                        # Discovery interface
-    pendingBlocks*: PendingBlocksManager                         # Blocks we're awaiting to be resolved
-    discEngineRunning*: bool                                     # Indicates if discovery is running
-    concurrentDiscReqs: int                                      # Concurrent discovery requests
-    discoveryLoop*: Future[void]                                 # Discovery loop task handle
-    discoveryQueue*: AsyncQueue[Cid]                             # Discovery queue
-    trackedFutures*: TrackedFutures                              # Tracked Discovery tasks futures
-    minPeersPerBlock*: int                                       # Max number of peers with block
-    discoveryLoopSleep: Duration                                 # Discovery loop sleep
-    inFlightDiscReqs*: Table[Cid, Future[seq[SignedPeerRecord]]] # Inflight discovery requests
+type DiscoveryEngine* = ref object of RootObj
+  localStore*: BlockStore # Local block store for this instance
+  peers*: PeerCtxStore # Peer context store
+  network*: BlockExcNetwork # Network interface
+  discovery*: Discovery # Discovery interface
+  pendingBlocks*: PendingBlocksManager # Blocks we're awaiting to be resolved
+  discEngineRunning*: bool # Indicates if discovery is running
+  concurrentDiscReqs: int # Concurrent discovery requests
+  discoveryLoop*: Future[void] # Discovery loop task handle
+  discoveryQueue*: AsyncQueue[Cid] # Discovery queue
+  trackedFutures*: TrackedFutures # Tracked Discovery tasks futures
+  minPeersPerBlock*: int # Max number of peers with block
+  discoveryLoopSleep: Duration # Discovery loop sleep
+  inFlightDiscReqs*: Table[Cid, Future[seq[SignedPeerRecord]]]
+    # Inflight discovery requests
 
 proc discoveryQueueLoop(b: DiscoveryEngine) {.async: (raises: []).} =
   while b.discEngineRunning:
@@ -81,36 +81,27 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async: (raises: []).} =
 
   while b.discEngineRunning:
     try:
-      let
-        cid = await b.discoveryQueue.get()
+      let cid = await b.discoveryQueue.get()
 
       if cid in b.inFlightDiscReqs:
         trace "Discovery request already in progress", cid
         continue
 
-      let
-        haves = b.peers.peersHave(cid)
+      let haves = b.peers.peersHave(cid)
 
       if haves.len < b.minPeersPerBlock:
         try:
-          let
-            request = b.discovery
-              .find(cid)
-              .wait(DefaultDiscoveryTimeout)
+          let request = b.discovery.find(cid).wait(DefaultDiscoveryTimeout)
 
           b.inFlightDiscReqs[cid] = request
           codex_inflight_discovery.set(b.inFlightDiscReqs.len.int64)
-          let
-            peers = await request
+          let peers = await request
 
-          let
-            dialed = await allFinished(
-              peers.mapIt( b.network.dialPeer(it.data) ))
+          let dialed = await allFinished(peers.mapIt(b.network.dialPeer(it.data)))
 
           for i, f in dialed:
             if f.failed:
               await b.discovery.removeProvider(peers[i].data.peerId)
-
         finally:
           b.inFlightDiscReqs.del(cid)
           codex_inflight_discovery.set(b.inFlightDiscReqs.len.int64)
@@ -146,7 +137,7 @@ proc start*(b: DiscoveryEngine) {.async.} =
     return
 
   b.discEngineRunning = true
-  for i in 0..<b.concurrentDiscReqs:
+  for i in 0 ..< b.concurrentDiscReqs:
     let fut = b.discoveryTaskLoop()
     b.trackedFutures.track(fut)
     asyncSpawn fut
@@ -180,7 +171,7 @@ proc new*(
     pendingBlocks: PendingBlocksManager,
     concurrentDiscReqs = DefaultConcurrentDiscRequests,
     discoveryLoopSleep = DefaultDiscoveryLoopSleep,
-    minPeersPerBlock = DefaultMinPeersPerBlock
+    minPeersPerBlock = DefaultMinPeersPerBlock,
 ): DiscoveryEngine =
   ## Create a discovery engine instance for advertising services
   ##
@@ -195,4 +186,5 @@ proc new*(
     trackedFutures: TrackedFutures.new(),
     inFlightDiscReqs: initTable[Cid, Future[seq[SignedPeerRecord]]](),
     discoveryLoopSleep: discoveryLoopSleep,
-    minPeersPerBlock: minPeersPerBlock)
+    minPeersPerBlock: minPeersPerBlock,
+  )

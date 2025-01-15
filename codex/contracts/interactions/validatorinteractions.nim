@@ -3,13 +3,12 @@ import ../../validation
 
 export validation
 
-type
-  ValidatorInteractions* = ref object of ContractInteractions
-    validation: Validation
+type ValidatorInteractions* = ref object of ContractInteractions
+  validation: Validation
 
-proc new*(_: type ValidatorInteractions,
-          clock: OnChainClock,
-          validation: Validation): ValidatorInteractions =
+proc new*(
+    _: type ValidatorInteractions, clock: OnChainClock, validation: Validation
+): ValidatorInteractions =
   ValidatorInteractions(clock: clock, validation: validation)
 
 proc start*(self: ValidatorInteractions) {.async.} =

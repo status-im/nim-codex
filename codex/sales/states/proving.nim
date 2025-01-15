@@ -22,12 +22,12 @@ type
     loop: Future[void]
 
 method prove*(
-  state: SaleProving,
-  slot: Slot,
-  challenge: ProofChallenge,
-  onProve: OnProve,
-  market: Market,
-  currentPeriod: Period
+    state: SaleProving,
+    slot: Slot,
+    challenge: ProofChallenge,
+    onProve: OnProve,
+    market: Market,
+    currentPeriod: Period,
 ) {.base, async.} =
   try:
     without proof =? (await onProve(slot, challenge)), err:
@@ -43,14 +43,13 @@ method prove*(
     error "Submitting proof failed", msg = e.msgDetail
 
 proc proveLoop(
-  state: SaleProving,
-  market: Market,
-  clock: Clock,
-  request: StorageRequest,
-  slotIndex: UInt256,
-  onProve: OnProve
+    state: SaleProving,
+    market: Market,
+    clock: Clock,
+    request: StorageRequest,
+    slotIndex: UInt256,
+    onProve: OnProve,
 ) {.async.} =
-
   let slot = Slot(request: request, slotIndex: slotIndex)
   let slotId = slot.id
 
@@ -76,7 +75,8 @@ proc proveLoop(
     case slotState
     of SlotState.Filled:
       debug "Proving for new period", period = currentPeriod
-      if (await market.isProofRequired(slotId)) or (await market.willProofBeRequired(slotId)):
+      if (await market.isProofRequired(slotId)) or
+          (await market.willProofBeRequired(slotId)):
         let challenge = await market.getChallenge(slotId)
         debug "Proof is required", period = currentPeriod, challenge = challenge
         await state.prove(slot, challenge, onProve, market, currentPeriod)
@@ -100,7 +100,8 @@ proc proveLoop(
     debug "waiting until next period"
     await waitUntilPeriod(currentPeriod + 1)
 
-method `$`*(state: SaleProving): string = "SaleProving"
+method `$`*(state: SaleProving): string =
+  "SaleProving"
 
 method onCancelled*(state: SaleProving, request: StorageRequest): ?State =
   # state.loop cancellation happens automatically when run is cancelled due to

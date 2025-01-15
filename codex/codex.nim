@@ -68,8 +68,7 @@ proc waitForSync(provider: Provider): Future[void] {.async.} =
       inc sleepTime
   trace "Ethereum provider is synced."
 
-proc bootstrapInteractions(
-  s: CodexServer): Future[void] {.async.} =
+proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
   ## bootstrap interactions and return contracts
   ## using clients, hosts, validators pairings
   ##
@@ -137,12 +136,12 @@ proc bootstrapInteractions(
     host = some HostInteractions.new(clock, sales)
 
     if config.validator:
-      without validationConfig =? ValidationConfig.init(
-        config.validatorMaxSlots,
-        config.validatorGroups,
-        config.validatorGroupIndex), err:
-          error "Invalid validation parameters", err = err.msg
-          quit QuitFailure
+      without validationConfig =?
+        ValidationConfig.init(
+          config.validatorMaxSlots, config.validatorGroups, config.validatorGroupIndex
+        ), err:
+        error "Invalid validation parameters", err = err.msg
+        quit QuitFailure
       let validation = Validation.new(clock, market, validationConfig)
       validator = some ValidatorInteractions.new(clock, validation)
 
@@ -156,10 +155,9 @@ proc start*(s: CodexServer) {.async.} =
 
   await s.codexNode.switch.start()
 
-  let (announceAddrs,discoveryAddrs)= nattedAddress(
-    s.config.nat,
-    s.codexNode.switch.peerInfo.addrs,
-    s.config.discoveryPort)
+  let (announceAddrs, discoveryAddrs) = nattedAddress(
+    s.config.nat, s.codexNode.switch.peerInfo.addrs, s.config.discoveryPort
+  )
 
   s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
   s.codexNode.discovery.updateDhtRecord(discoveryAddrs)
@@ -176,15 +174,14 @@ proc stop*(s: CodexServer) {.async.} =
     s.codexNode.switch.stop(),
     s.codexNode.stop(),
     s.repoStore.stop(),
-    s.maintenance.stop())
+    s.maintenance.stop(),
+  )
 
 proc new*(
-  T: type CodexServer,
-  config: CodexConf,
-  privateKey: CodexPrivateKey): CodexServer =
+    T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey
+): CodexServer =
   ## create CodexServer including setting up datastore, repostore, etc
-  let
-    switch = SwitchBuilder
+  let switch = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)
     .withAddresses(config.listenAddrs)
@@ -197,80 +194,107 @@ proc new*(
     .withTcpTransport({ServerFlags.ReuseAddr})
     .build()
 
-  var
-    cache: CacheStore = nil
+  var cache: CacheStore = nil
 
   if config.cacheSize > 0'nb:
     cache = CacheStore.new(cacheSize = config.cacheSize)
     ## Is unused?
 
-  let
-    discoveryDir = config.dataDir / CodexDhtNamespace
+  let discoveryDir = config.dataDir / CodexDhtNamespace
 
   if io2.createPath(discoveryDir).isErr:
-    trace "Unable to create discovery directory for block store", discoveryDir = discoveryDir
+    trace "Unable to create discovery directory for block store",
+      discoveryDir = discoveryDir
     raise (ref Defect)(
-      msg: "Unable to create discovery directory for block store: " & discoveryDir)
+      msg: "Unable to create discovery directory for block store: " & discoveryDir
+    )
 
   let
     discoveryStore = Datastore(
-      LevelDbDatastore.new(config.dataDir / CodexDhtProvidersNamespace)
-      .expect("Should create discovery datastore!"))
+      LevelDbDatastore.new(config.dataDir / CodexDhtProvidersNamespace).expect(
+        "Should create discovery datastore!"
+      )
+    )
 
     discovery = Discovery.new(
       switch.peerInfo.privateKey,
       announceAddrs = config.listenAddrs,
       bindPort = config.discoveryPort,
       bootstrapNodes = config.bootstrapNodes,
-      store = discoveryStore)
+      store = discoveryStore,
+    )
 
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
 
-    repoData = case config.repoKind
-                of repoFS: Datastore(FSDatastore.new($config.dataDir, depth = 5)
-                  .expect("Should create repo file data store!"))
-                of repoSQLite: Datastore(SQLiteDatastore.new($config.dataDir)
-                  .expect("Should create repo SQLite data store!"))
-                of repoLevelDb: Datastore(LevelDbDatastore.new($config.dataDir)
-                  .expect("Should create repo LevelDB data store!"))
+    repoData =
+      case config.repoKind
+      of repoFS:
+        Datastore(
+          FSDatastore.new($config.dataDir, depth = 5).expect(
+            "Should create repo file data store!"
+          )
+        )
+      of repoSQLite:
+        Datastore(
+          SQLiteDatastore.new($config.dataDir).expect(
+            "Should create repo SQLite data store!"
+          )
+        )
+      of repoLevelDb:
+        Datastore(
+          LevelDbDatastore.new($config.dataDir).expect(
+            "Should create repo LevelDB data store!"
+          )
+        )
 
     repoStore = RepoStore.new(
       repoDs = repoData,
-      metaDs = LevelDbDatastore.new(config.dataDir / CodexMetaNamespace)
-        .expect("Should create metadata store!"),
+      metaDs = LevelDbDatastore.new(config.dataDir / CodexMetaNamespace).expect(
+          "Should create metadata store!"
+        ),
       quotaMaxBytes = config.storageQuota,
-      blockTtl = config.blockTtl)
+      blockTtl = config.blockTtl,
+    )
 
     maintenance = BlockMaintainer.new(
       repoStore,
       interval = config.blockMaintenanceInterval,
-      numberOfBlocksPerInterval = config.blockMaintenanceNumberOfBlocks)
+      numberOfBlocksPerInterval = config.blockMaintenanceNumberOfBlocks,
+    )
 
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
     advertiser = Advertiser.new(repoStore, discovery)
-    blockDiscovery = DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
-    engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, advertiser, peerStore, pendingBlocks)
+    blockDiscovery =
+      DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
+    engine = BlockExcEngine.new(
+      repoStore, wallet, network, blockDiscovery, advertiser, peerStore, pendingBlocks
+    )
     store = NetworkStore.new(engine, repoStore)
-    prover = if config.prover:
-      let backend = config.initializeBackend().expect("Unable to create prover backend.")
-      some Prover.new(store, backend, config.numProofSamples)
-    else:
-      none Prover
+    prover =
+      if config.prover:
+        let backend =
+          config.initializeBackend().expect("Unable to create prover backend.")
+        some Prover.new(store, backend, config.numProofSamples)
+      else:
+        none Prover
 
     codexNode = CodexNodeRef.new(
       switch = switch,
       networkStore = store,
       engine = engine,
       discovery = discovery,
-      prover = prover)
+      prover = prover,
+    )
 
-    restServer = RestServerRef.new(
-      codexNode.initRestApi(config, repoStore, config.apiCorsAllowedOrigin),
-      initTAddress(config.apiBindAddress , config.apiPort),
-      bufferSize = (1024 * 64),
-      maxRequestBodySize = int.high)
+    restServer = RestServerRef
+      .new(
+        codexNode.initRestApi(config, repoStore, config.apiCorsAllowedOrigin),
+        initTAddress(config.apiBindAddress, config.apiPort),
+        bufferSize = (1024 * 64),
+        maxRequestBodySize = int.high,
+      )
       .expect("Should start rest server!")
 
   switch.mount(network)
@@ -280,4 +304,5 @@ proc new*(
     codexNode: codexNode,
     restServer: restServer,
     repoStore: repoStore,
-    maintenance: maintenance)
+    maintenance: maintenance,
+  )

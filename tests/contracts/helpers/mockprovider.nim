@@ -12,9 +12,8 @@ type MockProvider* = ref object of Provider
   latest: ?int
 
 method getBlock*(
-  provider: MockProvider,
-  tag: BlockTag
-): Future[?Block] {.async: (raises:[ProviderError]).} =
+    provider: MockProvider, tag: BlockTag
+): Future[?Block] {.async: (raises: [ProviderError]).} =
   try:
     if tag == BlockTag.latest:
       if latestBlock =? provider.latest:
@@ -33,7 +32,6 @@ method getBlock*(
     return Block.none
   except:
     return Block.none
-  
 
 proc updateEarliestAndLatest(provider: MockProvider, blockNumber: int) =
   if provider.earliest.isNone:
@@ -54,9 +52,7 @@ proc addBlock*(provider: MockProvider, number: int, blk: Block) =
 
 proc newMockProvider*(): MockProvider =
   MockProvider(
-    blocks: newOrderedTable[int, Block](),
-    earliest: int.none,
-    latest: int.none
+    blocks: newOrderedTable[int, Block](), earliest: int.none, latest: int.none
   )
 
 proc newMockProvider*(blocks: OrderedTableRef[int, Block]): MockProvider =
@@ -65,21 +61,22 @@ proc newMockProvider*(blocks: OrderedTableRef[int, Block]): MockProvider =
   provider
 
 proc newMockProvider*(
-  numberOfBlocks: int, 
-  earliestBlockNumber: int,
-  earliestBlockTimestamp: SecondsSince1970,
-  timeIntervalBetweenBlocks: SecondsSince1970
+    numberOfBlocks: int,
+    earliestBlockNumber: int,
+    earliestBlockTimestamp: SecondsSince1970,
+    timeIntervalBetweenBlocks: SecondsSince1970,
 ): MockProvider =
   var blocks = newOrderedTable[int, provider.Block]()
   var blockNumber = earliestBlockNumber
   var blockTime = earliestBlockTimestamp
-  for i in 0..<numberOfBlocks:
-    blocks[blockNumber] = provider.Block(number: blockNumber.u256.some,
-      timestamp: blockTime.u256, hash: BlockHash.none)
+  for i in 0 ..< numberOfBlocks:
+    blocks[blockNumber] = provider.Block(
+      number: blockNumber.u256.some, timestamp: blockTime.u256, hash: BlockHash.none
+    )
     inc blockNumber
     inc blockTime, timeIntervalBetweenBlocks.int
   MockProvider(
     blocks: blocks,
     earliest: earliestBlockNumber.some,
-    latest: (earliestBlockNumber + numberOfBlocks - 1).some
+    latest: (earliestBlockNumber + numberOfBlocks - 1).some,
   )

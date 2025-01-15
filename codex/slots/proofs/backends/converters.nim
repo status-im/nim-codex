@@ -19,8 +19,8 @@ type
   CircomG1* = G1
   CircomG2* = G2
 
-  CircomProof*  = Proof
-  CircomKey*    = VerifyingKey
+  CircomProof* = Proof
+  CircomKey* = VerifyingKey
   CircomInputs* = Inputs
 
 proc toCircomInputs*(inputs: ProofInputs[Poseidon2Hash]): CircomInputs =
@@ -29,18 +29,12 @@ proc toCircomInputs*(inputs: ProofInputs[Poseidon2Hash]): CircomInputs =
     datasetRoot = inputs.datasetRoot.toBytes.toArray32
     entropy = inputs.entropy.toBytes.toArray32
 
-    elms = [
-      entropy,
-      datasetRoot,
-      slotIndex
-    ]
+    elms = [entropy, datasetRoot, slotIndex]
 
   let inputsPtr = allocShared0(32 * elms.len)
   copyMem(inputsPtr, addr elms[0], elms.len * 32)
 
-  CircomInputs(
-    elms: cast[ptr array[32, byte]](inputsPtr),
-    len: elms.len.uint)
+  CircomInputs(elms: cast[ptr array[32, byte]](inputsPtr), len: elms.len.uint)
 
 proc releaseCircomInputs*(inputs: var CircomInputs) =
   if not inputs.elms.isNil:
@@ -48,23 +42,13 @@ proc releaseCircomInputs*(inputs: var CircomInputs) =
     inputs.elms = nil
 
 func toG1*(g: CircomG1): G1Point =
-  G1Point(
-    x: UInt256.fromBytesLE(g.x),
-    y: UInt256.fromBytesLE(g.y))
+  G1Point(x: UInt256.fromBytesLE(g.x), y: UInt256.fromBytesLE(g.y))
 
 func toG2*(g: CircomG2): G2Point =
   G2Point(
-    x: Fp2Element(
-      real: UInt256.fromBytesLE(g.x[0]),
-      imag: UInt256.fromBytesLE(g.x[1])
-    ),
-    y: Fp2Element(
-      real: UInt256.fromBytesLE(g.y[0]),
-      imag: UInt256.fromBytesLE(g.y[1])
-    ))
+    x: Fp2Element(real: UInt256.fromBytesLE(g.x[0]), imag: UInt256.fromBytesLE(g.x[1])),
+    y: Fp2Element(real: UInt256.fromBytesLE(g.y[0]), imag: UInt256.fromBytesLE(g.y[1])),
+  )
 
 func toGroth16Proof*(proof: CircomProof): Groth16Proof =
-  Groth16Proof(
-    a: proof.a.toG1,
-    b: proof.b.toG2,
-    c: proof.c.toG1)
+  Groth16Proof(a: proof.a.toG1, b: proof.b.toG2, c: proof.c.toG1)

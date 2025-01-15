@@ -13,14 +13,11 @@ import ./helpers
 # CancelledError* = object of FutureError
 # LPStreamError* = object of LPError
 
-type
-  CrashingStreamWrapper* = ref object of LPStream
-    toRaise*: proc(): void {.gcsafe, raises: [CancelledError, LPStreamError].}
+type CrashingStreamWrapper* = ref object of LPStream
+  toRaise*: proc(): void {.gcsafe, raises: [CancelledError, LPStreamError].}
 
 method readOnce*(
-  self: CrashingStreamWrapper,
-  pbytes: pointer,
-  nbytes: int
+    self: CrashingStreamWrapper, pbytes: pointer, nbytes: int
 ): Future[int] {.gcsafe, async: (raises: [CancelledError, LPStreamError]).} =
   self.toRaise()
 
@@ -28,9 +25,9 @@ asyncchecksuite "Chunking":
   test "should return proper size chunks":
     var offset = 0
     let contents = [1.byte, 2, 3, 4, 5, 6, 7, 8, 9, 0]
-    proc reader(data: ChunkBuffer, len: int): Future[int]
-      {.gcsafe, async, raises: [Defect].} =
-
+    proc reader(
+        data: ChunkBuffer, len: int
+    ): Future[int] {.gcsafe, async, raises: [Defect].} =
       let read = min(contents.len - offset, len)
       if read == 0:
         return 0
@@ -39,9 +36,7 @@ asyncchecksuite "Chunking":
       offset += read
       return read
 
-    let chunker = Chunker.new(
-      reader = reader,
-      chunkSize = 2'nb)
+    let chunker = Chunker.new(reader = reader, chunkSize = 2'nb)
 
     check:
       (await chunker.getBytes()) == [1.byte, 2]
@@ -54,9 +49,7 @@ asyncchecksuite "Chunking":
 
   test "should chunk LPStream":
     let stream = BufferStream.new()
-    let chunker = LPStreamChunker.new(
-      stream = stream,
-      chunkSize = 2'nb)
+    let chunker = LPStreamChunker.new(stream = stream, chunkSize = 2'nb)
 
     proc writer() {.async.} =
       for d in [@[1.byte, 2, 3, 4], @[5.byte, 6, 7, 8], @[9.byte, 0]]:
@@ -97,9 +90,7 @@ asyncchecksuite "Chunking":
 
   proc raiseStreamException(exc: ref CancelledError | ref LPStreamError) {.async.} =
     let stream = CrashingStreamWrapper.new()
-    let chunker = LPStreamChunker.new(
-      stream = stream,
-      chunkSize = 2'nb)
+    let chunker = LPStreamChunker.new(stream = stream, chunkSize = 2'nb)
 
     stream.toRaise = proc(): void {.raises: [CancelledError, LPStreamError].} =
       raise exc

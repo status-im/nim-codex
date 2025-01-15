@@ -25,9 +25,7 @@ proc encodeString*(cid: type Cid): Result[string, cstring] =
   ok($cid)
 
 proc decodeString*(T: type Cid, value: string): Result[Cid, cstring] =
-  Cid
-  .init(value)
-  .mapErr do(e: CidError) -> cstring:
+  Cid.init(value).mapErr do(e: CidError) -> cstring:
     case e
     of CidError.Incorrect: "Incorrect Cid".cstring
     of CidError.Unsupported: "Unsupported Cid".cstring
@@ -44,9 +42,8 @@ proc encodeString*(address: MultiAddress): Result[string, cstring] =
   ok($address)
 
 proc decodeString*(T: type MultiAddress, value: string): Result[MultiAddress, cstring] =
-  MultiAddress
-    .init(value)
-    .mapErr do(e: string) -> cstring: cstring(e)
+  MultiAddress.init(value).mapErr do(e: string) -> cstring:
+    cstring(e)
 
 proc decodeString*(T: type SomeUnsignedInt, value: string): Result[T, cstring] =
   Base10.decode(T, value)
@@ -55,7 +52,7 @@ proc encodeString*(value: SomeUnsignedInt): Result[string, cstring] =
   ok(Base10.toString(value))
 
 proc decodeString*(T: type Duration, value: string): Result[T, cstring] =
-  let v = ? Base10.decode(uint32, value)
+  let v = ?Base10.decode(uint32, value)
   ok(v.minutes)
 
 proc encodeString*(value: Duration): Result[string, cstring] =
@@ -77,19 +74,20 @@ proc decodeString*(_: type UInt256, value: string): Result[UInt256, cstring] =
   except ValueError as e:
     err e.msg.cstring
 
-proc decodeString*(_: type array[32, byte],
-                  value: string): Result[array[32, byte], cstring] =
+proc decodeString*(
+    _: type array[32, byte], value: string
+): Result[array[32, byte], cstring] =
   try:
     ok array[32, byte].fromHex(value)
   except ValueError as e:
     err e.msg.cstring
 
-proc decodeString*[T: PurchaseId | RequestId | Nonce | SlotId | AvailabilityId](_: type T,
-                  value: string): Result[T, cstring] =
+proc decodeString*[T: PurchaseId | RequestId | Nonce | SlotId | AvailabilityId](
+    _: type T, value: string
+): Result[T, cstring] =
   array[32, byte].decodeString(value).map(id => T(id))
 
-proc decodeString*(t: typedesc[string],
-                   value: string): Result[string, cstring] =
+proc decodeString*(t: typedesc[string], value: string): Result[string, cstring] =
   ok(value)
 
 proc encodeString*(value: string): RestResult[string] =

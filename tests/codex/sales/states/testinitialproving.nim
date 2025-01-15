@@ -29,21 +29,16 @@ asyncchecksuite "sales state 'initialproving'":
   var receivedChallenge: ProofChallenge
 
   setup:
-    let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[?!Groth16Proof] {.async.} =
-                          receivedChallenge = challenge
-                          return success(proof)
-    let context = SalesContext(
-      onProve: onProve.some,
-      market: market,
-      clock: clock
-    )
-    agent = newSalesAgent(context,
-                          request.id,
-                          slotIndex,
-                          request.some)
+    let onProve = proc(
+        slot: Slot, challenge: ProofChallenge
+    ): Future[?!Groth16Proof] {.async.} =
+      receivedChallenge = challenge
+      return success(proof)
+    let context = SalesContext(onProve: onProve.some, market: market, clock: clock)
+    agent = newSalesAgent(context, request.id, slotIndex, request.some)
     state = SaleInitialProving.new()
 
-  proc allowProofToStart {.async.} =
+  proc allowProofToStart() {.async.} =
     # it won't start proving until the next period
     await clock.advanceToNextPeriod(market)
 
@@ -91,18 +86,14 @@ asyncchecksuite "sales state 'initialproving'":
     check SaleFilling(!next).proof == proof
 
   test "switches to errored state when onProve callback fails":
-    let onProveFailed: OnProve = proc(slot: Slot, challenge: ProofChallenge): Future[?!Groth16Proof] {.async.} =
+    let onProveFailed: OnProve = proc(
+        slot: Slot, challenge: ProofChallenge
+    ): Future[?!Groth16Proof] {.async.} =
       return failure("oh no!")
 
-    let proofFailedContext = SalesContext(
-      onProve: onProveFailed.some,
-      market: market,
-      clock: clock
-    )
-    agent = newSalesAgent(proofFailedContext,
-                          request.id,
-                          slotIndex,
-                          request.some)
+    let proofFailedContext =
+      SalesContext(onProve: onProveFailed.some, market: market, clock: clock)
+    agent = newSalesAgent(proofFailedContext, request.id, slotIndex, request.some)
 
     let future = state.run(agent)
     await allowProofToStart()

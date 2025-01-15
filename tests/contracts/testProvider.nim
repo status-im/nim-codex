@@ -13,89 +13,88 @@ logScope:
 
 suite "Provider (Mock)":
   test "blockNumberForEpoch returns the earliest block when its timestamp " &
-       "is greater than the given epoch time and the earliest block is not " &
-       "block number 0 (genesis block)":
+    "is greater than the given epoch time and the earliest block is not " &
+    "block number 0 (genesis block)":
     let mockProvider = newMockProvider(
       numberOfBlocks = 10,
       earliestBlockNumber = 1,
       earliestBlockTimestamp = 10,
-      timeIntervalBetweenBlocks = 10
+      timeIntervalBetweenBlocks = 10,
     )
 
     let (earliestBlockNumber, earliestTimestamp) =
       await mockProvider.blockNumberAndTimestamp(BlockTag.earliest)
-    
+
     let epochTime = earliestTimestamp - 1
 
-    let actual = await mockProvider.blockNumberForEpoch(
-      epochTime.truncate(SecondsSince1970))
+    let actual =
+      await mockProvider.blockNumberForEpoch(epochTime.truncate(SecondsSince1970))
 
     check actual == earliestBlockNumber
-  
+
   test "blockNumberForEpoch returns the earliest block when its timestamp " &
-       "is equal to the given epoch time":
+    "is equal to the given epoch time":
     let mockProvider = newMockProvider(
       numberOfBlocks = 10,
       earliestBlockNumber = 0,
       earliestBlockTimestamp = 10,
-      timeIntervalBetweenBlocks = 10
+      timeIntervalBetweenBlocks = 10,
     )
 
     let (earliestBlockNumber, earliestTimestamp) =
       await mockProvider.blockNumberAndTimestamp(BlockTag.earliest)
-    
+
     let epochTime = earliestTimestamp
 
-    let actual = await mockProvider.blockNumberForEpoch(
-      epochTime.truncate(SecondsSince1970))
+    let actual =
+      await mockProvider.blockNumberForEpoch(epochTime.truncate(SecondsSince1970))
 
     check earliestBlockNumber == 0.u256
     check actual == earliestBlockNumber
-  
+
   test "blockNumberForEpoch returns the latest block when its timestamp " &
-       "is equal to the given epoch time":
+    "is equal to the given epoch time":
     let mockProvider = newMockProvider(
       numberOfBlocks = 10,
       earliestBlockNumber = 0,
       earliestBlockTimestamp = 10,
-      timeIntervalBetweenBlocks = 10
+      timeIntervalBetweenBlocks = 10,
     )
 
     let (latestBlockNumber, latestTimestamp) =
       await mockProvider.blockNumberAndTimestamp(BlockTag.latest)
-    
+
     let epochTime = latestTimestamp
 
-    let actual = await mockProvider.blockNumberForEpoch(
-      epochTime.truncate(SecondsSince1970))
+    let actual =
+      await mockProvider.blockNumberForEpoch(epochTime.truncate(SecondsSince1970))
 
     check actual == latestBlockNumber
 
 ethersuite "Provider":
   proc mineNBlocks(provider: JsonRpcProvider, n: int) {.async.} =
-    for _ in 0..<n:
+    for _ in 0 ..< n:
       discard await provider.send("evm_mine")
-  
+
   test "blockNumberForEpoch finds closest blockNumber for given epoch time":
-    proc createBlockHistory(n: int, blockTime: int):
-        Future[seq[(UInt256, UInt256)]] {.async.} =
+    proc createBlockHistory(
+        n: int, blockTime: int
+    ): Future[seq[(UInt256, UInt256)]] {.async.} =
       var blocks: seq[(UInt256, UInt256)] = @[]
-      for _ in 0..<n:
+      for _ in 0 ..< n:
         await ethProvider.advanceTime(blockTime.u256)
         let (blockNumber, blockTimestamp) =
           await ethProvider.blockNumberAndTimestamp(BlockTag.latest)
         # collect blocknumbers and timestamps
         blocks.add((blockNumber, blockTimestamp))
       blocks
-    
+
     proc printBlockNumbersAndTimestamps(blocks: seq[(UInt256, UInt256)]) =
       for (blockNumber, blockTimestamp) in blocks:
         debug "Block", blockNumber = blockNumber, timestamp = blockTimestamp
-    
-    type Expectations = tuple
-      epochTime: UInt256
-      expectedBlockNumber: UInt256
-    
+
+    type Expectations = tuple[epochTime: UInt256, expectedBlockNumber: UInt256]
+
     # We want to test that timestamps at the block boundaries, in the middle,
     # and towards lower and upper part of the range are correctly mapped to
     # the closest block number.
@@ -110,10 +109,9 @@ ethersuite "Provider":
     # 1728436105 => 292
     # 1728436106 => 292
     # 1728436110 => 292
-    proc generateExpectations(
-        blocks: seq[(UInt256, UInt256)]): seq[Expectations] =
+    proc generateExpectations(blocks: seq[(UInt256, UInt256)]): seq[Expectations] =
       var expectations: seq[Expectations] = @[]
-      for i in 0..<blocks.len - 1:
+      for i in 0 ..< blocks.len - 1:
         let (startNumber, startTimestamp) = blocks[i]
         let (endNumber, endTimestamp) = blocks[i + 1]
         let middleTimestamp = (startTimestamp + endTimestamp) div 2
@@ -134,8 +132,8 @@ ethersuite "Provider":
     proc printExpectations(expectations: seq[Expectations]) =
       debug "Expectations", numberOfExpectations = expectations.len
       for (epochTime, expectedBlockNumber) in expectations:
-        debug "Expectation", epochTime = epochTime,
-          expectedBlockNumber = expectedBlockNumber
+        debug "Expectation",
+          epochTime = epochTime, expectedBlockNumber = expectedBlockNumber
 
     # mark the beginning of the history for our test
     await ethProvider.mineNBlocks(1)
@@ -147,17 +145,17 @@ ethersuite "Provider":
     # create a history of N blocks
     let N = 10
     let blocks = await createBlockHistory(N, averageBlockTime)
-    
+
     printBlockNumbersAndTimestamps(blocks)
-    
+
     # generate expectations for block numbers
     let expectations = generateExpectations(blocks)
     printExpectations(expectations)
-    
+
     # validate expectations
     for (epochTime, expectedBlockNumber) in expectations:
-      debug "Validating", epochTime = epochTime,
-        expectedBlockNumber = expectedBlockNumber
-      let actualBlockNumber = await ethProvider.blockNumberForEpoch(
-        epochTime.truncate(SecondsSince1970))
+      debug "Validating",
+        epochTime = epochTime, expectedBlockNumber = expectedBlockNumber
+      let actualBlockNumber =
+        await ethProvider.blockNumberForEpoch(epochTime.truncate(SecondsSince1970))
       check actualBlockNumber == expectedBlockNumber

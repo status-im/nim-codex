@@ -11,14 +11,13 @@ export clock
 logScope:
   topics = "contracts clock"
 
-type
-  OnChainClock* = ref object of Clock
-    provider: Provider
-    subscription: Subscription
-    offset: times.Duration
-    blockNumber: UInt256
-    started: bool
-    newBlock: AsyncEvent
+type OnChainClock* = ref object of Clock
+  provider: Provider
+  subscription: Subscription
+  offset: times.Duration
+  blockNumber: UInt256
+  started: bool
+  newBlock: AsyncEvent
 
 proc new*(_: type OnChainClock, provider: Provider): OnChainClock =
   OnChainClock(provider: provider, newBlock: newAsyncEvent())
@@ -29,7 +28,8 @@ proc update(clock: OnChainClock, blck: Block) =
     let computerTime = getTime()
     clock.offset = blockTime - computerTime
     clock.blockNumber = number
-    trace "updated clock", blockTime=blck.timestamp, blockNumber=number, offset=clock.offset
+    trace "updated clock",
+      blockTime = blck.timestamp, blockNumber = number, offset = clock.offset
     clock.newBlock.fire()
 
 proc update(clock: OnChainClock) {.async.} =
@@ -39,7 +39,7 @@ proc update(clock: OnChainClock) {.async.} =
   except CancelledError as error:
     raise error
   except CatchableError as error:
-    debug "error updating clock: ", error=error.msg
+    debug "error updating clock: ", error = error.msg
     discard
 
 method start*(clock: OnChainClock) {.async.} =
@@ -48,7 +48,7 @@ method start*(clock: OnChainClock) {.async.} =
 
   proc onBlock(blckResult: ?!Block) =
     if eventError =? blckResult.errorOption:
-      error "There was an error in block subscription", msg=eventError.msg
+      error "There was an error in block subscription", msg = eventError.msg
       return
 
     # ignore block parameter; hardhat may call this with pending blocks

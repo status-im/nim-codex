@@ -47,10 +47,8 @@ type
     nSamples: int
 
 proc prove*(
-  self: Prover,
-  slotIdx: int,
-  manifest: Manifest,
-  challenge: ProofChallenge): Future[?!(AnyProofInputs, AnyProof)] {.async.} =
+    self: Prover, slotIdx: int, manifest: Manifest, challenge: ProofChallenge
+): Future[?!(AnyProofInputs, AnyProof)] {.async.} =
   ## Prove a statement using backend.
   ## Returns a future that resolves to a proof.
 
@@ -81,20 +79,13 @@ proc prove*(
   success (proofInput, proof)
 
 proc verify*(
-  self: Prover,
-  proof: AnyProof,
-  inputs: AnyProofInputs): Future[?!bool] {.async.} =
+    self: Prover, proof: AnyProof, inputs: AnyProofInputs
+): Future[?!bool] {.async.} =
   ## Prove a statement using backend.
   ## Returns a future that resolves to a proof.
   self.backend.verify(proof, inputs)
 
 proc new*(
-  _: type Prover,
-  store: BlockStore,
-  backend: AnyBackend,
-  nSamples: int): Prover =
-
-  Prover(
-    store: store,
-    backend: backend,
-    nSamples: nSamples)
+    _: type Prover, store: BlockStore, backend: AnyBackend, nSamples: int
+): Prover =
+  Prover(store: store, backend: backend, nSamples: nSamples)

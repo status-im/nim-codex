@@ -16,7 +16,6 @@ import ../../helpers/mockmarket
 import ../../helpers/mockclock
 
 asyncchecksuite "sales state 'proving'":
-
   let slot = Slot.example
   let request = slot.request
   let proof = Groth16Proof.example
@@ -30,14 +29,13 @@ asyncchecksuite "sales state 'proving'":
   setup:
     clock = MockClock.new()
     market = MockMarket.new()
-    let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[?!Groth16Proof] {.async.} =
-                        receivedChallenge = challenge
-                        return success(proof)
+    let onProve = proc(
+        slot: Slot, challenge: ProofChallenge
+    ): Future[?!Groth16Proof] {.async.} =
+      receivedChallenge = challenge
+      return success(proof)
     let context = SalesContext(market: market, clock: clock, onProve: onProve.some)
-    agent = newSalesAgent(context,
-                          request.id,
-                          slot.slotIndex,
-                          request.some)
+    agent = newSalesAgent(context, request.id, slot.slotIndex, request.some)
     state = SaleProving.new()
 
   proc advanceToNextPeriod(market: Market) {.async.} =

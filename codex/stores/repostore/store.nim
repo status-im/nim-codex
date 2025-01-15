@@ -61,7 +61,9 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   trace "Got block for cid", cid
   return Block.new(cid, data, verify = true)
 
-method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!(Block, CodexProof)] {.async.} =
+method getBlockAndProof*(
+    self: RepoStore, treeCid: Cid, index: Natural
+): Future[?!(Block, CodexProof)] {.async.} =
   without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     return failure(err)
 
@@ -70,7 +72,9 @@ method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[
 
   success((blk, leafMd.proof))
 
-method getBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!Block] {.async.} =
+method getBlock*(
+    self: RepoStore, treeCid: Cid, index: Natural
+): Future[?!Block] {.async.} =
   without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     return failure(err)
 
@@ -86,24 +90,20 @@ method getBlock*(self: RepoStore, address: BlockAddress): Future[?!Block] =
     self.getBlock(address.cid)
 
 method ensureExpiry*(
-    self: RepoStore,
-    cid: Cid,
-    expiry: SecondsSince1970
+    self: RepoStore, cid: Cid, expiry: SecondsSince1970
 ): Future[?!void] {.async.} =
   ## Ensure that block's associated expiry is at least given timestamp
   ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##
 
   if expiry <= 0:
-    return failure(newException(ValueError, "Expiry timestamp must be larger then zero"))
+    return
+      failure(newException(ValueError, "Expiry timestamp must be larger then zero"))
 
   await self.updateBlockMetadata(cid, minExpiry = expiry)
 
 method ensureExpiry*(
-    self: RepoStore,
-    treeCid: Cid,
-    index: Natural,
-    expiry: SecondsSince1970
+    self: RepoStore, treeCid: Cid, index: Natural, expiry: SecondsSince1970
 ): Future[?!void] {.async.} =
   ## Ensure that block's associated expiry is at least given timestamp
   ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
@@ -115,11 +115,7 @@ method ensureExpiry*(
   await self.ensureExpiry(leafMd.blkCid, expiry)
 
 method putCidAndProof*(
-  self: RepoStore,
-  treeCid: Cid,
-  index: Natural,
-  blkCid: Cid,
-  proof: CodexProof
+    self: RepoStore, treeCid: Cid, index: Natural, blkCid: Cid, proof: CodexProof
 ): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
@@ -145,29 +141,22 @@ method putCidAndProof*(
   return success()
 
 method getCidAndProof*(
-  self: RepoStore,
-  treeCid: Cid,
-  index: Natural
+    self: RepoStore, treeCid: Cid, index: Natural
 ): Future[?!(Cid, CodexProof)] {.async.} =
   without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     return failure(err)
 
   success((leafMd.blkCid, leafMd.proof))
 
-method getCid*(
-  self: RepoStore,
-  treeCid: Cid,
-  index: Natural
-): Future[?!Cid] {.async.} =
+method getCid*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!Cid] {.async.} =
   without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     return failure(err)
 
   success(leafMd.blkCid)
 
 method putBlock*(
-  self: RepoStore,
-  blk: Block,
-  ttl = Duration.none): Future[?!void] {.async.} =
+    self: RepoStore, blk: Block, ttl = Duration.none
+): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
 
@@ -223,14 +212,17 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
 
   return success()
 
-method delBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!void] {.async.} =
+method delBlock*(
+    self: RepoStore, treeCid: Cid, index: Natural
+): Future[?!void] {.async.} =
   without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     if err of BlockNotFoundError:
       return success()
     else:
       return failure(err)
 
-  if err =? (await self.updateBlockMetadata(leafMd.blkCid, minusRefCount = 1)).errorOption:
+  if err =?
+      (await self.updateBlockMetadata(leafMd.blkCid, minusRefCount = 1)).errorOption:
     if not (err of BlockNotFoundError):
       return failure(err)
 
@@ -253,7 +245,9 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
 
   return await self.repoDs.has(key)
 
-method hasBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!bool] {.async.} =
+method hasBlock*(
+    self: RepoStore, treeCid: Cid, index: Natural
+): Future[?!bool] {.async.} =
   without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     if err of BlockNotFoundError:
       return success(false)
@@ -263,23 +257,21 @@ method hasBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!bool] 
   await self.hasBlock(leafMd.blkCid)
 
 method listBlocks*(
-  self: RepoStore,
-  blockType = BlockType.Manifest
+    self: RepoStore, blockType = BlockType.Manifest
 ): Future[?!AsyncIter[?Cid]] {.async.} =
   ## Get the list of blocks in the RepoStore.
   ## This is an intensive operation
   ##
 
-  var
-    iter = AsyncIter[?Cid]()
+  var iter = AsyncIter[?Cid]()
 
   let key =
-    case blockType:
+    case blockType
     of BlockType.Manifest: CodexManifestKey
     of BlockType.Block: CodexBlocksKey
     of BlockType.Both: CodexRepoKey
 
-  let query = Query.init(key, value=false)
+  let query = Query.init(key, value = false)
   without queryIter =? (await self.repoDs.query(query)), err:
     trace "Error querying cids in repo", blockType, err = err.msg
     return failure(err)
@@ -300,13 +292,12 @@ method listBlocks*(
   return success iter
 
 proc createBlockExpirationQuery(maxNumber: int, offset: int): ?!Query =
-  let queryKey = ? createBlockExpirationMetadataQueryKey()
+  let queryKey = ?createBlockExpirationMetadataQueryKey()
   success Query.init(queryKey, offset = offset, limit = maxNumber)
 
 method getBlockExpirations*(
-  self: RepoStore,
-  maxNumber: int,
-  offset: int): Future[?!AsyncIter[BlockExpiration]] {.async, base.} =
+    self: RepoStore, maxNumber: int, offset: int
+): Future[?!AsyncIter[BlockExpiration]] {.async, base.} =
   ## Get iterator with block expirations
   ##
 
@@ -322,17 +313,18 @@ method getBlockExpirations*(
     error "Unable to convert QueryIter to AsyncIter", err = err.msg
     return failure(err)
 
-  let
-    filteredIter: AsyncIter[KeyVal[BlockMetadata]] = await asyncQueryIter.filterSuccess()
+  let filteredIter: AsyncIter[KeyVal[BlockMetadata]] =
+    await asyncQueryIter.filterSuccess()
 
-  proc mapping (kv: KeyVal[BlockMetadata]): Future[?BlockExpiration] {.async.} =
+  proc mapping(kv: KeyVal[BlockMetadata]): Future[?BlockExpiration] {.async.} =
     without cid =? Cid.init(kv.key.value).mapFailure, err:
       error "Failed decoding cid", err = err.msg
       return BlockExpiration.none
 
     BlockExpiration(cid: cid, expiry: kv.value.expiry).some
 
-  let blockExpIter = await mapFilter[KeyVal[BlockMetadata], BlockExpiration](filteredIter, mapping)
+  let blockExpIter =
+    await mapFilter[KeyVal[BlockMetadata], BlockExpiration](filteredIter, mapping)
 
   success(blockExpIter)
 

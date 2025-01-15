@@ -24,26 +24,17 @@ asyncchecksuite "sales state 'errored'":
   var reprocessSlotWas = false
 
   setup:
-    let onCleanUp = proc (returnBytes = false, reprocessSlot = false) {.async.} =
-                      returnBytesWas = returnBytes
-                      reprocessSlotWas = reprocessSlot
+    let onCleanUp = proc(returnBytes = false, reprocessSlot = false) {.async.} =
+      returnBytesWas = returnBytes
+      reprocessSlotWas = reprocessSlot
 
-    let context = SalesContext(
-      market: market,
-      clock: clock
-    )
-    agent = newSalesAgent(context,
-                          request.id,
-                          slotIndex,
-                          request.some)
+    let context = SalesContext(market: market, clock: clock)
+    agent = newSalesAgent(context, request.id, slotIndex, request.some)
     agent.onCleanUp = onCleanUp
     state = SaleErrored(error: newException(ValueError, "oh no!"))
 
   test "calls onCleanUp with returnBytes = false and reprocessSlot = true":
-    state = SaleErrored(
-      error: newException(ValueError, "oh no!"),
-      reprocessSlot: true
-    )
+    state = SaleErrored(error: newException(ValueError, "oh no!"), reprocessSlot: true)
     discard await state.run(agent)
     check eventually returnBytesWas == true
     check eventually reprocessSlotWas == true

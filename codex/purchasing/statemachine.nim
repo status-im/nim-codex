@@ -14,5 +14,6 @@ type
     clock*: Clock
     requestId*: RequestId
     request*: ?StorageRequest
+
   PurchaseState* = ref object of State
   PurchaseError* = object of CodexError

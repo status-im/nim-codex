@@ -26,7 +26,8 @@
 ## +----------------------------------------+
 
 import pkg/upraises
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import std/sequtils
 import std/sugar
@@ -54,7 +55,6 @@ export logutils
 logScope:
   topics = "sales reservations"
 
-
 type
   AvailabilityId* = distinct array[32, byte]
   ReservationId* = distinct array[32, byte]
@@ -65,25 +65,32 @@ type
     totalSize* {.serialize.}: UInt256
     freeSize* {.serialize.}: UInt256
     duration* {.serialize.}: UInt256
-    minPrice* {.serialize.}: UInt256 # minimal price paid for the whole hosted slot for the request's duration
+    minPrice* {.serialize.}: UInt256
+      # minimal price paid for the whole hosted slot for the request's duration
     maxCollateral* {.serialize.}: UInt256
+
   Reservation* = ref object
     id* {.serialize.}: ReservationId
     availabilityId* {.serialize.}: AvailabilityId
     size* {.serialize.}: UInt256
     requestId* {.serialize.}: RequestId
     slotIndex* {.serialize.}: UInt256
+
   Reservations* = ref object of RootObj
-    availabilityLock: AsyncLock # Lock for protecting assertions of availability's sizes when searching for matching availability
+    availabilityLock: AsyncLock
+      # Lock for protecting assertions of availability's sizes when searching for matching availability
     repo: RepoStore
     onAvailabilityAdded: ?OnAvailabilityAdded
+
   GetNext* = proc(): Future[?seq[byte]] {.upraises: [], gcsafe, closure.}
   IterDispose* = proc(): Future[?!void] {.gcsafe, closure.}
-  OnAvailabilityAdded* = proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
+  OnAvailabilityAdded* =
+    proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
   StorableIter* = ref object
     finished*: bool
     next*: GetNext
     dispose*: IterDispose
+
   ReservationsError* = object of CodexError
   ReserveFailedError* = object of ReservationsError
   ReleaseFailedError* = object of ReservationsError
@@ -109,35 +116,44 @@ template withLock(lock, body) =
     if lock.locked:
       lock.release()
 
-
-proc new*(T: type Reservations,
-          repo: RepoStore): Reservations =
-
-  T(availabilityLock: newAsyncLock(),repo: repo)
+proc new*(T: type Reservations, repo: RepoStore): Reservations =
+  T(availabilityLock: newAsyncLock(), repo: repo)
 
 proc init*(
-  _: type Availability,
-  totalSize: UInt256,
-  freeSize: UInt256,
-  duration: UInt256,
-  minPrice: UInt256,
-  maxCollateral: UInt256): Availability =
-
+    _: type Availability,
+    totalSize: UInt256,
+    freeSize: UInt256,
+    duration: UInt256,
+    minPrice: UInt256,
+    maxCollateral: UInt256,
+): Availability =
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
-  Availability(id: AvailabilityId(id), totalSize:totalSize, freeSize: freeSize, duration: duration, minPrice: minPrice, maxCollateral: maxCollateral)
+  Availability(
+    id: AvailabilityId(id),
+    totalSize: totalSize,
+    freeSize: freeSize,
+    duration: duration,
+    minPrice: minPrice,
+    maxCollateral: maxCollateral,
+  )
 
 proc init*(
-  _: type Reservation,
-  availabilityId: AvailabilityId,
-  size: UInt256,
-  requestId: RequestId,
-  slotIndex: UInt256
+    _: type Reservation,
+    availabilityId: AvailabilityId,
+    size: UInt256,
+    requestId: RequestId,
+    slotIndex: UInt256,
 ): Reservation =
-
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
-  Reservation(id: ReservationId(id), availabilityId: availabilityId, size: size, requestId: requestId, slotIndex: slotIndex)
+  Reservation(
+    id: ReservationId(id),
+    availabilityId: availabilityId,
+    size: size,
+    requestId: requestId,
+    slotIndex: slotIndex,
+  )
 
 func toArray(id: SomeStorableId): array[32, byte] =
   array[32, byte](id)
@@ -146,23 +162,26 @@ proc `==`*(x, y: AvailabilityId): bool {.borrow.}
 proc `==`*(x, y: ReservationId): bool {.borrow.}
 proc `==`*(x, y: Reservation): bool =
   x.id == y.id
+
 proc `==`*(x, y: Availability): bool =
   x.id == y.id
 
-proc `$`*(id: SomeStorableId): string = id.toArray.toHex
+proc `$`*(id: SomeStorableId): string =
+  id.toArray.toHex
 
 proc toErr[E1: ref CatchableError, E2: ReservationsError](
-  e1: E1,
-  _: type E2,
-  msg: string = e1.msg): ref E2 =
-
+    e1: E1, _: type E2, msg: string = e1.msg
+): ref E2 =
   return newException(E2, msg, e1)
 
-logutils.formatIt(LogFormat.textLines, SomeStorableId): it.short0xHexLog
-logutils.formatIt(LogFormat.json, SomeStorableId): it.to0xHexLog
+logutils.formatIt(LogFormat.textLines, SomeStorableId):
+  it.short0xHexLog
+logutils.formatIt(LogFormat.json, SomeStorableId):
+  it.to0xHexLog
 
-proc `onAvailabilityAdded=`*(self: Reservations,
-                            onAvailabilityAdded: OnAvailabilityAdded) =
+proc `onAvailabilityAdded=`*(
+    self: Reservations, onAvailabilityAdded: OnAvailabilityAdded
+) =
   self.onAvailabilityAdded = some onAvailabilityAdded
 
 func key*(id: AvailabilityId): ?!Key =
@@ -179,24 +198,20 @@ func key*(availability: Availability): ?!Key =
 func key*(reservation: Reservation): ?!Key =
   return key(reservation.id, reservation.availabilityId)
 
-func available*(self: Reservations): uint = self.repo.available.uint
+func available*(self: Reservations): uint =
+  self.repo.available.uint
 
 func hasAvailable*(self: Reservations, bytes: uint): bool =
   self.repo.available(bytes.NBytes)
 
-proc exists*(
-  self: Reservations,
-  key: Key): Future[bool] {.async.} =
-
+proc exists*(self: Reservations, key: Key): Future[bool] {.async.} =
   let exists = await self.repo.metaDs.ds.contains(key)
   return exists
 
-proc getImpl(
-  self: Reservations,
-  key: Key): Future[?!seq[byte]] {.async.} =
-
+proc getImpl(self: Reservations, key: Key): Future[?!seq[byte]] {.async.} =
   if not await self.exists(key):
-    let err = newException(NotExistsError, "object with key " & $key & " does not exist")
+    let err =
+      newException(NotExistsError, "object with key " & $key & " does not exist")
     return failure(err)
 
   without serialized =? await self.repo.metaDs.ds.get(key), error:
@@ -205,10 +220,8 @@ proc getImpl(
   return success serialized
 
 proc get*(
-  self: Reservations,
-  key: Key,
-  T: type SomeStorableObject): Future[?!T] {.async.} =
-
+    self: Reservations, key: Key, T: type SomeStorableObject
+): Future[?!T] {.async.} =
   without serialized =? await self.getImpl(key), error:
     return failure(error)
 
@@ -217,27 +230,20 @@ proc get*(
 
   return success obj
 
-proc updateImpl(
-  self: Reservations,
-  obj: SomeStorableObject): Future[?!void] {.async.} =
-
+proc updateImpl(self: Reservations, obj: SomeStorableObject): Future[?!void] {.async.} =
   trace "updating " & $(obj.type), id = obj.id
 
   without key =? obj.key, error:
     return failure(error)
 
-  if err =? (await self.repo.metaDs.ds.put(
-    key,
-    @(obj.toJson.toBytes)
-  )).errorOption:
+  if err =? (await self.repo.metaDs.ds.put(key, @(obj.toJson.toBytes))).errorOption:
     return failure(err.toErr(UpdateFailedError))
 
   return success()
 
 proc updateAvailability(
-  self: Reservations,
-  obj: Availability): Future[?!void] {.async.} =
-
+    self: Reservations, obj: Availability
+): Future[?!void] {.async.} =
   logScope:
     availabilityId = obj.id
 
@@ -269,11 +275,18 @@ proc updateAvailability(
   if oldAvailability.totalSize != obj.totalSize:
     trace "totalSize changed, updating repo reservation"
     if oldAvailability.totalSize < obj.totalSize: # storage added
-      if reserveErr =? (await self.repo.reserve((obj.totalSize - oldAvailability.totalSize).truncate(uint).NBytes)).errorOption:
+      if reserveErr =? (
+        await self.repo.reserve(
+          (obj.totalSize - oldAvailability.totalSize).truncate(uint).NBytes
+        )
+      ).errorOption:
         return failure(reserveErr.toErr(ReserveFailedError))
-
     elif oldAvailability.totalSize > obj.totalSize: # storage removed
-      if reserveErr =? (await self.repo.release((oldAvailability.totalSize - obj.totalSize).truncate(uint).NBytes)).errorOption:
+      if reserveErr =? (
+        await self.repo.release(
+          (oldAvailability.totalSize - obj.totalSize).truncate(uint).NBytes
+        )
+      ).errorOption:
         return failure(reserveErr.toErr(ReleaseFailedError))
 
   let res = await self.updateImpl(obj)
@@ -296,21 +309,14 @@ proc updateAvailability(
 
   return res
 
-proc update*(
-  self: Reservations,
-  obj: Reservation): Future[?!void] {.async.} =
+proc update*(self: Reservations, obj: Reservation): Future[?!void] {.async.} =
   return await self.updateImpl(obj)
 
-proc update*(
-  self: Reservations,
-  obj: Availability): Future[?!void] {.async.} =
+proc update*(self: Reservations, obj: Availability): Future[?!void] {.async.} =
   withLock(self.availabilityLock):
     return await self.updateAvailability(obj)
 
-proc delete(
-  self: Reservations,
-  key: Key): Future[?!void] {.async.} =
-
+proc delete(self: Reservations, key: Key): Future[?!void] {.async.} =
   trace "deleting object", key
 
   if not await self.exists(key):
@@ -322,10 +328,8 @@ proc delete(
   return success()
 
 proc deleteReservation*(
-  self: Reservations,
-  reservationId: ReservationId,
-  availabilityId: AvailabilityId): Future[?!void] {.async.} =
-
+    self: Reservations, reservationId: ReservationId, availabilityId: AvailabilityId
+): Future[?!void] {.async.} =
   logScope:
     reservationId
     availabilityId
@@ -365,24 +369,21 @@ proc deleteReservation*(
 # To delete, must not have any active sales.
 
 proc createAvailability*(
-  self: Reservations,
-  size: UInt256,
-  duration: UInt256,
-  minPrice: UInt256,
-  maxCollateral: UInt256): Future[?!Availability] {.async.} =
-
+    self: Reservations,
+    size: UInt256,
+    duration: UInt256,
+    minPrice: UInt256,
+    maxCollateral: UInt256,
+): Future[?!Availability] {.async.} =
   trace "creating availability", size, duration, minPrice, maxCollateral
 
-  let availability = Availability.init(
-    size, size, duration, minPrice, maxCollateral
-  )
+  let availability = Availability.init(size, size, duration, minPrice, maxCollateral)
   let bytes = availability.freeSize.truncate(uint)
 
   if reserveErr =? (await self.repo.reserve(bytes.NBytes)).errorOption:
     return failure(reserveErr.toErr(ReserveFailedError))
 
   if updateErr =? (await self.update(availability)).errorOption:
-
     # rollback the reserve
     trace "rolling back reserve"
     if rollbackErr =? (await self.repo.release(bytes.NBytes)).errorOption:
@@ -394,13 +395,12 @@ proc createAvailability*(
   return success(availability)
 
 method createReservation*(
-  self: Reservations,
-  availabilityId: AvailabilityId,
-  slotSize: UInt256,
-  requestId: RequestId,
-  slotIndex: UInt256
+    self: Reservations,
+    availabilityId: AvailabilityId,
+    slotSize: UInt256,
+    requestId: RequestId,
+    slotIndex: UInt256,
 ): Future[?!Reservation] {.async, base.} =
-
   withLock(self.availabilityLock):
     without availabilityKey =? availabilityId.key, error:
       return failure(error)
@@ -412,7 +412,8 @@ method createReservation*(
     if availability.freeSize < slotSize:
       let error = newException(
         BytesOutOfBoundsError,
-        "trying to reserve an amount of bytes that is greater than the total size of the Availability")
+        "trying to reserve an amount of bytes that is greater than the total size of the Availability",
+      )
       return failure(error)
 
     trace "Creating reservation", availabilityId, slotSize, requestId, slotIndex
@@ -446,11 +447,11 @@ method createReservation*(
     return success(reservation)
 
 proc returnBytesToAvailability*(
-  self: Reservations,
-  availabilityId: AvailabilityId,
-  reservationId: ReservationId,
-  bytes: UInt256): Future[?!void] {.async.} =
-
+    self: Reservations,
+    availabilityId: AvailabilityId,
+    reservationId: ReservationId,
+    bytes: UInt256,
+): Future[?!void] {.async.} =
   logScope:
     reservationId
     availabilityId
@@ -467,14 +468,17 @@ proc returnBytesToAvailability*(
     let bytesToBeReturned = bytes - reservation.size
 
     if bytesToBeReturned == 0:
-      trace "No bytes are returned", requestSizeBytes = bytes, returningBytes = bytesToBeReturned
+      trace "No bytes are returned",
+        requestSizeBytes = bytes, returningBytes = bytesToBeReturned
       return success()
 
-    trace "Returning bytes", requestSizeBytes = bytes, returningBytes = bytesToBeReturned
+    trace "Returning bytes",
+      requestSizeBytes = bytes, returningBytes = bytesToBeReturned
 
     # First lets see if we can re-reserve the bytes, if the Repo's quota
     # is depleted then we will fail-fast as there is nothing to be done atm.
-    if reserveErr =? (await self.repo.reserve(bytesToBeReturned.truncate(uint).NBytes)).errorOption:
+    if reserveErr =?
+        (await self.repo.reserve(bytesToBeReturned.truncate(uint).NBytes)).errorOption:
       return failure(reserveErr.toErr(ReserveFailedError))
 
     without availabilityKey =? availabilityId.key, error:
@@ -487,9 +491,9 @@ proc returnBytesToAvailability*(
 
     # Update availability with returned size
     if updateErr =? (await self.updateAvailability(availability)).errorOption:
-
       trace "Rolling back returning bytes"
-      if rollbackErr =? (await self.repo.release(bytesToBeReturned.truncate(uint).NBytes)).errorOption:
+      if rollbackErr =?
+          (await self.repo.release(bytesToBeReturned.truncate(uint).NBytes)).errorOption:
         rollbackErr.parent = updateErr
         return failure(rollbackErr)
 
@@ -498,11 +502,11 @@ proc returnBytesToAvailability*(
     return success()
 
 proc release*(
-  self: Reservations,
-  reservationId: ReservationId,
-  availabilityId: AvailabilityId,
-  bytes: uint): Future[?!void] {.async.} =
-
+    self: Reservations,
+    reservationId: ReservationId,
+    availabilityId: AvailabilityId,
+    bytes: uint,
+): Future[?!void] {.async.} =
   logScope:
     topics = "release"
     bytes
@@ -520,7 +524,8 @@ proc release*(
   if reservation.size < bytes.u256:
     let error = newException(
       BytesOutOfBoundsError,
-      "trying to release an amount of bytes that is greater than the total size of the Reservation")
+      "trying to release an amount of bytes that is greater than the total size of the Reservation",
+    )
     return failure(error)
 
   if releaseErr =? (await self.repo.release(bytes.NBytes)).errorOption:
@@ -530,7 +535,6 @@ proc release*(
 
   # persist partially used Reservation with updated size
   if err =? (await self.update(reservation)).errorOption:
-
     # rollback release if an update error encountered
     trace "rolling back release"
     if rollbackErr =? (await self.repo.reserve(bytes.NBytes)).errorOption:
@@ -545,11 +549,8 @@ iterator items(self: StorableIter): Future[?seq[byte]] =
     yield self.next()
 
 proc storables(
-  self: Reservations,
-  T: type SomeStorableObject,
-  queryKey: Key = ReservationsKey
+    self: Reservations, T: type SomeStorableObject, queryKey: Key = ReservationsKey
 ): Future[?!StorableIter] {.async.} =
-
   var iter = StorableIter()
   let query = Query.init(queryKey)
   when T is Availability:
@@ -570,12 +571,8 @@ proc storables(
   proc next(): Future[?seq[byte]] {.async.} =
     await idleAsync()
     iter.finished = results.finished
-    if not results.finished and
-      res =? (await results.next()) and
-      res.data.len > 0 and
-      key =? res.key and
-      key.namespaces.len == defaultKey.namespaces.len:
-
+    if not results.finished and res =? (await results.next()) and res.data.len > 0 and
+        key =? res.key and key.namespaces.len == defaultKey.namespaces.len:
       return some res.data
 
     return none seq[byte]
@@ -588,11 +585,8 @@ proc storables(
   return success iter
 
 proc allImpl(
-  self: Reservations,
-  T: type SomeStorableObject,
-  queryKey: Key = ReservationsKey
+    self: Reservations, T: type SomeStorableObject, queryKey: Key = ReservationsKey
 ): Future[?!seq[T]] {.async.} =
-
   var ret: seq[T] = @[]
 
   without storables =? (await self.storables(T, queryKey)), error:
@@ -604,24 +598,18 @@ proc allImpl(
 
     without obj =? T.fromJson(bytes), error:
       error "json deserialization error",
-        json = string.fromBytes(bytes),
-        error = error.msg
+        json = string.fromBytes(bytes), error = error.msg
       continue
 
     ret.add obj
 
   return success(ret)
 
-proc all*(
-  self: Reservations,
-  T: type SomeStorableObject
-): Future[?!seq[T]] {.async.} =
+proc all*(self: Reservations, T: type SomeStorableObject): Future[?!seq[T]] {.async.} =
   return await self.allImpl(T)
 
 proc all*(
-  self: Reservations,
-  T: type SomeStorableObject,
-  availabilityId: AvailabilityId
+    self: Reservations, T: type SomeStorableObject, availabilityId: AvailabilityId
 ): Future[?!seq[T]] {.async.} =
   without key =? (ReservationsKey / $availabilityId):
     return failure("no key")
@@ -629,29 +617,26 @@ proc all*(
   return await self.allImpl(T, key)
 
 proc findAvailability*(
-  self: Reservations,
-  size, duration, minPrice, collateral: UInt256
+    self: Reservations, size, duration, minPrice, collateral: UInt256
 ): Future[?Availability] {.async.} =
-
   without storables =? (await self.storables(Availability)), e:
     error "failed to get all storables", error = e.msg
     return none Availability
 
   for item in storables.items:
-    if bytes =? (await item) and
-      availability =? Availability.fromJson(bytes):
-
-      if size <= availability.freeSize and
-        duration <= availability.duration and
-        collateral <= availability.maxCollateral and
-        minPrice >= availability.minPrice:
-
+    if bytes =? (await item) and availability =? Availability.fromJson(bytes):
+      if size <= availability.freeSize and duration <= availability.duration and
+          collateral <= availability.maxCollateral and minPrice >= availability.minPrice:
         trace "availability matched",
           id = availability.id,
-          size, availFreeSize = availability.freeSize,
-          duration, availDuration = availability.duration,
-          minPrice, availMinPrice = availability.minPrice,
-          collateral, availMaxCollateral = availability.maxCollateral
+          size,
+          availFreeSize = availability.freeSize,
+          duration,
+          availDuration = availability.duration,
+          minPrice,
+          availMinPrice = availability.minPrice,
+          collateral,
+          availMaxCollateral = availability.maxCollateral
 
         # TODO: As soon as we're on ARC-ORC, we can use destructors
         # to automatically dispose our iterators when they fall out of scope.
@@ -663,7 +648,11 @@ proc findAvailability*(
 
       trace "availability did not match",
         id = availability.id,
-        size, availFreeSize = availability.freeSize,
-        duration, availDuration = availability.duration,
-        minPrice, availMinPrice = availability.minPrice,
-        collateral, availMaxCollateral = availability.maxCollateral
+        size,
+        availFreeSize = availability.freeSize,
+        duration,
+        availDuration = availability.duration,
+        minPrice,
+        availMinPrice = availability.minPrice,
+        collateral,
+        availMaxCollateral = availability.maxCollateral

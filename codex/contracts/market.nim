@@ -27,18 +27,12 @@ type
     eventSubscription: EventSubscription
 
 func new*(
-  _: type OnChainMarket,
-  contract: Marketplace,
-  rewardRecipient = Address.none): OnChainMarket =
-
+    _: type OnChainMarket, contract: Marketplace, rewardRecipient = Address.none
+): OnChainMarket =
   without signer =? contract.signer:
     raiseAssert("Marketplace contract should have a signer")
 
-  OnChainMarket(
-    contract: contract,
-    signer: signer,
-    rewardRecipient: rewardRecipient
-  )
+  OnChainMarket(contract: contract, signer: signer, rewardRecipient: rewardRecipient)
 
 proc raiseMarketError(message: string) {.raises: [MarketError].} =
   raise newException(MarketError, message)
@@ -105,18 +99,19 @@ method myRequests*(market: OnChainMarket): Future[seq[RequestId]] {.async.} =
 method mySlots*(market: OnChainMarket): Future[seq[SlotId]] {.async.} =
   convertEthersError:
     let slots = await market.contract.mySlots()
-    debug "Fetched my slots", numSlots=len(slots)
+    debug "Fetched my slots", numSlots = len(slots)
 
     return slots
 
-method requestStorage(market: OnChainMarket, request: StorageRequest){.async.} =
+method requestStorage(market: OnChainMarket, request: StorageRequest) {.async.} =
   convertEthersError:
     debug "Requesting storage"
     await market.approveFunds(request.price())
     discard await market.contract.requestStorage(request).confirm(1)
 
-method getRequest*(market: OnChainMarket,
-                  id: RequestId): Future[?StorageRequest] {.async.} =
+method getRequest*(
+    market: OnChainMarket, id: RequestId
+): Future[?StorageRequest] {.async.} =
   convertEthersError:
     try:
       return some await market.contract.getRequest(id)
@@ -125,8 +120,9 @@ method getRequest*(market: OnChainMarket,
         return none StorageRequest
       raise e
 
-method requestState*(market: OnChainMarket,
-                     requestId: RequestId): Future[?RequestState] {.async.} =
+method requestState*(
+    market: OnChainMarket, requestId: RequestId
+): Future[?RequestState] {.async.} =
   convertEthersError:
     try:
       let overrides = CallOverrides(blockTag: some BlockTag.pending)
@@ -136,25 +132,26 @@ method requestState*(market: OnChainMarket,
         return none RequestState
       raise e
 
-method slotState*(market: OnChainMarket,
-                  slotId: SlotId): Future[SlotState] {.async.} =
+method slotState*(market: OnChainMarket, slotId: SlotId): Future[SlotState] {.async.} =
   convertEthersError:
     let overrides = CallOverrides(blockTag: some BlockTag.pending)
     return await market.contract.slotState(slotId, overrides)
 
-method getRequestEnd*(market: OnChainMarket,
-                      id: RequestId): Future[SecondsSince1970] {.async.} =
+method getRequestEnd*(
+    market: OnChainMarket, id: RequestId
+): Future[SecondsSince1970] {.async.} =
   convertEthersError:
     return await market.contract.requestEnd(id)
 
-method requestExpiresAt*(market: OnChainMarket,
-                      id: RequestId): Future[SecondsSince1970] {.async.} =
+method requestExpiresAt*(
+    market: OnChainMarket, id: RequestId
+): Future[SecondsSince1970] {.async.} =
   convertEthersError:
     return await market.contract.requestExpiry(id)
 
-method getHost(market: OnChainMarket,
-               requestId: RequestId,
-               slotIndex: UInt256): Future[?Address] {.async.} =
+method getHost(
+    market: OnChainMarket, requestId: RequestId, slotIndex: UInt256
+): Future[?Address] {.async.} =
   convertEthersError:
     let slotId = slotId(requestId, slotIndex)
     let address = await market.contract.getHost(slotId)
@@ -163,8 +160,7 @@ method getHost(market: OnChainMarket,
     else:
       return none Address
 
-method getActiveSlot*(market: OnChainMarket,
-                      slotId: SlotId): Future[?Slot] {.async.} =
+method getActiveSlot*(market: OnChainMarket, slotId: SlotId): Future[?Slot] {.async.} =
   convertEthersError:
     try:
       return some await market.contract.getActiveSlot(slotId)
@@ -173,11 +169,13 @@ method getActiveSlot*(market: OnChainMarket,
         return none Slot
       raise e
 
-method fillSlot(market: OnChainMarket,
-                requestId: RequestId,
-                slotIndex: UInt256,
-                proof: Groth16Proof,
-                collateral: UInt256) {.async.} =
+method fillSlot(
+    market: OnChainMarket,
+    requestId: RequestId,
+    slotIndex: UInt256,
+    proof: Groth16Proof,
+    collateral: UInt256,
+) {.async.} =
   convertEthersError:
     logScope:
       requestId
@@ -197,9 +195,9 @@ method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
       let collateralRecipient = await market.getSigner()
       freeSlot = market.contract.freeSlot(
         slotId,
-        rewardRecipient,      # --reward-recipient
-        collateralRecipient)  # SP's address
-
+        rewardRecipient, # --reward-recipient
+        collateralRecipient,
+      ) # SP's address
     else:
       # Otherwise, use the SP's address as both the reward and collateral
       # recipient (the contract will use msg.sender for both)
@@ -207,14 +205,11 @@ method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
 
     discard await freeSlot.confirm(1)
 
-
-method withdrawFunds(market: OnChainMarket,
-                     requestId: RequestId) {.async.} =
+method withdrawFunds(market: OnChainMarket, requestId: RequestId) {.async.} =
   convertEthersError:
     discard await market.contract.withdrawFunds(requestId).confirm(1)
 
-method isProofRequired*(market: OnChainMarket,
-                        id: SlotId): Future[bool] {.async.} =
+method isProofRequired*(market: OnChainMarket, id: SlotId): Future[bool] {.async.} =
   convertEthersError:
     try:
       let overrides = CallOverrides(blockTag: some BlockTag.pending)
@@ -224,8 +219,7 @@ method isProofRequired*(market: OnChainMarket,
         return false
       raise e
 
-method willProofBeRequired*(market: OnChainMarket,
-                            id: SlotId): Future[bool] {.async.} =
+method willProofBeRequired*(market: OnChainMarket, id: SlotId): Future[bool] {.async.} =
   convertEthersError:
     try:
       let overrides = CallOverrides(blockTag: some BlockTag.pending)
@@ -235,27 +229,25 @@ method willProofBeRequired*(market: OnChainMarket,
         return false
       raise e
 
-method getChallenge*(market: OnChainMarket, id: SlotId): Future[ProofChallenge] {.async.} =
+method getChallenge*(
+    market: OnChainMarket, id: SlotId
+): Future[ProofChallenge] {.async.} =
   convertEthersError:
     let overrides = CallOverrides(blockTag: some BlockTag.pending)
     return await market.contract.getChallenge(id, overrides)
 
-method submitProof*(market: OnChainMarket,
-                    id: SlotId,
-                    proof: Groth16Proof) {.async.} =
+method submitProof*(market: OnChainMarket, id: SlotId, proof: Groth16Proof) {.async.} =
   convertEthersError:
     discard await market.contract.submitProof(id, proof).confirm(1)
 
-method markProofAsMissing*(market: OnChainMarket,
-                           id: SlotId,
-                           period: Period) {.async.} =
+method markProofAsMissing*(
+    market: OnChainMarket, id: SlotId, period: Period
+) {.async.} =
   convertEthersError:
     discard await market.contract.markProofAsMissing(id, period).confirm(1)
 
 method canProofBeMarkedAsMissing*(
-    market: OnChainMarket,
-    id: SlotId,
-    period: Period
+    market: OnChainMarket, id: SlotId, period: Period
 ): Future[bool] {.async.} =
   let provider = market.contract.provider
   let contractWithoutSigner = market.contract.connect(provider)
@@ -268,46 +260,42 @@ method canProofBeMarkedAsMissing*(
     return false
 
 method reserveSlot*(
-  market: OnChainMarket,
-  requestId: RequestId,
-  slotIndex: UInt256) {.async.} =
-
+    market: OnChainMarket, requestId: RequestId, slotIndex: UInt256
+) {.async.} =
   convertEthersError:
-    discard await market.contract.reserveSlot(
+    discard await market.contract
+    .reserveSlot(
       requestId,
       slotIndex,
       # reserveSlot runs out of gas for unknown reason, but 100k gas covers it
-      TransactionOverrides(gasLimit: some 100000.u256)
-    ).confirm(1)
+      TransactionOverrides(gasLimit: some 100000.u256),
+    )
+    .confirm(1)
 
 method canReserveSlot*(
-  market: OnChainMarket,
-  requestId: RequestId,
-  slotIndex: UInt256): Future[bool] {.async.} =
-
+    market: OnChainMarket, requestId: RequestId, slotIndex: UInt256
+): Future[bool] {.async.} =
   convertEthersError:
     return await market.contract.canReserveSlot(requestId, slotIndex)
 
-method subscribeRequests*(market: OnChainMarket,
-                         callback: OnRequest):
-                        Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!StorageRequested) {.upraises:[].} =
+method subscribeRequests*(
+    market: OnChainMarket, callback: OnRequest
+): Future[MarketSubscription] {.async.} =
+  proc onEvent(eventResult: ?!StorageRequested) {.upraises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in Request subscription", msg = eventErr.msg
       return
 
-    callback(event.requestId,
-             event.ask,
-             event.expiry)
+    callback(event.requestId, event.ask, event.expiry)
 
   convertEthersError:
     let subscription = await market.contract.subscribe(StorageRequested, onEvent)
     return OnChainMarketSubscription(eventSubscription: subscription)
 
-method subscribeSlotFilled*(market: OnChainMarket,
-                            callback: OnSlotFilled):
-                           Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!SlotFilled) {.upraises:[].} =
+method subscribeSlotFilled*(
+    market: OnChainMarket, callback: OnSlotFilled
+): Future[MarketSubscription] {.async.} =
+  proc onEvent(eventResult: ?!SlotFilled) {.upraises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in SlotFilled subscription", msg = eventErr.msg
       return
@@ -318,11 +306,12 @@ method subscribeSlotFilled*(market: OnChainMarket,
     let subscription = await market.contract.subscribe(SlotFilled, onEvent)
     return OnChainMarketSubscription(eventSubscription: subscription)
 
-method subscribeSlotFilled*(market: OnChainMarket,
-                            requestId: RequestId,
-                            slotIndex: UInt256,
-                            callback: OnSlotFilled):
-                           Future[MarketSubscription] {.async.} =
+method subscribeSlotFilled*(
+    market: OnChainMarket,
+    requestId: RequestId,
+    slotIndex: UInt256,
+    callback: OnSlotFilled,
+): Future[MarketSubscription] {.async.} =
   proc onSlotFilled(eventRequestId: RequestId, eventSlotIndex: UInt256) =
     if eventRequestId == requestId and eventSlotIndex == slotIndex:
       callback(requestId, slotIndex)
@@ -330,10 +319,10 @@ method subscribeSlotFilled*(market: OnChainMarket,
   convertEthersError:
     return await market.subscribeSlotFilled(onSlotFilled)
 
-method subscribeSlotFreed*(market: OnChainMarket,
-                           callback: OnSlotFreed):
-                          Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!SlotFreed) {.upraises:[].} =
+method subscribeSlotFreed*(
+    market: OnChainMarket, callback: OnSlotFreed
+): Future[MarketSubscription] {.async.} =
+  proc onEvent(eventResult: ?!SlotFreed) {.upraises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in SlotFreed subscription", msg = eventErr.msg
       return
@@ -345,12 +334,12 @@ method subscribeSlotFreed*(market: OnChainMarket,
     return OnChainMarketSubscription(eventSubscription: subscription)
 
 method subscribeSlotReservationsFull*(
-  market: OnChainMarket,
-  callback: OnSlotReservationsFull): Future[MarketSubscription] {.async.} =
-
-  proc onEvent(eventResult: ?!SlotReservationsFull) {.upraises:[].} =
+    market: OnChainMarket, callback: OnSlotReservationsFull
+): Future[MarketSubscription] {.async.} =
+  proc onEvent(eventResult: ?!SlotReservationsFull) {.upraises: [].} =
     without event =? eventResult, eventErr:
-      error "There was an error in SlotReservationsFull subscription", msg = eventErr.msg
+      error "There was an error in SlotReservationsFull subscription",
+        msg = eventErr.msg
       return
 
     callback(event.requestId, event.slotIndex)
@@ -359,10 +348,10 @@ method subscribeSlotReservationsFull*(
     let subscription = await market.contract.subscribe(SlotReservationsFull, onEvent)
     return OnChainMarketSubscription(eventSubscription: subscription)
 
-method subscribeFulfillment(market: OnChainMarket,
-                            callback: OnFulfillment):
-                           Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!RequestFulfilled) {.upraises:[].} =
+method subscribeFulfillment(
+    market: OnChainMarket, callback: OnFulfillment
+): Future[MarketSubscription] {.async.} =
+  proc onEvent(eventResult: ?!RequestFulfilled) {.upraises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in RequestFulfillment subscription", msg = eventErr.msg
       return
@@ -373,11 +362,10 @@ method subscribeFulfillment(market: OnChainMarket,
     let subscription = await market.contract.subscribe(RequestFulfilled, onEvent)
     return OnChainMarketSubscription(eventSubscription: subscription)
 
-method subscribeFulfillment(market: OnChainMarket,
-                            requestId: RequestId,
-                            callback: OnFulfillment):
-                           Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!RequestFulfilled) {.upraises:[].} =
+method subscribeFulfillment(
+    market: OnChainMarket, requestId: RequestId, callback: OnFulfillment
+): Future[MarketSubscription] {.async.} =
+  proc onEvent(eventResult: ?!RequestFulfilled) {.upraises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in RequestFulfillment subscription", msg = eventErr.msg
       return
@@ -389,10 +377,10 @@ method subscribeFulfillment(market: OnChainMarket,
     let subscription = await market.contract.subscribe(RequestFulfilled, onEvent)
     return OnChainMarketSubscription(eventSubscription: subscription)
 
-method subscribeRequestCancelled*(market: OnChainMarket,
-                                  callback: OnRequestCancelled):
-                                Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!RequestCancelled) {.upraises:[].} =
+method subscribeRequestCancelled*(
+    market: OnChainMarket, callback: OnRequestCancelled
+): Future[MarketSubscription] {.async.} =
+  proc onEvent(eventResult: ?!RequestCancelled) {.upraises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in RequestCancelled subscription", msg = eventErr.msg
       return
@@ -403,11 +391,10 @@ method subscribeRequestCancelled*(market: OnChainMarket,
     let subscription = await market.contract.subscribe(RequestCancelled, onEvent)
     return OnChainMarketSubscription(eventSubscription: subscription)
 
-method subscribeRequestCancelled*(market: OnChainMarket,
-                                  requestId: RequestId,
-                                  callback: OnRequestCancelled):
-                                Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!RequestCancelled) {.upraises:[].} =
+method subscribeRequestCancelled*(
+    market: OnChainMarket, requestId: RequestId, callback: OnRequestCancelled
+): Future[MarketSubscription] {.async.} =
+  proc onEvent(eventResult: ?!RequestCancelled) {.upraises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in RequestCancelled subscription", msg = eventErr.msg
       return
@@ -419,10 +406,10 @@ method subscribeRequestCancelled*(market: OnChainMarket,
     let subscription = await market.contract.subscribe(RequestCancelled, onEvent)
     return OnChainMarketSubscription(eventSubscription: subscription)
 
-method subscribeRequestFailed*(market: OnChainMarket,
-                              callback: OnRequestFailed):
-                            Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!RequestFailed) {.upraises:[]} =
+method subscribeRequestFailed*(
+    market: OnChainMarket, callback: OnRequestFailed
+): Future[MarketSubscription] {.async.} =
+  proc onEvent(eventResult: ?!RequestFailed) {.upraises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in RequestFailed subscription", msg = eventErr.msg
       return
@@ -433,11 +420,10 @@ method subscribeRequestFailed*(market: OnChainMarket,
     let subscription = await market.contract.subscribe(RequestFailed, onEvent)
     return OnChainMarketSubscription(eventSubscription: subscription)
 
-method subscribeRequestFailed*(market: OnChainMarket,
-                              requestId: RequestId,
-                              callback: OnRequestFailed):
-                            Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!RequestFailed) {.upraises:[]} =
+method subscribeRequestFailed*(
+    market: OnChainMarket, requestId: RequestId, callback: OnRequestFailed
+): Future[MarketSubscription] {.async.} =
+  proc onEvent(eventResult: ?!RequestFailed) {.upraises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in RequestFailed subscription", msg = eventErr.msg
       return
@@ -449,9 +435,9 @@ method subscribeRequestFailed*(market: OnChainMarket,
     let subscription = await market.contract.subscribe(RequestFailed, onEvent)
     return OnChainMarketSubscription(eventSubscription: subscription)
 
-method subscribeProofSubmission*(market: OnChainMarket,
-                                 callback: OnProofSubmitted):
-                                Future[MarketSubscription] {.async.} =
+method subscribeProofSubmission*(
+    market: OnChainMarket, callback: OnProofSubmitted
+): Future[MarketSubscription] {.async.} =
   proc onEvent(eventResult: ?!ProofSubmitted) {.upraises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in ProofSubmitted subscription", msg = eventErr.msg
@@ -467,48 +453,37 @@ method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =
   await subscription.eventSubscription.unsubscribe()
 
 method queryPastSlotFilledEvents*(
-  market: OnChainMarket,
-  fromBlock: BlockTag): Future[seq[SlotFilled]] {.async.} =
-
+    market: OnChainMarket, fromBlock: BlockTag
+): Future[seq[SlotFilled]] {.async.} =
   convertEthersError:
-    return await market.contract.queryFilter(SlotFilled,
-                                             fromBlock,
-                                             BlockTag.latest)
+    return await market.contract.queryFilter(SlotFilled, fromBlock, BlockTag.latest)
 
 method queryPastSlotFilledEvents*(
-  market: OnChainMarket,
-  blocksAgo: int): Future[seq[SlotFilled]] {.async.} =
-
+    market: OnChainMarket, blocksAgo: int
+): Future[seq[SlotFilled]] {.async.} =
   convertEthersError:
-    let fromBlock =
-      await market.contract.provider.pastBlockTag(blocksAgo)
+    let fromBlock = await market.contract.provider.pastBlockTag(blocksAgo)
 
     return await market.queryPastSlotFilledEvents(fromBlock)
 
 method queryPastSlotFilledEvents*(
-  market: OnChainMarket,
-  fromTime: SecondsSince1970): Future[seq[SlotFilled]] {.async.} =
-
+    market: OnChainMarket, fromTime: SecondsSince1970
+): Future[seq[SlotFilled]] {.async.} =
   convertEthersError:
-    let fromBlock = 
-      await market.contract.provider.blockNumberForEpoch(fromTime)
+    let fromBlock = await market.contract.provider.blockNumberForEpoch(fromTime)
     return await market.queryPastSlotFilledEvents(BlockTag.init(fromBlock))
 
 method queryPastStorageRequestedEvents*(
-  market: OnChainMarket,
-  fromBlock: BlockTag): Future[seq[StorageRequested]] {.async.} =
-
+    market: OnChainMarket, fromBlock: BlockTag
+): Future[seq[StorageRequested]] {.async.} =
   convertEthersError:
-    return await market.contract.queryFilter(StorageRequested,
-                                             fromBlock,
-                                             BlockTag.latest)
+    return
+      await market.contract.queryFilter(StorageRequested, fromBlock, BlockTag.latest)
 
 method queryPastStorageRequestedEvents*(
-  market: OnChainMarket,
-  blocksAgo: int): Future[seq[StorageRequested]] {.async.} =
-
+    market: OnChainMarket, blocksAgo: int
+): Future[seq[StorageRequested]] {.async.} =
   convertEthersError:
-    let fromBlock =
-      await market.contract.provider.pastBlockTag(blocksAgo)
+    let fromBlock = await market.contract.provider.pastBlockTag(blocksAgo)
 
     return await market.queryPastStorageRequestedEvents(fromBlock)

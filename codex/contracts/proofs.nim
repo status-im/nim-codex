@@ -7,13 +7,16 @@ type
     a*: G1Point
     b*: G2Point
     c*: G1Point
+
   G1Point* = object
     x*: UInt256
     y*: UInt256
+
   # A field element F_{p^2} encoded as `real + i * imag`
   Fp2Element* = object
     real*: UInt256
     imag*: UInt256
+
   G2Point* = object
     x*: Fp2Element
     y*: Fp2Element

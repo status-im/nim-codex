@@ -12,7 +12,6 @@ import pkg/codex/stores/repostore/coders
 import ../../helpers
 
 checksuite "Test coders":
-
   proc rand(T: type NBytes): T =
     rand(Natural).NBytes
 
@@ -21,29 +20,18 @@ checksuite "Test coders":
     E(ordinals[rand(ordinals.len - 1)])
 
   proc rand(T: type QuotaUsage): T =
-    QuotaUsage(
-      used: rand(NBytes),
-      reserved: rand(NBytes)
-    )
+    QuotaUsage(used: rand(NBytes), reserved: rand(NBytes))
 
   proc rand(T: type BlockMetadata): T =
     BlockMetadata(
-      expiry: rand(SecondsSince1970),
-      size: rand(NBytes),
-      refCount: rand(Natural)
+      expiry: rand(SecondsSince1970), size: rand(NBytes), refCount: rand(Natural)
     )
 
   proc rand(T: type DeleteResult): T =
-    DeleteResult(
-      kind: rand(DeleteResultKind),
-      released: rand(NBytes)
-    )
+    DeleteResult(kind: rand(DeleteResultKind), released: rand(NBytes))
 
   proc rand(T: type StoreResult): T =
-    StoreResult(
-      kind: rand(StoreResultKind),
-      used: rand(NBytes)
-    )
+    StoreResult(kind: rand(StoreResultKind), used: rand(NBytes))
 
   test "Natural encode/decode":
     for val in newSeqWith[Natural](100, rand(Natural)) & @[Natural.low, Natural.high]:

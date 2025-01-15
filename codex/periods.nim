@@ -3,6 +3,7 @@ import pkg/stint
 type
   Periodicity* = object
     seconds*: UInt256
+
   Period* = UInt256
   Timestamp* = UInt256
 

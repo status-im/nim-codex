@@ -74,15 +74,10 @@ type
     quotaReservedBytes* {.serialize.}: NBytes
 
 proc init*(_: type RestContentList, content: seq[RestContent]): RestContentList =
-  RestContentList(
-    content: content
-  )
+  RestContentList(content: content)
 
 proc init*(_: type RestContent, cid: Cid, manifest: Manifest): RestContent =
-  RestContent(
-    cid: cid,
-    manifest: manifest
-  )
+  RestContent(cid: cid, manifest: manifest)
 
 proc init*(_: type RestNode, node: dn.Node): RestNode =
   RestNode(
@@ -90,7 +85,7 @@ proc init*(_: type RestNode, node: dn.Node): RestNode =
     peerId: node.record.data.peerId,
     record: node.record,
     address: node.address,
-    seen: node.seen > 0.5
+    seen: node.seen > 0.5,
   )
 
 proc init*(_: type RestRoutingTable, routingTable: rt.RoutingTable): RestRoutingTable =
@@ -99,28 +94,23 @@ proc init*(_: type RestRoutingTable, routingTable: rt.RoutingTable): RestRouting
     for node in bucket.nodes:
       nodes.add(RestNode.init(node))
 
-  RestRoutingTable(
-    localNode: RestNode.init(routingTable.localNode),
-    nodes: nodes
-  )
+  RestRoutingTable(localNode: RestNode.init(routingTable.localNode), nodes: nodes)
 
 proc init*(_: type RestPeerRecord, peerRecord: PeerRecord): RestPeerRecord =
   RestPeerRecord(
-    peerId: peerRecord.peerId,
-    seqNo: peerRecord.seqNo,
-    addresses: peerRecord.addresses
+    peerId: peerRecord.peerId, seqNo: peerRecord.seqNo, addresses: peerRecord.addresses
   )
 
 proc init*(_: type RestNodeId, id: NodeId): RestNodeId =
-  RestNodeId(
-    id: id
-  )
+  RestNodeId(id: id)
 
 proc `%`*(obj: StorageRequest | Slot): JsonNode =
   let jsonObj = newJObject()
-  for k, v in obj.fieldPairs: jsonObj[k] = %v
+  for k, v in obj.fieldPairs:
+    jsonObj[k] = %v
   jsonObj["id"] = %(obj.id)
 
   return jsonObj
 
-proc `%`*(obj: RestNodeId): JsonNode = % $obj.id
+proc `%`*(obj: RestNodeId): JsonNode =
+  % $obj.id

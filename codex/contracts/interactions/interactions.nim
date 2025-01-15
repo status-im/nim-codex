@@ -5,9 +5,8 @@ import ../market
 
 export clock
 
-type
-  ContractInteractions* = ref object of RootObj
-    clock*: Clock
+type ContractInteractions* = ref object of RootObj
+  clock*: Clock
 
 method start*(self: ContractInteractions) {.async, base.} =
   discard

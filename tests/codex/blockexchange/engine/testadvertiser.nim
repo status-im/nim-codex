@@ -22,24 +22,22 @@ asyncchecksuite "Advertiser":
     advertised: seq[Cid]
   let
     manifest = Manifest.new(
-      treeCid = Cid.example,
-      blockSize = 123.NBytes,
-      datasetSize = 234.NBytes)
-    manifestBlk = Block.new(data = manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
+      treeCid = Cid.example, blockSize = 123.NBytes, datasetSize = 234.NBytes
+    )
+    manifestBlk =
+      Block.new(data = manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
 
   setup:
     blockDiscovery = MockDiscovery.new()
     localStore = CacheStore.new()
 
     advertised = newSeq[Cid]()
-    blockDiscovery.publishBlockProvideHandler =
-      proc(d: MockDiscovery, cid: Cid) {.async, gcsafe.} =
-        advertised.add(cid)
+    blockDiscovery.publishBlockProvideHandler = proc(
+        d: MockDiscovery, cid: Cid
+    ) {.async, gcsafe.} =
+      advertised.add(cid)
 
-    advertiser = Advertiser.new(
-      localStore,
-      blockDiscovery
-    )
+    advertiser = Advertiser.new(localStore, blockDiscovery)
 
     await advertiser.start()
 
@@ -86,14 +84,10 @@ asyncchecksuite "Advertiser":
     check manifest.treeCid in advertised
 
   test "Should advertise existing manifests and their trees":
-    let
-      newStore = CacheStore.new([manifestBlk])
+    let newStore = CacheStore.new([manifestBlk])
 
     await advertiser.stop()
-    advertiser = Advertiser.new(
-      newStore,
-      blockDiscovery
-    )
+    advertiser = Advertiser.new(newStore, blockDiscovery)
     await advertiser.start()
 
     check eventually manifestBlk.cid in advertised

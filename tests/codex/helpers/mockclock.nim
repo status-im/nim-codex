@@ -8,14 +8,12 @@ type
   MockClock* = ref object of Clock
     time: SecondsSince1970
     waiting: seq[Waiting]
+
   Waiting = ref object
     until: SecondsSince1970
     future: Future[void]
 
-func new*(
-    _: type MockClock,
-    time: SecondsSince1970 = getTime().toUnix
-): MockClock =
+func new*(_: type MockClock, time: SecondsSince1970 = getTime().toUnix): MockClock =
   ## Create a mock clock instance
   MockClock(time: time)
 

@@ -25,10 +25,7 @@ export purchaseid
 export statemachine
 
 func new*(
-    _: type Purchase,
-    requestId: RequestId,
-    market: Market,
-    clock: Clock
+    _: type Purchase, requestId: RequestId, market: Market, clock: Clock
 ): Purchase =
   ## create a new instance of a Purchase
   ##
@@ -42,10 +39,7 @@ func new*(
   return purchase
 
 func new*(
-    _: type Purchase,
-    request: StorageRequest,
-    market: Market,
-    clock: Clock
+    _: type Purchase, request: StorageRequest, market: Market, clock: Clock
 ): Purchase =
   ## Create a new purchase using the given market and clock
   let purchase = Purchase.new(request.id, market, clock)
@@ -76,4 +70,5 @@ func error*(purchase: Purchase): ?(ref CatchableError) =
 func state*(purchase: Purchase): ?string =
   proc description(state: State): string =
     $state
+
   purchase.query(description)

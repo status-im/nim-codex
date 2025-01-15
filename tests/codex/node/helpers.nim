@@ -12,14 +12,15 @@ import ../../asynctest
 type CountingStore* = ref object of NetworkStore
   lookups*: Table[Cid, int]
 
-proc new*(T: type CountingStore,
-  engine: BlockExcEngine, localStore: BlockStore): CountingStore =
+proc new*(
+    T: type CountingStore, engine: BlockExcEngine, localStore: BlockStore
+): CountingStore =
   # XXX this works cause NetworkStore.new is trivial
   result = CountingStore(engine: engine, localStore: localStore)
 
-method getBlock*(self: CountingStore,
-  address: BlockAddress): Future[?!Block] {.async.} =
-
+method getBlock*(
+    self: CountingStore, address: BlockAddress
+): Future[?!Block] {.async.} =
   self.lookups.mgetOrPut(address.cid, 0).inc
   await procCall getBlock(NetworkStore(self), address)
 
@@ -27,15 +28,13 @@ proc toTimesDuration*(d: chronos.Duration): times.Duration =
   initDuration(seconds = d.seconds)
 
 proc drain*(
-  stream: LPStream | Result[lpstream.LPStream, ref CatchableError]):
-  Future[seq[byte]] {.async.} =
-
-  let
-    stream =
-      when typeof(stream) is Result[lpstream.LPStream, ref CatchableError]:
-        stream.tryGet()
-      else:
-        stream
+    stream: LPStream | Result[lpstream.LPStream, ref CatchableError]
+): Future[seq[byte]] {.async.} =
+  let stream =
+    when typeof(stream) is Result[lpstream.LPStream, ref CatchableError]:
+      stream.tryGet()
+    else:
+      stream
 
   defer:
     await stream.close()
@@ -53,9 +52,7 @@ proc drain*(
 
 proc pipeChunker*(stream: BufferStream, chunker: Chunker) {.async.} =
   try:
-    while (
-      let chunk = await chunker.getBytes();
-      chunk.len > 0):
+    while (let chunk = await chunker.getBytes(); chunk.len > 0):
       await stream.pushData(chunk)
   finally:
     await stream.pushEof()
@@ -101,20 +98,27 @@ template setupAndTearDown*() {.dirty.} =
 
     blockDiscovery = Discovery.new(
       switch.peerInfo.privateKey,
-      announceAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0")
-        .expect("Should return multiaddress")])
+      announceAddrs =
+        @[
+          MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("Should return multiaddress")
+        ],
+    )
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
-    discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
+    discovery =
+      DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
     advertiser = Advertiser.new(localStore, blockDiscovery)
-    engine = BlockExcEngine.new(localStore, wallet, network, discovery, advertiser, peerStore, pendingBlocks)
+    engine = BlockExcEngine.new(
+      localStore, wallet, network, discovery, advertiser, peerStore, pendingBlocks
+    )
     store = NetworkStore.new(engine, localStore)
     node = CodexNodeRef.new(
       switch = switch,
       networkStore = store,
       engine = engine,
       prover = Prover.none,
-      discovery = blockDiscovery)
+      discovery = blockDiscovery,
+    )
 
   teardown:
     close(file)

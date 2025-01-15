@@ -12,14 +12,15 @@
 
 import pkg/upraises
 
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import pkg/chronos
 
 import ../logutils
 
 type
-  TimerCallback* = proc(): Future[void] {.gcsafe, upraises:[].}
+  TimerCallback* = proc(): Future[void] {.gcsafe, upraises: [].}
   Timer* = ref object of RootObj
     callback: TimerCallback
     interval: Duration
@@ -38,12 +39,14 @@ proc timerLoop(timer: Timer) {.async: (raises: []).} =
   except CancelledError:
     discard # do not propagate as timerLoop is asyncSpawned
   except CatchableError as exc:
-    error "Timer caught unhandled exception: ", name=timer.name, msg=exc.msg
+    error "Timer caught unhandled exception: ", name = timer.name, msg = exc.msg
 
-method start*(timer: Timer, callback: TimerCallback, interval: Duration) {.gcsafe, base.} =
+method start*(
+    timer: Timer, callback: TimerCallback, interval: Duration
+) {.gcsafe, base.} =
   if timer.loopFuture != nil:
     return
-  trace "Timer starting: ", name=timer.name
+  trace "Timer starting: ", name = timer.name
   timer.callback = callback
   timer.interval = interval
   timer.loopFuture = timerLoop(timer)
@@ -51,6 +54,6 @@ method start*(timer: Timer, callback: TimerCallback, interval: Duration) {.gcsaf
 
 method stop*(timer: Timer) {.async, base.} =
   if timer.loopFuture != nil and not timer.loopFuture.finished:
-    trace "Timer stopping: ", name=timer.name
+    trace "Timer stopping: ", name = timer.name
     await timer.loopFuture.cancelAndWait()
     timer.loopFuture = nil
