@@ -31,15 +31,9 @@ asyncchecksuite "sales state 'SlotReserving'":
     clock = MockClock.new()
 
     state = SaleSlotReserving.new()
-    context = SalesContext(
-      market: market,
-      clock: clock
-    )
+    context = SalesContext(market: market, clock: clock)
 
-    agent = newSalesAgent(context,
-                          request.id,
-                          slotIndex,
-                          request.some)
+    agent = newSalesAgent(context, request.id, slotIndex, request.some)
 
   test "switches to cancelled state when request expires":
     let next = state.onCancelled(request)

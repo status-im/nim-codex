@@ -11,7 +11,8 @@
 
 import pkg/upraises
 
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import pkg/questionable
 import pkg/questionable/results
@@ -23,8 +24,7 @@ import ./logutils
 
 export blocktype
 
-const
-  DefaultChunkSize* = DefaultBlockSize
+const DefaultChunkSize* = DefaultBlockSize
 
 type
   # default reader type
@@ -33,10 +33,10 @@ type
 
   # Reader that splits input data into fixed-size chunks
   Chunker* = ref object
-    reader*: Reader             # Procedure called to actually read the data
-    offset*: int                # Bytes read so far (position in the stream)
-    chunkSize*: NBytes          # Size of each chunk
-    pad*: bool                  # Pad last chunk to chunkSize?
+    reader*: Reader # Procedure called to actually read the data
+    offset*: int # Bytes read so far (position in the stream)
+    chunkSize*: NBytes # Size of each chunk
+    pad*: bool # Pad last chunk to chunkSize?
 
   FileChunker* = Chunker
   LPStreamChunker* = Chunker
@@ -60,30 +60,21 @@ proc getBytes*(c: Chunker): Future[seq[byte]] {.async.} =
   return move buff
 
 proc new*(
-    T: type Chunker,
-    reader: Reader,
-    chunkSize = DefaultChunkSize,
-    pad = true
+    T: type Chunker, reader: Reader, chunkSize = DefaultChunkSize, pad = true
 ): Chunker =
   ## create a new Chunker instance
   ##
-  Chunker(
-    reader: reader,
-    offset: 0,
-    chunkSize: chunkSize,
-    pad: pad)
+  Chunker(reader: reader, offset: 0, chunkSize: chunkSize, pad: pad)
 
 proc new*(
-    T: type LPStreamChunker,
-    stream: LPStream,
-    chunkSize = DefaultChunkSize,
-    pad = true
+    T: type LPStreamChunker, stream: LPStream, chunkSize = DefaultChunkSize, pad = true
 ): LPStreamChunker =
   ## create the default File chunker
   ##
 
-  proc reader(data: ChunkBuffer, len: int): Future[int]
-    {.gcsafe, async, raises: [Defect].} =
+  proc reader(
+      data: ChunkBuffer, len: int
+  ): Future[int] {.gcsafe, async, raises: [Defect].} =
     var res = 0
     try:
       while res < len:
@@ -101,22 +92,17 @@ proc new*(
 
     return res
 
-  LPStreamChunker.new(
-    reader = reader,
-    chunkSize = chunkSize,
-    pad = pad)
+  LPStreamChunker.new(reader = reader, chunkSize = chunkSize, pad = pad)
 
 proc new*(
-    T: type FileChunker,
-    file: File,
-    chunkSize = DefaultChunkSize,
-    pad = true
+    T: type FileChunker, file: File, chunkSize = DefaultChunkSize, pad = true
 ): FileChunker =
   ## create the default File chunker
   ##
 
-  proc reader(data: ChunkBuffer, len: int): Future[int]
-    {.gcsafe, async, raises: [Defect].} =
+  proc reader(
+      data: ChunkBuffer, len: int
+  ): Future[int] {.gcsafe, async, raises: [Defect].} =
     var total = 0
     try:
       while total < len:
@@ -135,7 +121,4 @@ proc new*(
 
     return total
 
-  FileChunker.new(
-    reader = reader,
-    chunkSize = chunkSize,
-    pad = pad)
+  FileChunker.new(reader = reader, chunkSize = chunkSize, pad = pad)

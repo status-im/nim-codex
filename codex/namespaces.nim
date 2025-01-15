@@ -9,16 +9,17 @@
 
 const
   # Namespaces
-  CodexMetaNamespace* = "meta"                                # meta info stored here
-  CodexRepoNamespace* =  "repo"                               # repository namespace, blocks and manifests are subkeys
-  CodexBlockTotalNamespace* = CodexMetaNamespace & "/total"   # number of blocks in the repo
-  CodexBlocksNamespace* = CodexRepoNamespace & "/blocks"      # blocks namespace
+  CodexMetaNamespace* = "meta" # meta info stored here
+  CodexRepoNamespace* = "repo" # repository namespace, blocks and manifests are subkeys
+  CodexBlockTotalNamespace* = CodexMetaNamespace & "/total"
+    # number of blocks in the repo
+  CodexBlocksNamespace* = CodexRepoNamespace & "/blocks" # blocks namespace
   CodexManifestNamespace* = CodexRepoNamespace & "/manifests" # manifest namespace
-  CodexBlocksTtlNamespace* =                                  # Cid TTL
+  CodexBlocksTtlNamespace* = # Cid TTL
     CodexMetaNamespace & "/ttl"
-  CodexBlockProofNamespace* =                                  # Cid and Proof
+  CodexBlockProofNamespace* = # Cid and Proof
     CodexMetaNamespace & "/proof"
-  CodexDhtNamespace* = "dht"                                  # Dht namespace
-  CodexDhtProvidersNamespace* =                               # Dht providers namespace
+  CodexDhtNamespace* = "dht" # Dht namespace
+  CodexDhtProvidersNamespace* = # Dht providers namespace
     CodexDhtNamespace & "/providers"
-  CodexQuotaNamespace* = CodexMetaNamespace & "/quota"        # quota's namespace
+  CodexQuotaNamespace* = CodexMetaNamespace & "/quota" # quota's namespace

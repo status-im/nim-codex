@@ -6,9 +6,7 @@ import ../../../asynctest
 import ../../examples
 import ../../helpers
 
-
 checksuite "account protobuf messages":
-
   let account = Account(address: EthAddress.example)
   let message = AccountMessage.init(account)
 
@@ -16,7 +14,7 @@ checksuite "account protobuf messages":
     check message.address == @(account.address.toArray)
 
   test "decodes recipient of payments":
-    check Account.init(message).?address == account.address.some
+    check Account.init(message) .? address == account.address.some
 
   test "fails to decode when address has incorrect number of bytes":
     var incorrect = message
@@ -24,7 +22,6 @@ checksuite "account protobuf messages":
     check Account.init(incorrect).isNone
 
 checksuite "channel update messages":
-
   let state = SignedState.example
   let update = StateChannelUpdate.init(state)
 

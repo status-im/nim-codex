@@ -21,9 +21,8 @@ logScope:
   topics = "integration testing hardhat process"
   nodeName = "hardhat"
 
-type
-  HardhatProcess* = ref object of NodeProcess
-    logFile: ?IoHandle
+type HardhatProcess* = ref object of NodeProcess
+  logFile: ?IoHandle
 
 method workingDir(node: HardhatProcess): string =
   return currentSourcePath() / ".." / ".." / ".." / "vendor" / "codex-contracts-eth"
@@ -41,22 +40,18 @@ method outputLineEndings(node: HardhatProcess): string {.raises: [].} =
   return "\n"
 
 proc openLogFile(node: HardhatProcess, logFilePath: string): IoHandle =
-  let logFileHandle = openFile(
-    logFilePath,
-    {OpenFlags.Write, OpenFlags.Create, OpenFlags.Truncate}
-  )
+  let logFileHandle =
+    openFile(logFilePath, {OpenFlags.Write, OpenFlags.Create, OpenFlags.Truncate})
 
   without fileHandle =? logFileHandle:
     fatal "failed to open log file",
-      path = logFilePath,
-      errorCode = $logFileHandle.error
+      path = logFilePath, errorCode = $logFileHandle.error
 
     raiseAssert "failed to open log file, aborting"
 
   return fileHandle
 
 method start*(node: HardhatProcess) {.async.} =
-
   let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
   trace "starting node",
     args = node.arguments,
@@ -70,7 +65,7 @@ method start*(node: HardhatProcess) {.async.} =
       node.workingDir,
       @["node", "--export", "deployment-localhost.json"].concat(node.arguments),
       options = poptions,
-      stdoutHandle = AsyncProcess.Pipe
+      stdoutHandle = AsyncProcess.Pipe,
     )
   except CancelledError as error:
     raise error
@@ -78,12 +73,11 @@ method start*(node: HardhatProcess) {.async.} =
     error "failed to start hardhat process", error = e.msg
 
 proc startNode*(
-  _: type HardhatProcess,
-  args: seq[string],
-  debug: string | bool = false,
-  name: string
+    _: type HardhatProcess,
+    args: seq[string],
+    debug: string | bool = false,
+    name: string,
 ): Future[HardhatProcess] {.async.} =
-
   var logFilePath = ""
 
   var arguments = newSeq[string]()
@@ -100,7 +94,7 @@ proc startNode*(
     arguments: arguments,
     debug: ($debug != "false"),
     trackedFutures: TrackedFutures.new(),
-    name: "hardhat"
+    name: "hardhat",
   )
 
   await hardhat.start()

@@ -1,7 +1,6 @@
-type
-  HardhatConfig* = object
-    logFile*: bool
-    debugEnabled*: bool
+type HardhatConfig* = object
+  logFile*: bool
+  debugEnabled*: bool
 
 proc debug*(self: HardhatConfig, enabled = true): HardhatConfig =
   ## output log in stdout

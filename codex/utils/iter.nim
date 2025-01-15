@@ -27,7 +27,12 @@ iterator pairs*[T](self: Iter[T]): tuple[key: int, val: T] {.inline.} =
     yield (i, self.next())
     inc(i)
 
-proc new*[T](_: type Iter[T], genNext: GenNext[T], isFinished: IsFinished, finishOnErr: bool = true): Iter[T] =
+proc new*[T](
+    _: type Iter[T],
+    genNext: GenNext[T],
+    isFinished: IsFinished,
+    finishOnErr: bool = true,
+): Iter[T] =
   ## Creates a new Iter using elements returned by supplier function `genNext`.
   ## Iter is finished whenever `isFinished` returns true.
   ##
@@ -68,8 +73,7 @@ proc new*[U, V, S: Ordinal](_: type Iter[U], a: U, b: V, step: S = 1): Iter[U] =
     u
 
   proc isFinished(): bool =
-    (step > 0 and i > b) or
-      (step < 0 and i < b)
+    (step > 0 and i > b) or (step < 0 and i < b)
 
   Iter[U].new(genNext, isFinished)
 
@@ -83,8 +87,7 @@ proc new*[T](_: type Iter[T], items: seq[T]): Iter[T] =
   ## Creates a new Iter from a sequence
   ##
 
-  Iter[int].new(0..<items.len)
-    .map((i: int) => items[i])
+  Iter[int].new(0 ..< items.len).map((i: int) => items[i])
 
 proc empty*[T](_: type Iter[T]): Iter[T] =
   ## Creates an empty Iter
@@ -92,15 +95,14 @@ proc empty*[T](_: type Iter[T]): Iter[T] =
 
   proc genNext(): T {.raises: [CatchableError].} =
     raise newException(CatchableError, "Next item requested from an empty Iter")
-  proc isFinished(): bool = true
+
+  proc isFinished(): bool =
+    true
 
   Iter[T].new(genNext, isFinished)
 
 proc map*[T, U](iter: Iter[T], fn: Function[T, U]): Iter[U] =
-  Iter[U].new(
-    genNext    = () => fn(iter.next()),
-    isFinished = () => iter.finished
-  )
+  Iter[U].new(genNext = () => fn(iter.next()), isFinished = () => iter.finished)
 
 proc mapFilter*[T, U](iter: Iter[T], mapPredicate: Function[T, Option[U]]): Iter[U] =
   var nextUOrErr: Option[Result[U, ref CatchableError]]

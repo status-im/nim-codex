@@ -39,22 +39,16 @@ asyncchecksuite "Reservations module":
 
   proc createAvailability(): Availability =
     let example = Availability.example
-    let totalSize = rand(100000..200000)
+    let totalSize = rand(100000 .. 200000)
     let availability = waitFor reservations.createAvailability(
-      totalSize.u256,
-      example.duration,
-      example.minPrice,
-      example.maxCollateral
+      totalSize.u256, example.duration, example.minPrice, example.maxCollateral
     )
     return availability.get
 
   proc createReservation(availability: Availability): Reservation =
-    let size = rand(1..<availability.freeSize.truncate(int))
+    let size = rand(1 ..< availability.freeSize.truncate(int))
     let reservation = waitFor reservations.createReservation(
-      availability.id,
-      size.u256,
-      RequestId.example,
-      UInt256.example
+      availability.id, size.u256, RequestId.example, UInt256.example
     )
     return reservation.get
 
@@ -132,10 +126,7 @@ asyncchecksuite "Reservations module":
   test "cannot create reservation with non-existant availability":
     let availability = Availability.example
     let created = await reservations.createReservation(
-      availability.id,
-      UInt256.example,
-      RequestId.example,
-      UInt256.example
+      availability.id, UInt256.example, RequestId.example, UInt256.example
     )
     check created.isErr
     check created.error of NotExistsError
@@ -143,10 +134,7 @@ asyncchecksuite "Reservations module":
   test "cannot create reservation larger than availability size":
     let availability = createAvailability()
     let created = await reservations.createReservation(
-      availability.id,
-      availability.totalSize + 1,
-      RequestId.example,
-      UInt256.example
+      availability.id, availability.totalSize + 1, RequestId.example, UInt256.example
     )
     check created.isErr
     check created.error of BytesOutOfBoundsError
@@ -155,17 +143,11 @@ asyncchecksuite "Reservations module":
     proc concurrencyTest(): Future[void] {.async.} =
       let availability = createAvailability()
       let one = reservations.createReservation(
-        availability.id,
-        availability.totalSize - 1,
-        RequestId.example,
-        UInt256.example
+        availability.id, availability.totalSize - 1, RequestId.example, UInt256.example
       )
 
       let two = reservations.createReservation(
-        availability.id,
-        availability.totalSize,
-        RequestId.example,
-        UInt256.example
+        availability.id, availability.totalSize, RequestId.example, UInt256.example
       )
 
       let oneResult = await one
@@ -178,11 +160,10 @@ asyncchecksuite "Reservations module":
         check twoResult.error of BytesOutOfBoundsError
 
     var futures: seq[Future[void]]
-    for _ in 1..CONCURRENCY_TESTS_COUNT:
+    for _ in 1 .. CONCURRENCY_TESTS_COUNT:
       futures.add(concurrencyTest())
 
     await allFuturesThrowing(futures)
-
 
   test "creating reservation reduces availability size":
     let availability = createAvailability()
@@ -214,8 +195,8 @@ asyncchecksuite "Reservations module":
   test "can delete reservation":
     let availability = createAvailability()
     let reservation = createReservation(availability)
-    check isOk (await reservations.deleteReservation(
-      reservation.id, reservation.availabilityId)
+    check isOk (
+      await reservations.deleteReservation(reservation.id, reservation.availabilityId)
     )
     let key = reservation.key.get
     check not (await reservations.exists(key))
@@ -224,9 +205,8 @@ asyncchecksuite "Reservations module":
     let availability = createAvailability()
     let orig = availability.freeSize
     let reservation = createReservation(availability)
-    discard await reservations.deleteReservation(
-      reservation.id, reservation.availabilityId
-    )
+    discard
+      await reservations.deleteReservation(reservation.id, reservation.availabilityId)
     let key = availability.key.get
     let updated = !(await reservations.get(key, Availability))
     check updated.freeSize == orig
@@ -270,11 +250,7 @@ asyncchecksuite "Reservations module":
   test "reservation can be partially released":
     let availability = createAvailability()
     let reservation = createReservation(availability)
-    check isOk await reservations.release(
-      reservation.id,
-      reservation.availabilityId,
-      1
-    )
+    check isOk await reservations.release(reservation.id, reservation.availabilityId, 1)
     let key = reservation.key.get
     let updated = !(await reservations.get(key, Reservation))
     check updated.size == reservation.size - 1
@@ -283,9 +259,7 @@ asyncchecksuite "Reservations module":
     let availability = createAvailability()
     let reservation = createReservation(availability)
     let updated = await reservations.release(
-      reservation.id,
-      reservation.availabilityId,
-      (reservation.size + 1).truncate(uint)
+      reservation.id, reservation.availabilityId, (reservation.size + 1).truncate(uint)
     )
     check updated.isErr
     check updated.error of BytesOutOfBoundsError
@@ -293,11 +267,7 @@ asyncchecksuite "Reservations module":
   test "cannot release bytes from non-existant reservation":
     let availability = createAvailability()
     let reservation = createReservation(availability)
-    let updated = await reservations.release(
-      ReservationId.example,
-      availability.id,
-      1
-    )
+    let updated = await reservations.release(ReservationId.example, availability.id, 1)
     check updated.isErr
     check updated.error of NotExistsError
 
@@ -334,10 +304,9 @@ asyncchecksuite "Reservations module":
     let availability = createAvailability()
 
     let found = await reservations.findAvailability(
-      availability.freeSize,
-      availability.duration,
-      availability.minPrice,
-      availability.maxCollateral)
+      availability.freeSize, availability.duration, availability.minPrice,
+      availability.maxCollateral,
+    )
 
     check found.isSome
     check found.get == availability
@@ -349,18 +318,19 @@ asyncchecksuite "Reservations module":
       availability.freeSize + 1,
       availability.duration,
       availability.minPrice,
-      availability.maxCollateral)
+      availability.maxCollateral,
+    )
 
     check found.isNone
 
   test "non-existant availability cannot be found":
     let availability = Availability.example
-    let found = (await reservations.findAvailability(
-      availability.freeSize,
-      availability.duration,
-      availability.minPrice,
-      availability.maxCollateral
-    ))
+    let found = (
+      await reservations.findAvailability(
+        availability.freeSize, availability.duration, availability.minPrice,
+        availability.maxCollateral,
+      )
+    )
     check found.isNone
 
   test "non-existant availability cannot be retrieved":
@@ -382,7 +352,7 @@ asyncchecksuite "Reservations module":
       (DefaultQuotaBytes.uint + 1).u256,
       UInt256.example,
       UInt256.example,
-      UInt256.example
+      UInt256.example,
     )
     check created.isErr
     check created.error of ReserveFailedError

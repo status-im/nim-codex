@@ -9,7 +9,8 @@
 
 import pkg/upraises
 
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import std/options
 
@@ -43,8 +44,7 @@ type
 
   InvalidBlockSize* = object of CodexError
 
-const
-  DefaultCacheSize*: NBytes = 5.MiBs
+const DefaultCacheSize*: NBytes = 5.MiBs
 
 method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the stores
@@ -68,22 +68,28 @@ method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
     return failure exc
 
 method getCidAndProof*(
-  self: CacheStore,
-  treeCid: Cid,
-  index: Natural): Future[?!(Cid, CodexProof)] {.async.} =
-
+    self: CacheStore, treeCid: Cid, index: Natural
+): Future[?!(Cid, CodexProof)] {.async.} =
   if cidAndProof =? self.cidAndProofCache.getOption((treeCid, index)):
     success(cidAndProof)
   else:
-    failure(newException(BlockNotFoundError, "Block not in cache: " & $BlockAddress.init(treeCid, index)))
+    failure(
+      newException(
+        BlockNotFoundError, "Block not in cache: " & $BlockAddress.init(treeCid, index)
+      )
+    )
 
-method getBlock*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!Block] {.async.} =
+method getBlock*(
+    self: CacheStore, treeCid: Cid, index: Natural
+): Future[?!Block] {.async.} =
   without cidAndProof =? (await self.getCidAndProof(treeCid, index)), err:
     return failure(err)
 
   await self.getBlock(cidAndProof[0])
 
-method getBlockAndProof*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!(Block, CodexProof)] {.async.} =
+method getBlockAndProof*(
+    self: CacheStore, treeCid: Cid, index: Natural
+): Future[?!(Block, CodexProof)] {.async.} =
   without cidAndProof =? (await self.getCidAndProof(treeCid, index)), err:
     return failure(err)
 
@@ -111,7 +117,9 @@ method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
 
   return (cid in self.cache).success
 
-method hasBlock*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!bool] {.async.} =
+method hasBlock*(
+    self: CacheStore, treeCid: Cid, index: Natural
+): Future[?!bool] {.async.} =
   without cidAndProof =? (await self.getCidAndProof(treeCid, index)), err:
     if err of BlockNotFoundError:
       return success(false)
@@ -120,20 +128,19 @@ method hasBlock*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!bool]
 
   await self.hasBlock(cidAndProof[0])
 
-func cids(self: CacheStore): (iterator: Cid {.gcsafe.}) =
-  return iterator(): Cid =
-    for cid in self.cache.keys:
-      yield cid
+func cids(self: CacheStore): (iterator (): Cid {.gcsafe.}) =
+  return
+    iterator (): Cid =
+      for cid in self.cache.keys:
+        yield cid
 
 method listBlocks*(
-    self: CacheStore,
-    blockType = BlockType.Manifest
+    self: CacheStore, blockType = BlockType.Manifest
 ): Future[?!AsyncIter[?Cid]] {.async.} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 
-  let
-    cids = self.cids()
+  let cids = self.cids()
 
   proc isFinished(): bool =
     return finished(cids)
@@ -141,29 +148,32 @@ method listBlocks*(
   proc genNext(): Future[Cid] {.async.} =
     cids()
 
-  let iter = await (AsyncIter[Cid].new(genNext, isFinished)
-    .filter(
-      proc (cid: Cid): Future[bool] {.async.} =
+  let iter = await (
+    AsyncIter[Cid].new(genNext, isFinished).filter(
+      proc(cid: Cid): Future[bool] {.async.} =
         without isManifest =? cid.isManifest, err:
           trace "Error checking if cid is a manifest", err = err.msg
           return false
 
-        case blockType:
+        case blockType
         of BlockType.Both:
           return true
         of BlockType.Manifest:
           return isManifest
         of BlockType.Block:
           return not isManifest
-    ))
+    )
+  )
 
-  return success(map[Cid, ?Cid](iter,
-      proc (cid: Cid): Future[?Cid] {.async.} =
-        some(cid)
-  ))
+  return success(
+    map[Cid, ?Cid](
+      iter,
+      proc(cid: Cid): Future[?Cid] {.async.} =
+        some(cid),
+    )
+  )
 
 func putBlockSync(self: CacheStore, blk: Block): bool =
-
   let blkSize = blk.data.len.NBytes # in bytes
 
   if blkSize > self.size:
@@ -185,9 +195,8 @@ func putBlockSync(self: CacheStore, blk: Block): bool =
   return true
 
 method putBlock*(
-  self: CacheStore,
-  blk: Block,
-  ttl = Duration.none): Future[?!void] {.async.} =
+    self: CacheStore, blk: Block, ttl = Duration.none
+): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
 
@@ -199,23 +208,17 @@ method putBlock*(
   discard self.putBlockSync(blk)
   if onBlock =? self.onBlockStored:
     await onBlock(blk.cid)
-    
+
   return success()
 
 method putCidAndProof*(
-  self: CacheStore,
-  treeCid: Cid,
-  index: Natural,
-  blockCid: Cid,
-  proof: CodexProof
+    self: CacheStore, treeCid: Cid, index: Natural, blockCid: Cid, proof: CodexProof
 ): Future[?!void] {.async.} =
   self.cidAndProofCache[(treeCid, index)] = (blockCid, proof)
   success()
 
 method ensureExpiry*(
-    self: CacheStore,
-    cid: Cid,
-    expiry: SecondsSince1970
+    self: CacheStore, cid: Cid, expiry: SecondsSince1970
 ): Future[?!void] {.async.} =
   ## Updates block's assosicated TTL in store - not applicable for CacheStore
   ##
@@ -223,10 +226,7 @@ method ensureExpiry*(
   discard # CacheStore does not have notion of TTL
 
 method ensureExpiry*(
-    self: CacheStore,
-    treeCid: Cid,
-    index: Natural,
-    expiry: SecondsSince1970
+    self: CacheStore, treeCid: Cid, index: Natural, expiry: SecondsSince1970
 ): Future[?!void] {.async.} =
   ## Updates block's associated TTL in store - not applicable for CacheStore
   ##
@@ -248,7 +248,9 @@ method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
 
   return success()
 
-method delBlock*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!void] {.async.} =
+method delBlock*(
+    self: CacheStore, treeCid: Cid, index: Natural
+): Future[?!void] {.async.} =
   let maybeRemoved = self.cidAndProofCache.del((treeCid, index))
 
   if removed =? maybeRemoved:
@@ -266,7 +268,7 @@ proc new*(
     _: type CacheStore,
     blocks: openArray[Block] = [],
     cacheSize: NBytes = DefaultCacheSize,
-    chunkSize: NBytes = DefaultChunkSize
+    chunkSize: NBytes = DefaultChunkSize,
 ): CacheStore {.raises: [Defect, ValueError].} =
   ## Create a new CacheStore instance
   ##
@@ -286,7 +288,8 @@ proc new*(
       cidAndProofCache: cidAndProofCache,
       currentSize: currentSize,
       size: cacheSize,
-      onBlockStored: CidCallback.none)
+      onBlockStored: CidCallback.none,
+    )
 
   for blk in blocks:
     discard store.putBlockSync(blk)
@@ -294,9 +297,6 @@ proc new*(
   return store
 
 proc new*(
-    _: type CacheStore,
-    blocks: openArray[Block] = [],
-    cacheSize: int,
-    chunkSize: int
+    _: type CacheStore, blocks: openArray[Block] = [], cacheSize: int, chunkSize: int
 ): CacheStore {.raises: [Defect, ValueError].} =
   CacheStore.new(blocks, NBytes cacheSize, NBytes chunkSize)

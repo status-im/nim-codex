@@ -11,26 +11,25 @@ import ../../conf
 import ./backends
 import ./backendutils
 
-proc initializeFromConfig(
-  config: CodexConf,
-  utils: BackendUtils): ?!AnyBackend =
+proc initializeFromConfig(config: CodexConf, utils: BackendUtils): ?!AnyBackend =
   if not fileAccessible($config.circomR1cs, {AccessFlags.Read}) or
-    not endsWith($config.circomR1cs, ".r1cs"):
+      not endsWith($config.circomR1cs, ".r1cs"):
     return failure("Circom R1CS file not accessible")
 
   if not fileAccessible($config.circomWasm, {AccessFlags.Read}) or
-    not endsWith($config.circomWasm, ".wasm"):
+      not endsWith($config.circomWasm, ".wasm"):
     return failure("Circom wasm file not accessible")
 
   if not fileAccessible($config.circomZkey, {AccessFlags.Read}) or
-    not endsWith($config.circomZkey, ".zkey"):
+      not endsWith($config.circomZkey, ".zkey"):
     return failure("Circom zkey file not accessible")
 
   trace "Initialized prover backend from cli config"
-  success(utils.initializeCircomBackend(
-    $config.circomR1cs,
-    $config.circomWasm,
-    $config.circomZkey))
+  success(
+    utils.initializeCircomBackend(
+      $config.circomR1cs, $config.circomWasm, $config.circomZkey
+    )
+  )
 
 proc r1csFilePath(config: CodexConf): string =
   config.circuitDir / "proof_main.r1cs"
@@ -42,42 +41,40 @@ proc zkeyFilePath(config: CodexConf): string =
   config.circuitDir / "proof_main.zkey"
 
 proc initializeFromCircuitDirFiles(
-  config: CodexConf,
-  utils: BackendUtils): ?!AnyBackend {.gcsafe.} =
-  if fileExists(config.r1csFilePath) and
-    fileExists(config.wasmFilePath) and
-    fileExists(config.zkeyFilePath):
+    config: CodexConf, utils: BackendUtils
+): ?!AnyBackend {.gcsafe.} =
+  if fileExists(config.r1csFilePath) and fileExists(config.wasmFilePath) and
+      fileExists(config.zkeyFilePath):
     trace "Initialized prover backend from local files"
-    return success(utils.initializeCircomBackend(
-      config.r1csFilePath,
-      config.wasmFilePath,
-      config.zkeyFilePath))
+    return success(
+      utils.initializeCircomBackend(
+        config.r1csFilePath, config.wasmFilePath, config.zkeyFilePath
+      )
+    )
 
   failure("Circuit files not found")
 
 proc suggestDownloadTool(config: CodexConf) =
   without address =? config.marketplaceAddress:
-    raise (ref Defect)(msg: "Proving backend initializing while marketplace address not set.")
+    raise (ref Defect)(
+      msg: "Proving backend initializing while marketplace address not set."
+    )
 
   let
-    tokens = [
-      "cirdl",
-      "\"" & $config.circuitDir & "\"",
-      config.ethProvider,
-      $address
-    ]
+    tokens = ["cirdl", "\"" & $config.circuitDir & "\"", config.ethProvider, $address]
     instructions = "'./" & tokens.join(" ") & "'"
 
-  warn "Proving circuit files are not found. Please run the following to download them:", instructions
+  warn "Proving circuit files are not found. Please run the following to download them:",
+    instructions
 
 proc initializeBackend*(
-  config: CodexConf,
-  utils: BackendUtils = BackendUtils()): ?!AnyBackend =
-
+    config: CodexConf, utils: BackendUtils = BackendUtils()
+): ?!AnyBackend =
   without backend =? initializeFromConfig(config, utils), cliErr:
     info "Could not initialize prover backend from CLI options...", msg = cliErr.msg
     without backend =? initializeFromCircuitDirFiles(config, utils), localErr:
-      info "Could not initialize prover backend from circuit dir files...", msg = localErr.msg
+      info "Could not initialize prover backend from circuit dir files...",
+        msg = localErr.msg
       suggestDownloadTool(config)
       return failure("CircuitFilesNotFound")
     # Unexpected: value of backend does not survive leaving each scope. (definition does though...)

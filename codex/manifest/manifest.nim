@@ -11,7 +11,8 @@
 
 import pkg/upraises
 
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import pkg/libp2p/protobuf/minprotobuf
 import pkg/libp2p/[cid, multihash, multicodec]
@@ -25,37 +26,37 @@ import ../blocktype
 import ../indexingstrategy
 import ../logutils
 
-
 # TODO: Manifest should be reworked to more concrete types,
 # perhaps using inheritance
-type
-  Manifest* = ref object of RootObj
-    treeCid {.serialize.}: Cid              # Root of the merkle tree
-    datasetSize {.serialize.}: NBytes       # Total size of all blocks
-    blockSize {.serialize.}: NBytes         # Size of each contained block (might not be needed if blocks are len-prefixed)
-    codec: MultiCodec                       # Dataset codec
-    hcodec: MultiCodec                      # Multihash codec
-    version: CidVersion                     # Cid version
-    filename {.serialize.}: ?string          # The filename of the content uploaded (optional)
-    mimetype {.serialize.}: ?string          # The mimetype of the content uploaded (optional)
-    uploadedAt {.serialize.}: ?int64          # The UTC creation timestamp in seconds
-    case protected {.serialize.}: bool      # Protected datasets have erasure coded info
+type Manifest* = ref object of RootObj
+  treeCid {.serialize.}: Cid # Root of the merkle tree
+  datasetSize {.serialize.}: NBytes # Total size of all blocks
+  blockSize {.serialize.}: NBytes
+    # Size of each contained block (might not be needed if blocks are len-prefixed)
+  codec: MultiCodec # Dataset codec
+  hcodec: MultiCodec # Multihash codec
+  version: CidVersion # Cid version
+  filename {.serialize.}: ?string # The filename of the content uploaded (optional)
+  mimetype {.serialize.}: ?string # The mimetype of the content uploaded (optional)
+  uploadedAt {.serialize.}: ?int64 # The UTC creation timestamp in seconds
+  case protected {.serialize.}: bool # Protected datasets have erasure coded info
+  of true:
+    ecK: int # Number of blocks to encode
+    ecM: int # Number of resulting parity blocks
+    originalTreeCid: Cid # The original root of the dataset being erasure coded
+    originalDatasetSize: NBytes
+    protectedStrategy: StrategyType # Indexing strategy used to build the slot roots
+    case verifiable {.serialize.}: bool
+    # Verifiable datasets can be used to generate storage proofs
     of true:
-      ecK: int                              # Number of blocks to encode
-      ecM: int                              # Number of resulting parity blocks
-      originalTreeCid: Cid                  # The original root of the dataset being erasure coded
-      originalDatasetSize: NBytes
-      protectedStrategy: StrategyType       # Indexing strategy used to build the slot roots
-      case verifiable {.serialize.}: bool   # Verifiable datasets can be used to generate storage proofs
-      of true:
-        verifyRoot: Cid                     # Root of the top level merkle tree built from slot roots
-        slotRoots: seq[Cid]                 # Individual slot root built from the original dataset blocks
-        cellSize: NBytes                    # Size of each slot cell
-        verifiableStrategy: StrategyType    # Indexing strategy used to build the slot roots
-      else:
-        discard
+      verifyRoot: Cid # Root of the top level merkle tree built from slot roots
+      slotRoots: seq[Cid] # Individual slot root built from the original dataset blocks
+      cellSize: NBytes # Size of each slot cell
+      verifiableStrategy: StrategyType # Indexing strategy used to build the slot roots
     else:
       discard
+  else:
+    discard
 
 ############################################################
 # Accessors
@@ -137,7 +138,7 @@ func uploadedAt*(self: Manifest): ?int64 =
 ############################################################
 
 func isManifest*(cid: Cid): ?!bool =
-  success (ManifestCodec == ? cid.contentType().mapFailure(CodexError))
+  success (ManifestCodec == ?cid.contentType().mapFailure(CodexError))
 
 func isManifest*(mc: MultiCodec): ?!bool =
   success mc == ManifestCodec
@@ -159,7 +160,8 @@ func verify*(self: Manifest): ?!void =
   ##
 
   if self.protected and (self.blocksCount != self.steps * (self.ecK + self.ecM)):
-    return failure newException(CodexError, "Broken manifest: wrong originalBlocksCount")
+    return
+      failure newException(CodexError, "Broken manifest: wrong originalBlocksCount")
 
   return success()
 
@@ -167,41 +169,32 @@ func cid*(self: Manifest): ?!Cid {.deprecated: "use treeCid instead".} =
   self.treeCid.success
 
 func `==`*(a, b: Manifest): bool =
-  (a.treeCid == b.treeCid) and
-  (a.datasetSize == b.datasetSize) and
-  (a.blockSize == b.blockSize) and
-  (a.version == b.version) and
-  (a.hcodec == b.hcodec) and
-  (a.codec == b.codec) and
-  (a.protected == b.protected) and
-  (a.filename == b.filename) and
-  (a.mimetype == b.mimetype) and
-  (a.uploadedAt == b.uploadedAt) and
-    (if a.protected:
-      (a.ecK == b.ecK) and
-      (a.ecM == b.ecM) and
-      (a.originalTreeCid == b.originalTreeCid) and
-      (a.originalDatasetSize == b.originalDatasetSize) and
-      (a.protectedStrategy == b.protectedStrategy) and
-      (a.verifiable == b.verifiable) and
-        (if a.verifiable:
-          (a.verifyRoot == b.verifyRoot) and
-          (a.slotRoots == b.slotRoots) and
-          (a.cellSize == b.cellSize) and
-          (a.verifiableStrategy == b.verifiableStrategy)
+  (a.treeCid == b.treeCid) and (a.datasetSize == b.datasetSize) and
+    (a.blockSize == b.blockSize) and (a.version == b.version) and (a.hcodec == b.hcodec) and
+    (a.codec == b.codec) and (a.protected == b.protected) and (a.filename == b.filename) and
+    (a.mimetype == b.mimetype) and (a.uploadedAt == b.uploadedAt) and (
+    if a.protected:
+      (a.ecK == b.ecK) and (a.ecM == b.ecM) and (a.originalTreeCid == b.originalTreeCid) and
+        (a.originalDatasetSize == b.originalDatasetSize) and
+        (a.protectedStrategy == b.protectedStrategy) and (a.verifiable == b.verifiable) and
+      (
+        if a.verifiable:
+          (a.verifyRoot == b.verifyRoot) and (a.slotRoots == b.slotRoots) and
+            (a.cellSize == b.cellSize) and (
+            a.verifiableStrategy == b.verifiableStrategy
+          )
         else:
-          true)
+          true
+      )
     else:
-      true)
+      true
+  )
 
 func `$`*(self: Manifest): string =
-  result = "treeCid: " & $self.treeCid &
-    ", datasetSize: " & $self.datasetSize &
-    ", blockSize: " & $self.blockSize &
-    ", version: " & $self.version &
-    ", hcodec: " & $self.hcodec &
-    ", codec: " & $self.codec &
-    ", protected: " & $self.protected
+  result =
+    "treeCid: " & $self.treeCid & ", datasetSize: " & $self.datasetSize & ", blockSize: " &
+    $self.blockSize & ", version: " & $self.version & ", hcodec: " & $self.hcodec &
+    ", codec: " & $self.codec & ", protected: " & $self.protected
 
   if self.filename.isSome:
     result &= ", filename: " & $self.filename
@@ -212,19 +205,19 @@ func `$`*(self: Manifest): string =
   if self.uploadedAt.isSome:
     result &= ", uploadedAt: " & $self.uploadedAt
 
-  result &= (if self.protected:
-    ", ecK: " & $self.ecK &
-    ", ecM: " & $self.ecM &
-    ", originalTreeCid: " & $self.originalTreeCid &
-    ", originalDatasetSize: " & $self.originalDatasetSize &
-    ", verifiable: " & $self.verifiable &
-    (if self.verifiable:
-      ", verifyRoot: " & $self.verifyRoot &
-      ", slotRoots: " & $self.slotRoots
+  result &= (
+    if self.protected:
+      ", ecK: " & $self.ecK & ", ecM: " & $self.ecM & ", originalTreeCid: " &
+        $self.originalTreeCid & ", originalDatasetSize: " & $self.originalDatasetSize &
+        ", verifiable: " & $self.verifiable & (
+        if self.verifiable:
+          ", verifyRoot: " & $self.verifyRoot & ", slotRoots: " & $self.slotRoots
+        else:
+          ""
+      )
     else:
-      "")
-  else:
-    "")
+      ""
+  )
 
   return result
 
@@ -233,18 +226,18 @@ func `$`*(self: Manifest): string =
 ############################################################
 
 func new*(
-  T: type Manifest,
-  treeCid: Cid,
-  blockSize: NBytes,
-  datasetSize: NBytes,
-  version: CidVersion = CIDv1,
-  hcodec = Sha256HashCodec,
-  codec = BlockCodec,
-  protected = false,
-  filename: ?string = string.none,
-  mimetype: ?string = string.none,
-  uploadedAt: ?int64 = int64.none): Manifest =
-
+    T: type Manifest,
+    treeCid: Cid,
+    blockSize: NBytes,
+    datasetSize: NBytes,
+    version: CidVersion = CIDv1,
+    hcodec = Sha256HashCodec,
+    codec = BlockCodec,
+    protected = false,
+    filename: ?string = string.none,
+    mimetype: ?string = string.none,
+    uploadedAt: ?int64 = int64.none,
+): Manifest =
   T(
     treeCid: treeCid,
     blockSize: blockSize,
@@ -255,15 +248,17 @@ func new*(
     protected: protected,
     filename: filename,
     mimetype: mimetype,
-    uploadedAt: uploadedAt)
+    uploadedAt: uploadedAt,
+  )
 
 func new*(
-  T: type Manifest,
-  manifest: Manifest,
-  treeCid: Cid,
-  datasetSize: NBytes,
-  ecK, ecM: int,
-  strategy = SteppedStrategy): Manifest =
+    T: type Manifest,
+    manifest: Manifest,
+    treeCid: Cid,
+    datasetSize: NBytes,
+    ecK, ecM: int,
+    strategy = SteppedStrategy,
+): Manifest =
   ## Create an erasure protected dataset from an
   ## unprotected one
   ##
@@ -276,18 +271,17 @@ func new*(
     hcodec: manifest.hcodec,
     blockSize: manifest.blockSize,
     protected: true,
-    ecK: ecK, ecM: ecM,
+    ecK: ecK,
+    ecM: ecM,
     originalTreeCid: manifest.treeCid,
     originalDatasetSize: manifest.datasetSize,
     protectedStrategy: strategy,
     filename: manifest.filename,
     mimetype: manifest.mimetype,
-    uploadedAt: manifest.uploadedAt
-    )
+    uploadedAt: manifest.uploadedAt,
+  )
 
-func new*(
-  T: type Manifest,
-  manifest: Manifest): Manifest =
+func new*(T: type Manifest, manifest: Manifest): Manifest =
   ## Create an unprotected dataset from an
   ## erasure protected one
   ##
@@ -302,25 +296,26 @@ func new*(
     protected: false,
     filename: manifest.filename,
     mimetype: manifest.mimetype,
-    uploadedAt: manifest.uploadedAt)
+    uploadedAt: manifest.uploadedAt,
+  )
 
 func new*(
-  T: type Manifest,
-  treeCid: Cid,
-  datasetSize: NBytes,
-  blockSize: NBytes,
-  version: CidVersion,
-  hcodec: MultiCodec,
-  codec: MultiCodec,
-  ecK: int,
-  ecM: int,
-  originalTreeCid: Cid,
-  originalDatasetSize: NBytes,
-  strategy = SteppedStrategy,
-  filename: ?string = string.none,
-  mimetype: ?string = string.none,
-  uploadedAt: ?int64 = int64.none): Manifest =
-
+    T: type Manifest,
+    treeCid: Cid,
+    datasetSize: NBytes,
+    blockSize: NBytes,
+    version: CidVersion,
+    hcodec: MultiCodec,
+    codec: MultiCodec,
+    ecK: int,
+    ecM: int,
+    originalTreeCid: Cid,
+    originalDatasetSize: NBytes,
+    strategy = SteppedStrategy,
+    filename: ?string = string.none,
+    mimetype: ?string = string.none,
+    uploadedAt: ?int64 = int64.none,
+): Manifest =
   Manifest(
     treeCid: treeCid,
     datasetSize: datasetSize,
@@ -334,28 +329,30 @@ func new*(
     originalTreeCid: originalTreeCid,
     originalDatasetSize: originalDatasetSize,
     protectedStrategy: strategy,
-    filename: filename, 
+    filename: filename,
     mimetype: mimetype,
-    uploadedAt: uploadedAt)
+    uploadedAt: uploadedAt,
+  )
 
 func new*(
-  T: type Manifest,
-  manifest: Manifest,
-  verifyRoot: Cid,
-  slotRoots: openArray[Cid],
-  cellSize = DefaultCellSize,
-  strategy = LinearStrategy): ?!Manifest =
+    T: type Manifest,
+    manifest: Manifest,
+    verifyRoot: Cid,
+    slotRoots: openArray[Cid],
+    cellSize = DefaultCellSize,
+    strategy = LinearStrategy,
+): ?!Manifest =
   ## Create a verifiable dataset from an
   ## protected one
   ##
 
   if not manifest.protected:
     return failure newException(
-      CodexError, "Can create verifiable manifest only from protected manifest.")
+      CodexError, "Can create verifiable manifest only from protected manifest."
+    )
 
   if slotRoots.len != manifest.numSlots:
-    return failure newException(
-      CodexError, "Wrong number of slot roots.")
+    return failure newException(CodexError, "Wrong number of slot roots.")
 
   success Manifest(
     treeCid: manifest.treeCid,
@@ -377,12 +374,10 @@ func new*(
     verifiableStrategy: strategy,
     filename: manifest.filename,
     mimetype: manifest.mimetype,
-    uploadedAt: manifest.uploadedAt
-    )
+    uploadedAt: manifest.uploadedAt,
+  )
 
-func new*(
-  T: type Manifest,
-  data: openArray[byte]): ?!Manifest =
+func new*(T: type Manifest, data: openArray[byte]): ?!Manifest =
   ## Create a manifest instance from given data
   ##
 

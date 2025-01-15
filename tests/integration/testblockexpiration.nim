@@ -24,17 +24,19 @@ ethersuite "Node block expiration tests":
     dataDir.removeDir()
 
   proc startTestNode(blockTtlSeconds: int) {.async.} =
-    node = await CodexProcess.startNode(@[
-      "--api-port=8080",
-      "--data-dir=" & dataDir,
-      "--nat=none",
-      "--listen-addrs=/ip4/127.0.0.1/tcp/0",
-      "--disc-port=8090",
-      "--block-ttl=" & $blockTtlSeconds,
-      "--block-mi=1",
-      "--block-mn=10"],
+    node = await CodexProcess.startNode(
+      @[
+        "--api-port=8080",
+        "--data-dir=" & dataDir,
+        "--nat=none",
+        "--listen-addrs=/ip4/127.0.0.1/tcp/0",
+        "--disc-port=8090",
+        "--block-ttl=" & $blockTtlSeconds,
+        "--block-mi=1",
+        "--block-mn=10",
+      ],
       false,
-      "cli-test-node"
+      "cli-test-node",
     )
     await node.waitUntilStarted()
 
@@ -47,16 +49,16 @@ ethersuite "Node block expiration tests":
     uploadResponse.body
 
   proc downloadTestFile(contentId: string, local = false): Response =
-    let client = newHttpClient(timeout=3000)
-    let downloadUrl = baseurl & "/data/" &
-      contentId & (if local: "" else: "/network/stream")
+    let client = newHttpClient(timeout = 3000)
+    let downloadUrl =
+      baseurl & "/data/" & contentId & (if local: "" else: "/network/stream")
 
     let content = client.get(downloadUrl)
     client.close()
     content
 
   proc hasFile(contentId: string): bool =
-    let client = newHttpClient(timeout=3000)
+    let client = newHttpClient(timeout = 3000)
     let dataLocalUrl = baseurl & "/data/" & contentId
     let content = client.get(dataLocalUrl)
     client.close()

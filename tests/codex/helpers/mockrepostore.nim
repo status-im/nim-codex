@@ -16,21 +16,22 @@ import pkg/questionable/results
 import pkg/codex/stores/repostore
 import pkg/codex/utils/asynciter
 
-type
-  MockRepoStore* = ref object of RepoStore
-    delBlockCids*: seq[Cid]
-    getBeMaxNumber*: int
-    getBeOffset*: int
+type MockRepoStore* = ref object of RepoStore
+  delBlockCids*: seq[Cid]
+  getBeMaxNumber*: int
+  getBeOffset*: int
 
-    testBlockExpirations*: seq[BlockExpiration]
-    getBlockExpirationsThrows*: bool
+  testBlockExpirations*: seq[BlockExpiration]
+  getBlockExpirationsThrows*: bool
 
 method delBlock*(self: MockRepoStore, cid: Cid): Future[?!void] {.async.} =
   self.delBlockCids.add(cid)
   self.testBlockExpirations = self.testBlockExpirations.filterIt(it.cid != cid)
   return success()
 
-method getBlockExpirations*(self: MockRepoStore, maxNumber: int, offset: int): Future[?!AsyncIter[BlockExpiration]] {.async.} =
+method getBlockExpirations*(
+    self: MockRepoStore, maxNumber: int, offset: int
+): Future[?!AsyncIter[BlockExpiration]] {.async.} =
   if self.getBlockExpirationsThrows:
     raise new CatchableError
 
@@ -42,10 +43,11 @@ method getBlockExpirations*(self: MockRepoStore, maxNumber: int, offset: int): F
     limit = min(offset + maxNumber, len(testBlockExpirationsCpy))
 
   let
-    iter1 = AsyncIter[int].new(offset..<limit)
-    iter2 = map[int, BlockExpiration](iter1,
-        proc (i: int): Future[BlockExpiration] {.async.} =
-          testBlockExpirationsCpy[i]
-      )
+    iter1 = AsyncIter[int].new(offset ..< limit)
+    iter2 = map[int, BlockExpiration](
+      iter1,
+      proc(i: int): Future[BlockExpiration] {.async.} =
+        testBlockExpirationsCpy[i],
+    )
 
   success(iter2)

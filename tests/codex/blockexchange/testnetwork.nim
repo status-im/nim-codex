@@ -39,9 +39,7 @@ asyncchecksuite "Network - Handlers":
 
     done = newFuture[void]()
     buffer = BufferStream.new()
-    network = BlockExcNetwork.new(
-      switch = newStandardSwitch(),
-      connProvider = getConn)
+    network = BlockExcNetwork.new(switch = newStandardSwitch(), connProvider = getConn)
     network.setupPeer(peerId)
     networkPeer = network.peers[peerId]
     discard await networkPeer.connect()
@@ -63,10 +61,8 @@ asyncchecksuite "Network - Handlers":
 
     network.handlers.onWantList = wantListHandler
 
-    let wantList = makeWantList(
-      blocks.mapIt( it.cid ),
-      1, true, WantType.WantHave,
-      true, true)
+    let wantList =
+      makeWantList(blocks.mapIt(it.cid), 1, true, WantType.WantHave, true, true)
 
     let msg = Message(wantlist: wantList)
     await buffer.pushData(lenPrefix(protobufEncode(msg)))
@@ -74,21 +70,22 @@ asyncchecksuite "Network - Handlers":
     await done.wait(500.millis)
 
   test "Blocks Handler":
-    proc blocksDeliveryHandler(peer: PeerId, blocksDelivery: seq[BlockDelivery]) {.gcsafe, async.} =
+    proc blocksDeliveryHandler(
+        peer: PeerId, blocksDelivery: seq[BlockDelivery]
+    ) {.gcsafe, async.} =
       check blocks == blocksDelivery.mapIt(it.blk)
       done.complete()
 
     network.handlers.onBlocksDelivery = blocksDeliveryHandler
 
-    let msg = Message(payload: blocks.mapIt(BlockDelivery(blk: it, address: it.address)))
+    let msg =
+      Message(payload: blocks.mapIt(BlockDelivery(blk: it, address: it.address)))
     await buffer.pushData(lenPrefix(protobufEncode(msg)))
 
     await done.wait(500.millis)
 
   test "Presence Handler":
-    proc presenceHandler(
-      peer: PeerId,
-      presence: seq[BlockPresence]) {.gcsafe, async.} =
+    proc presenceHandler(peer: PeerId, presence: seq[BlockPresence]) {.gcsafe, async.} =
       for b in blocks:
         check:
           b.address in presence
@@ -98,11 +95,9 @@ asyncchecksuite "Network - Handlers":
     network.handlers.onPresence = presenceHandler
 
     let msg = Message(
-      blockPresences: blocks.mapIt(
-        BlockPresence(
-          address: it.address,
-          type: BlockPresenceType.Have
-      )))
+      blockPresences:
+        blocks.mapIt(BlockPresence(address: it.address, type: BlockPresenceType.Have))
+    )
     await buffer.pushData(lenPrefix(protobufEncode(msg)))
 
     await done.wait(500.millis)
@@ -136,8 +131,7 @@ asyncchecksuite "Network - Handlers":
     await done.wait(100.millis)
 
 asyncchecksuite "Network - Senders":
-  let
-    chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
+  let chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
 
   var
     switch1, switch2: Switch
@@ -156,25 +150,19 @@ asyncchecksuite "Network - Senders":
     done = newFuture[void]()
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
-    network1 = BlockExcNetwork.new(
-      switch = switch1)
+    network1 = BlockExcNetwork.new(switch = switch1)
     switch1.mount(network1)
 
-    network2 = BlockExcNetwork.new(
-      switch = switch2)
+    network2 = BlockExcNetwork.new(switch = switch2)
     switch2.mount(network2)
 
     await switch1.start()
     await switch2.start()
 
-    await switch1.connect(
-      switch2.peerInfo.peerId,
-      switch2.peerInfo.addrs)
+    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
 
   teardown:
-    await allFuturesThrowing(
-      switch1.stop(),
-      switch2.stop())
+    await allFuturesThrowing(switch1.stop(), switch2.stop())
 
   test "Send want list":
     proc wantListHandler(peer: PeerId, wantList: WantList) {.gcsafe, async.} =
@@ -194,28 +182,32 @@ asyncchecksuite "Network - Senders":
     network2.handlers.onWantList = wantListHandler
     await network1.sendWantList(
       switch2.peerInfo.peerId,
-      blocks.mapIt( it.address ),
-      1, true, WantType.WantHave,
-      true, true)
+      blocks.mapIt(it.address),
+      1,
+      true,
+      WantType.WantHave,
+      true,
+      true,
+    )
 
     await done.wait(500.millis)
 
   test "send blocks":
-    proc blocksDeliveryHandler(peer: PeerId, blocksDelivery: seq[BlockDelivery]) {.gcsafe, async.} =
+    proc blocksDeliveryHandler(
+        peer: PeerId, blocksDelivery: seq[BlockDelivery]
+    ) {.gcsafe, async.} =
       check blocks == blocksDelivery.mapIt(it.blk)
       done.complete()
 
     network2.handlers.onBlocksDelivery = blocksDeliveryHandler
     await network1.sendBlocksDelivery(
-      switch2.peerInfo.peerId,
-      blocks.mapIt(BlockDelivery(blk: it, address: it.address)))
+      switch2.peerInfo.peerId, blocks.mapIt(BlockDelivery(blk: it, address: it.address))
+    )
 
     await done.wait(500.millis)
 
   test "send presence":
-    proc presenceHandler(
-      peer: PeerId,
-      precense: seq[BlockPresence]) {.gcsafe, async.} =
+    proc presenceHandler(peer: PeerId, precense: seq[BlockPresence]) {.gcsafe, async.} =
       for b in blocks:
         check:
           b.address in precense
@@ -226,11 +218,8 @@ asyncchecksuite "Network - Senders":
 
     await network1.sendBlockPresence(
       switch2.peerInfo.peerId,
-      blocks.mapIt(
-        BlockPresence(
-          address: it.address,
-          type: BlockPresenceType.Have
-      )))
+      blocks.mapIt(BlockPresence(address: it.address, type: BlockPresenceType.Have)),
+    )
 
     await done.wait(500.millis)
 
@@ -269,36 +258,30 @@ asyncchecksuite "Network - Test Limits":
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
 
-    network1 = BlockExcNetwork.new(
-      switch = switch1,
-      maxInflight = 0)
+    network1 = BlockExcNetwork.new(switch = switch1, maxInflight = 0)
     switch1.mount(network1)
 
-    network2 = BlockExcNetwork.new(
-      switch = switch2)
+    network2 = BlockExcNetwork.new(switch = switch2)
     switch2.mount(network2)
 
     await switch1.start()
     await switch2.start()
 
-    await switch1.connect(
-      switch2.peerInfo.peerId,
-      switch2.peerInfo.addrs)
+    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
 
   teardown:
-    await allFuturesThrowing(
-      switch1.stop(),
-      switch2.stop())
+    await allFuturesThrowing(switch1.stop(), switch2.stop())
 
   test "Concurrent Sends":
     let account = Account(address: EthAddress.example)
-    network2.handlers.onAccount =
-      proc(peer: PeerId, received: Account) {.gcsafe, async.} =
-        check false
+    network2.handlers.onAccount = proc(
+        peer: PeerId, received: Account
+    ) {.gcsafe, async.} =
+      check false
 
     let fut = network1.send(
-      switch2.peerInfo.peerId,
-      Message(account: AccountMessage.init(account)))
+      switch2.peerInfo.peerId, Message(account: AccountMessage.init(account))
+    )
 
     await sleepAsync(100.millis)
     check not fut.finished

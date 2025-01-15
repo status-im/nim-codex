@@ -12,15 +12,7 @@ checksuite "Clock":
     check restored == seconds
 
   test "SecondsSince1970 should support bytes conversions":
-    let secondsToTest: seq[int64] = @[
-      int64.high,
-      int64.low,
-      0,
-      1,
-      12345,
-      -1,
-      -12345
-    ]
+    let secondsToTest: seq[int64] = @[int64.high, int64.low, 0, 1, 12345, -1, -12345]
 
     for seconds in secondsToTest:
       testConversion(seconds)

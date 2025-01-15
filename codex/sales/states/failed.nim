@@ -11,7 +11,8 @@ type
   SaleFailed* = ref object of ErrorHandlingState
   SaleFailedError* = object of SaleError
 
-method `$`*(state: SaleFailed): string = "SaleFailed"
+method `$`*(state: SaleFailed): string =
+  "SaleFailed"
 
 method run*(state: SaleFailed, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
@@ -21,7 +22,8 @@ method run*(state: SaleFailed, machine: Machine): Future[?State] {.async.} =
     raiseAssert "no sale request"
 
   let slot = Slot(request: request, slotIndex: data.slotIndex)
-  debug "Removing slot from mySlots",  requestId = data.requestId, slotIndex = data.slotIndex
+  debug "Removing slot from mySlots",
+    requestId = data.requestId, slotIndex = data.slotIndex
   await market.freeSlot(slot.id)
 
   let error = newException(SaleFailedError, "Sale failed")

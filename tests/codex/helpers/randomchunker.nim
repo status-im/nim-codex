@@ -7,15 +7,14 @@ import pkg/codex/rng
 
 export chunker
 
-type
-  RandomChunker* = Chunker
+type RandomChunker* = Chunker
 
 proc new*(
     T: type RandomChunker,
     rng: Rng,
     chunkSize: int | NBytes,
     size: int | NBytes,
-    pad = false
+    pad = false,
 ): RandomChunker =
   ## Create a chunker that produces random data
   ##
@@ -23,11 +22,12 @@ proc new*(
   let
     size = size.int
     chunkSize = chunkSize.NBytes
-  
+
   var consumed = 0
-  proc reader(data: ChunkBuffer, len: int): Future[int]
-    {.async, gcsafe, raises: [Defect].} =
-    var alpha = toSeq(byte('A')..byte('z'))
+  proc reader(
+      data: ChunkBuffer, len: int
+  ): Future[int] {.async, gcsafe, raises: [Defect].} =
+    var alpha = toSeq(byte('A') .. byte('z'))
 
     if consumed >= size:
       return 0
@@ -45,7 +45,4 @@ proc new*(
     consumed += read
     return read
 
-  Chunker.new(
-    reader = reader,
-    pad = pad,
-    chunkSize = chunkSize)
+  Chunker.new(reader = reader, pad = pad, chunkSize = chunkSize)

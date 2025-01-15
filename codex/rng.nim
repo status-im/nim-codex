@@ -9,7 +9,8 @@
 
 import pkg/upraises
 
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import pkg/libp2p/crypto/crypto
 import pkg/bearssl/rand
@@ -30,7 +31,8 @@ proc instance*(t: type Rng): Rng =
 const randMax = 18_446_744_073_709_551_615'u64
 
 proc rand*(rng: Rng, max: Natural): int =
-  if max == 0: return 0
+  if max == 0:
+    return 0
 
   while true:
     let x = rng[].generate(uint64)
@@ -41,8 +43,8 @@ proc sample*[T](rng: Rng, a: openArray[T]): T =
   result = a[rng.rand(a.high)]
 
 proc sample*[T](
-  rng: Rng, sample, exclude: openArray[T]): T
-  {.raises: [Defect, RngSampleError].} =
+    rng: Rng, sample, exclude: openArray[T]
+): T {.raises: [Defect, RngSampleError].} =
   if sample == exclude:
     raise newException(RngSampleError, "Sample and exclude arrays are the same!")
 

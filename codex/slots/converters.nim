@@ -23,21 +23,25 @@ import ../utils/digest
 
 func toCid(hash: Poseidon2Hash, mcodec: MultiCodec, cidCodec: MultiCodec): ?!Cid =
   let
-    mhash = ? MultiHash.init(mcodec, hash.toBytes).mapFailure
-    treeCid = ? Cid.init(CIDv1, cidCodec, mhash).mapFailure
+    mhash = ?MultiHash.init(mcodec, hash.toBytes).mapFailure
+    treeCid = ?Cid.init(CIDv1, cidCodec, mhash).mapFailure
   success treeCid
 
-proc toPoseidon2Hash(cid: Cid, mcodec: MultiCodec, cidCodec: MultiCodec): ?!Poseidon2Hash =
+proc toPoseidon2Hash(
+    cid: Cid, mcodec: MultiCodec, cidCodec: MultiCodec
+): ?!Poseidon2Hash =
   if cid.cidver != CIDv1:
     return failure("Unexpected CID version")
 
   if cid.mcodec != cidCodec:
-    return failure("Cid is not of expected codec. Was: " & $cid.mcodec & " but expected: " & $cidCodec)
+    return failure(
+      "Cid is not of expected codec. Was: " & $cid.mcodec & " but expected: " & $cidCodec
+    )
 
   let
-    mhash = ? cid.mhash.mapFailure
+    mhash = ?cid.mhash.mapFailure
     bytes: array[32, byte] = array[32, byte].initCopyFrom(mhash.digestBytes())
-    hash = ? Poseidon2Hash.fromBytes(bytes).toFailure
+    hash = ?Poseidon2Hash.fromBytes(bytes).toFailure
 
   success hash
 
@@ -51,7 +55,7 @@ func toSlotCid*(hash: Poseidon2Hash): ?!Cid =
   toCid(hash, multiCodec("identity"), SlotRootCodec)
 
 func toSlotCids*(slotRoots: openArray[Poseidon2Hash]): ?!seq[Cid] =
-  success slotRoots.mapIt( ? it.toSlotCid )
+  success slotRoots.mapIt(?it.toSlotCid)
 
 func fromSlotCid*(cid: Cid): ?!Poseidon2Hash =
   toPoseidon2Hash(cid, multiCodec("identity"), SlotRootCodec)
@@ -62,27 +66,17 @@ func toVerifyCid*(hash: Poseidon2Hash): ?!Cid =
 func fromVerifyCid*(cid: Cid): ?!Poseidon2Hash =
   toPoseidon2Hash(cid, multiCodec("identity"), SlotProvingRootCodec)
 
-func toEncodableProof*(
-  proof: Poseidon2Proof): ?!CodexProof =
-
-  let
-    encodableProof = CodexProof(
-      mcodec: multiCodec("identity"),
-      index: proof.index,
-      nleaves: proof.nleaves,
-      path: proof.path.mapIt( @( it.toBytes ) ))
+func toEncodableProof*(proof: Poseidon2Proof): ?!CodexProof =
+  let encodableProof = CodexProof(
+    mcodec: multiCodec("identity"),
+    index: proof.index,
+    nleaves: proof.nleaves,
+    path: proof.path.mapIt(@(it.toBytes)),
+  )
 
   success encodableProof
 
-func toVerifiableProof*(
-  proof: CodexProof): ?!Poseidon2Proof =
+func toVerifiableProof*(proof: CodexProof): ?!Poseidon2Proof =
+  let nodes = proof.path.mapIt(?Poseidon2Hash.fromBytes(it.toArray32).toFailure)
 
-  let
-    nodes = proof.path.mapIt(
-      ? Poseidon2Hash.fromBytes(it.toArray32).toFailure
-    )
-
-  Poseidon2Proof.init(
-    index = proof.index,
-    nleaves = proof.nleaves,
-    nodes = nodes)
+  Poseidon2Proof.init(index = proof.index, nleaves = proof.nleaves, nodes = nodes)

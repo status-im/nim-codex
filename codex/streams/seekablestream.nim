@@ -17,9 +17,8 @@ export lpstream, chronos, logutils
 logScope:
   topics = "codex seekablestream"
 
-type
-  SeekableStream* = ref object of LPStream
-    offset*: int
+type SeekableStream* = ref object of LPStream
+  offset*: int
 
 method `size`*(self: SeekableStream): int {.base.} =
   raiseAssert("method unimplemented")

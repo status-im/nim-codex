@@ -9,9 +9,8 @@ import ../utils/asynciter
 type KeyVal*[T] = tuple[key: Key, value: T]
 
 proc toAsyncIter*[T](
-  queryIter: QueryIter[T],
-  finishOnErr: bool = true
-  ): Future[?!AsyncIter[?!QueryResponse[T]]] {.async.} =
+    queryIter: QueryIter[T], finishOnErr: bool = true
+): Future[?!AsyncIter[?!QueryResponse[T]]] {.async.} =
   ## Converts `QueryIter[T]` to `AsyncIter[?!QueryResponse[T]]` and automatically
   ## runs dispose whenever `QueryIter` finishes or whenever an error occurs (only
   ## if the flag finishOnErr is set to true)
@@ -25,7 +24,7 @@ proc toAsyncIter*[T](
 
   var errOccurred = false
 
-  proc genNext: Future[?!QueryResponse[T]] {.async.} =
+  proc genNext(): Future[?!QueryResponse[T]] {.async.} =
     let queryResOrErr = await queryIter.next()
 
     if queryResOrErr.isErr:
@@ -44,8 +43,8 @@ proc toAsyncIter*[T](
   AsyncIter[?!QueryResponse[T]].new(genNext, isFinished).success
 
 proc filterSuccess*[T](
-  iter: AsyncIter[?!QueryResponse[T]]
-  ): Future[AsyncIter[tuple[key: Key, value: T]]] {.async.} =
+    iter: AsyncIter[?!QueryResponse[T]]
+): Future[AsyncIter[tuple[key: Key, value: T]]] {.async.} =
   ## Filters out any items that are not success
 
   proc mapping(resOrErr: ?!QueryResponse[T]): Future[?KeyVal[T]] {.async.} =

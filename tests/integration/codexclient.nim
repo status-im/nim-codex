@@ -24,19 +24,19 @@ const HttpClientTimeoutMs = 60 * 1000
 
 proc new*(_: type CodexClient, baseurl: string): CodexClient =
   CodexClient(
-    http: newHttpClient(timeout=HttpClientTimeoutMs),
+    http: newHttpClient(timeout = HttpClientTimeoutMs),
     baseurl: baseurl,
-    session: HttpSessionRef.new({HttpClientFlag.Http11Pipeline})
+    session: HttpSessionRef.new({HttpClientFlag.Http11Pipeline}),
   )
 
 proc info*(client: CodexClient): ?!JsonNode =
   let url = client.baseurl & "/debug/info"
-  JsonNode.parse( client.http.getContent(url) )
+  JsonNode.parse(client.http.getContent(url))
 
 proc setLogLevel*(client: CodexClient, level: string) =
   let url = client.baseurl & "/debug/chronicles/loglevel?level=" & level
   let headers = newHttpHeaders({"Content-Type": "text/plain"})
-  let response = client.http.request(url, httpMethod=HttpPost, headers=headers)
+  let response = client.http.request(url, httpMethod = HttpPost, headers = headers)
   assert response.status == "200 OK"
 
 proc upload*(client: CodexClient, contents: string): ?!Cid =
@@ -45,10 +45,9 @@ proc upload*(client: CodexClient, contents: string): ?!Cid =
   Cid.init(response.body).mapFailure
 
 proc download*(client: CodexClient, cid: Cid, local = false): ?!string =
-  let
-    response = client.http.get(
-      client.baseurl & "/data/" & $cid &
-      (if local: "" else: "/network/stream"))
+  let response = client.http.get(
+    client.baseurl & "/data/" & $cid & (if local: "" else: "/network/stream")
+  )
 
   if response.status != "200 OK":
     return failure(response.status)
@@ -56,9 +55,7 @@ proc download*(client: CodexClient, cid: Cid, local = false): ?!string =
   success response.body
 
 proc downloadManifestOnly*(client: CodexClient, cid: Cid): ?!string =
-  let
-    response = client.http.get(
-      client.baseurl & "/data/" & $cid & "/network/manifest")
+  let response = client.http.get(client.baseurl & "/data/" & $cid & "/network/manifest")
 
   if response.status != "200 OK":
     return failure(response.status)
@@ -66,9 +63,7 @@ proc downloadManifestOnly*(client: CodexClient, cid: Cid): ?!string =
   success response.body
 
 proc downloadNoStream*(client: CodexClient, cid: Cid): ?!string =
-  let
-    response = client.http.post(
-      client.baseurl & "/data/" & $cid & "/network")
+  let response = client.http.post(client.baseurl & "/data/" & $cid & "/network")
 
   if response.status != "200 OK":
     return failure(response.status)
@@ -76,14 +71,10 @@ proc downloadNoStream*(client: CodexClient, cid: Cid): ?!string =
   success response.body
 
 proc downloadBytes*(
-  client: CodexClient,
-  cid: Cid,
-  local = false): Future[?!seq[byte]] {.async.} =
-
-  let uri = parseUri(
-    client.baseurl & "/data/" & $cid &
-    (if local: "" else: "/network/stream")
-  )
+    client: CodexClient, cid: Cid, local = false
+): Future[?!seq[byte]] {.async.} =
+  let uri =
+    parseUri(client.baseurl & "/data/" & $cid & (if local: "" else: "/network/stream"))
 
   let (status, bytes) = await client.session.fetch(uri)
 
@@ -119,19 +110,19 @@ proc requestStorageRaw*(
     collateral: UInt256,
     expiry: uint = 0,
     nodes: uint = 3,
-    tolerance: uint = 1
+    tolerance: uint = 1,
 ): Response =
-
   ## Call request storage REST endpoint
   ##
   let url = client.baseurl & "/storage/request/" & $cid
-  let json = %*{
+  let json =
+    %*{
       "duration": duration,
       "reward": reward,
       "proofProbability": proofProbability,
       "collateral": collateral,
       "nodes": nodes,
-      "tolerance": tolerance
+      "tolerance": tolerance,
     }
 
   if expiry != 0:
@@ -148,11 +139,13 @@ proc requestStorage*(
     expiry: uint,
     collateral: UInt256,
     nodes: uint = 3,
-    tolerance: uint = 1
+    tolerance: uint = 1,
 ): ?!PurchaseId =
   ## Call request storage REST endpoint
   ##
-  let response = client.requestStorageRaw(cid, duration, reward, proofProbability, collateral, expiry, nodes, tolerance)
+  let response = client.requestStorageRaw(
+    cid, duration, reward, proofProbability, collateral, expiry, nodes, tolerance
+  )
   if response.status != "200 OK":
     doAssert(false, response.body)
   PurchaseId.fromHex(response.body).catch
@@ -179,26 +172,27 @@ proc getSlots*(client: CodexClient): ?!seq[Slot] =
   seq[Slot].fromJson(body)
 
 proc postAvailability*(
-    client: CodexClient,
-    totalSize, duration, minPrice, maxCollateral: UInt256
+    client: CodexClient, totalSize, duration, minPrice, maxCollateral: UInt256
 ): ?!Availability =
   ## Post sales availability endpoint
   ##
   let url = client.baseurl & "/sales/availability"
-  let json = %*{
-    "totalSize": totalSize,
-    "duration": duration,
-    "minPrice": minPrice,
-    "maxCollateral": maxCollateral,
-  }
+  let json =
+    %*{
+      "totalSize": totalSize,
+      "duration": duration,
+      "minPrice": minPrice,
+      "maxCollateral": maxCollateral,
+    }
   let response = client.http.post(url, $json)
-  doAssert response.status == "201 Created", "expected 201 Created, got " & response.status & ", body: " & response.body
+  doAssert response.status == "201 Created",
+    "expected 201 Created, got " & response.status & ", body: " & response.body
   Availability.fromJson(response.body)
 
 proc patchAvailabilityRaw*(
     client: CodexClient,
     availabilityId: AvailabilityId,
-    totalSize, freeSize, duration, minPrice, maxCollateral: ?UInt256 = UInt256.none
+    totalSize, freeSize, duration, minPrice, maxCollateral: ?UInt256 = UInt256.none,
 ): Response =
   ## Updates availability
   ##
@@ -227,9 +221,15 @@ proc patchAvailabilityRaw*(
 proc patchAvailability*(
     client: CodexClient,
     availabilityId: AvailabilityId,
-    totalSize, duration, minPrice, maxCollateral: ?UInt256 = UInt256.none
+    totalSize, duration, minPrice, maxCollateral: ?UInt256 = UInt256.none,
 ): void =
-  let response = client.patchAvailabilityRaw(availabilityId, totalSize=totalSize, duration=duration, minPrice=minPrice, maxCollateral=maxCollateral)
+  let response = client.patchAvailabilityRaw(
+    availabilityId,
+    totalSize = totalSize,
+    duration = duration,
+    minPrice = minPrice,
+    maxCollateral = maxCollateral,
+  )
   doAssert response.status == "200 OK", "expected 200 OK, got " & response.status
 
 proc getAvailabilities*(client: CodexClient): ?!seq[Availability] =
@@ -238,7 +238,9 @@ proc getAvailabilities*(client: CodexClient): ?!seq[Availability] =
   let body = client.http.getContent(url)
   seq[Availability].fromJson(body)
 
-proc getAvailabilityReservations*(client: CodexClient, availabilityId: AvailabilityId): ?!seq[Reservation] =
+proc getAvailabilityReservations*(
+    client: CodexClient, availabilityId: AvailabilityId
+): ?!seq[Reservation] =
   ## Retrieves Availability's Reservations
   let url = client.baseurl & "/sales/availability/" & $availabilityId & "/reservations"
   let body = client.http.getContent(url)
@@ -249,23 +251,29 @@ proc close*(client: CodexClient) =
 
 proc restart*(client: CodexClient) =
   client.http.close()
-  client.http = newHttpClient(timeout=HttpClientTimeoutMs)
+  client.http = newHttpClient(timeout = HttpClientTimeoutMs)
 
 proc purchaseStateIs*(client: CodexClient, id: PurchaseId, state: string): bool =
-  client.getPurchase(id).option.?state == some state
+  client.getPurchase(id).option .? state == some state
 
 proc saleStateIs*(client: CodexClient, id: SlotId, state: string): bool =
-  client.getSalesAgent(id).option.?state == some state
+  client.getSalesAgent(id).option .? state == some state
 
 proc requestId*(client: CodexClient, id: PurchaseId): ?RequestId =
-  return client.getPurchase(id).option.?requestId
+  return client.getPurchase(id).option .? requestId
 
-proc uploadRaw*(client: CodexClient, contents: string, headers = newHttpHeaders()): Response =
-  return client.http.request(client.baseurl & "/data", body = contents, httpMethod=HttpPost, headers = headers)
+proc uploadRaw*(
+    client: CodexClient, contents: string, headers = newHttpHeaders()
+): Response =
+  return client.http.request(
+    client.baseurl & "/data", body = contents, httpMethod = HttpPost, headers = headers
+  )
 
 proc listRaw*(client: CodexClient): Response =
-  return client.http.request(client.baseurl & "/data", httpMethod=HttpGet)
+  return client.http.request(client.baseurl & "/data", httpMethod = HttpGet)
 
 proc downloadRaw*(client: CodexClient, cid: string, local = false): Response =
-  return client.http.request(client.baseurl & "/data/" & cid &
-      (if local: "" else: "/network/stream"), httpMethod=HttpGet)
+  return client.http.request(
+    client.baseurl & "/data/" & cid & (if local: "" else: "/network/stream"),
+    httpMethod = HttpGet,
+  )

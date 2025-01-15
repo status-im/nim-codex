@@ -13,6 +13,7 @@ checksuite "optional casts":
     type
       BaseType = ref object of RootObj
       SubType = ref object of BaseType
+
     let x: BaseType = SubType()
     check x as SubType == SubType(x).some
 
@@ -21,6 +22,7 @@ checksuite "optional casts":
       BaseType = ref object of RootObj
       SubType = ref object of BaseType
       OtherType = ref object of BaseType
+
     let x: BaseType = SubType()
     check x as OtherType == OtherType.none
 

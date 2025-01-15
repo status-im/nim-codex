@@ -10,9 +10,10 @@
 # This module implements serialization and deserialization of Manifest
 
 import pkg/upraises
-import times 
+import times
 
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import std/tables
 import std/sequtils
@@ -33,7 +34,7 @@ proc encode*(manifest: Manifest): ?!seq[byte] =
   ## multicodec container (Dag-pb) for now
   ##
 
-  ? manifest.verify()
+  ?manifest.verify()
   var pbNode = initProtoBuffer()
 
   # NOTE: The `Data` field in the the `dag-pb`
@@ -98,7 +99,7 @@ proc encode*(manifest: Manifest): ?!seq[byte] =
   if manifest.filename.isSome:
     header.write(8, manifest.filename.get())
 
-  if manifest.mimetype.isSome: 
+  if manifest.mimetype.isSome:
     header.write(9, manifest.mimetype.get())
 
   if manifest.uploadedAt.isSome:
@@ -206,15 +207,14 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
       if pbVerificationInfo.getField(4, verifiableStrategy).isErr:
         return failure("Unable to decode `verifiableStrategy` from manifest!")
 
-  let
-    treeCid = ? Cid.init(treeCidBuf).mapFailure
+  let treeCid = ?Cid.init(treeCidBuf).mapFailure
 
   var filenameOption = if filename.len == 0: string.none else: filename.some
   var mimetypeOption = if mimetype.len == 0: string.none else: mimetype.some
   var uploadedAtOption = if uploadedAt == 0: int64.none else: uploadedAt.int64.some
 
-  let
-    self = if protected:
+  let self =
+    if protected:
       Manifest.new(
         treeCid = treeCid,
         datasetSize = datasetSize.NBytes,
@@ -224,37 +224,39 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
         codec = codec.MultiCodec,
         ecK = ecK.int,
         ecM = ecM.int,
-        originalTreeCid = ? Cid.init(originalTreeCid).mapFailure,
+        originalTreeCid = ?Cid.init(originalTreeCid).mapFailure,
         originalDatasetSize = originalDatasetSize.NBytes,
         strategy = StrategyType(protectedStrategy),
         filename = filenameOption,
         mimetype = mimetypeOption,
-        uploadedAt = uploadedAtOption)
-      else:
-        Manifest.new(
-          treeCid = treeCid,
-          datasetSize = datasetSize.NBytes,
-          blockSize = blockSize.NBytes,
-          version = CidVersion(version),
-          hcodec = hcodec.MultiCodec,
-          codec = codec.MultiCodec,
-          filename = filenameOption,
-          mimetype = mimetypeOption,
-          uploadedAt = uploadedAtOption)
+        uploadedAt = uploadedAtOption,
+      )
+    else:
+      Manifest.new(
+        treeCid = treeCid,
+        datasetSize = datasetSize.NBytes,
+        blockSize = blockSize.NBytes,
+        version = CidVersion(version),
+        hcodec = hcodec.MultiCodec,
+        codec = codec.MultiCodec,
+        filename = filenameOption,
+        mimetype = mimetypeOption,
+        uploadedAt = uploadedAtOption,
+      )
 
-  ? self.verify()
+  ?self.verify()
 
   if verifiable:
     let
-      verifyRootCid = ? Cid.init(verifyRoot).mapFailure
-      slotRootCids = slotRoots.mapIt(? Cid.init(it).mapFailure)
+      verifyRootCid = ?Cid.init(verifyRoot).mapFailure
+      slotRootCids = slotRoots.mapIt(?Cid.init(it).mapFailure)
 
     return Manifest.new(
       manifest = self,
       verifyRoot = verifyRootCid,
       slotRoots = slotRootCids,
       cellSize = cellSize.NBytes,
-      strategy = StrategyType(verifiableStrategy)
+      strategy = StrategyType(verifiableStrategy),
     )
 
   self.success
@@ -263,7 +265,7 @@ func decode*(_: type Manifest, blk: Block): ?!Manifest =
   ## Decode a manifest using `decoder`
   ##
 
-  if not ? blk.cid.isManifest:
+  if not ?blk.cid.isManifest:
     return failure "Cid not a manifest codec"
 
   Manifest.decode(blk.data)

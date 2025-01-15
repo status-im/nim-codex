@@ -25,15 +25,14 @@ import ../../logutils
 
 export payments, nitro
 
-type
-  BlockExcPeerCtx* = ref object of RootObj
-    id*: PeerId
-    blocks*: Table[BlockAddress, Presence]  # remote peer have list including price
-    peerWants*: seq[WantListEntry]          # remote peers want lists
-    exchanged*: int                         # times peer has exchanged with us
-    lastExchange*: Moment                   # last time peer has exchanged with us
-    account*: ?Account                      # ethereum account of this peer
-    paymentChannel*: ?ChannelId             # payment channel id
+type BlockExcPeerCtx* = ref object of RootObj
+  id*: PeerId
+  blocks*: Table[BlockAddress, Presence] # remote peer have list including price
+  peerWants*: seq[WantListEntry] # remote peers want lists
+  exchanged*: int # times peer has exchanged with us
+  lastExchange*: Moment # last time peer has exchanged with us
+  account*: ?Account # ethereum account of this peer
+  paymentChannel*: ?ChannelId # payment channel id
 
 proc peerHave*(self: BlockExcPeerCtx): seq[BlockAddress] =
   toSeq(self.blocks.keys)

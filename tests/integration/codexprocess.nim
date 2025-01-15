@@ -18,9 +18,8 @@ export nodeprocess
 logScope:
   topics = "integration testing codex process"
 
-type
-  CodexProcess* = ref object of NodeProcess
-    client: ?CodexClient
+type CodexProcess* = ref object of NodeProcess
+  client: ?CodexClient
 
 method workingDir(node: CodexProcess): string =
   return currentSourcePath() / ".." / ".." / ".."

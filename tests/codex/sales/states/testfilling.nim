@@ -8,7 +8,6 @@ import ../../examples
 import ../../helpers
 
 checksuite "sales state 'filling'":
-
   let request = StorageRequest.example
   let slotIndex = (request.ask.slots div 2).u256
   var state: SaleFilling

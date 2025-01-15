@@ -19,20 +19,35 @@ import ../../errors
 import ../../merkletree
 import ../../utils/json
 
-proc encode*(t: QuotaUsage): seq[byte] = t.toJson().toBytes()
-proc decode*(T: type QuotaUsage, bytes: seq[byte]): ?!T = T.fromJson(bytes)
+proc encode*(t: QuotaUsage): seq[byte] =
+  t.toJson().toBytes()
 
-proc encode*(t: BlockMetadata): seq[byte] = t.toJson().toBytes()
-proc decode*(T: type BlockMetadata, bytes: seq[byte]): ?!T = T.fromJson(bytes)
+proc decode*(T: type QuotaUsage, bytes: seq[byte]): ?!T =
+  T.fromJson(bytes)
 
-proc encode*(t: LeafMetadata): seq[byte] = t.toJson().toBytes()
-proc decode*(T: type LeafMetadata, bytes: seq[byte]): ?!T = T.fromJson(bytes)
+proc encode*(t: BlockMetadata): seq[byte] =
+  t.toJson().toBytes()
 
-proc encode*(t: DeleteResult): seq[byte] = t.toJson().toBytes()
-proc decode*(T: type DeleteResult, bytes: seq[byte]): ?!T = T.fromJson(bytes)
+proc decode*(T: type BlockMetadata, bytes: seq[byte]): ?!T =
+  T.fromJson(bytes)
 
-proc encode*(t: StoreResult): seq[byte] = t.toJson().toBytes()
-proc decode*(T: type StoreResult, bytes: seq[byte]): ?!T = T.fromJson(bytes)
+proc encode*(t: LeafMetadata): seq[byte] =
+  t.toJson().toBytes()
+
+proc decode*(T: type LeafMetadata, bytes: seq[byte]): ?!T =
+  T.fromJson(bytes)
+
+proc encode*(t: DeleteResult): seq[byte] =
+  t.toJson().toBytes()
+
+proc decode*(T: type DeleteResult, bytes: seq[byte]): ?!T =
+  T.fromJson(bytes)
+
+proc encode*(t: StoreResult): seq[byte] =
+  t.toJson().toBytes()
+
+proc decode*(T: type StoreResult, bytes: seq[byte]): ?!T =
+  T.fromJson(bytes)
 
 proc encode*(i: uint64): seq[byte] =
   @(i.toBytesBE)
@@ -43,5 +58,8 @@ proc decode*(T: type uint64, bytes: seq[byte]): ?!T =
   else:
     failure("Not enough bytes to decode `uint64`")
 
-proc encode*(i: Natural | enum): seq[byte] = cast[uint64](i).encode
-proc decode*(T: typedesc[Natural | enum], bytes: seq[byte]): ?!T = uint64.decode(bytes).map((ui: uint64) => cast[T](ui))
+proc encode*(i: Natural | enum): seq[byte] =
+  cast[uint64](i).encode
+
+proc decode*(T: typedesc[Natural | enum], bytes: seq[byte]): ?!T =
+  uint64.decode(bytes).map((ui: uint64) => cast[T](ui))

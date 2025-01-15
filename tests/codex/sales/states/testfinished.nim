@@ -8,7 +8,6 @@ import ../../examples
 import ../../helpers
 
 checksuite "sales state 'finished'":
-
   let request = StorageRequest.example
   var state: SaleFinished
 

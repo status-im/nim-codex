@@ -10,10 +10,10 @@ import ./failed
 logScope:
   topics = "marketplace sales finished"
 
-type
-  SaleFinished* = ref object of ErrorHandlingState
+type SaleFinished* = ref object of ErrorHandlingState
 
-method `$`*(state: SaleFinished): string = "SaleFinished"
+method `$`*(state: SaleFinished): string =
+  "SaleFinished"
 
 method onCancelled*(state: SaleFinished, request: StorageRequest): ?State =
   return some State(SaleCancelled())
@@ -28,7 +28,8 @@ method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
   without request =? data.request:
     raiseAssert "no sale request"
 
-  info "Slot finished and paid out", requestId = data.requestId, slotIndex = data.slotIndex
+  info "Slot finished and paid out",
+    requestId = data.requestId, slotIndex = data.slotIndex
 
   if onCleanUp =? agent.onCleanUp:
     await onCleanUp()

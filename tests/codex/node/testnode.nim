@@ -52,14 +52,12 @@ asyncchecksuite "Test Node - Basic":
     let
       manifest = await storeDataGetManifest(localStore, chunker)
 
-      manifestBlock = bt.Block.new(
-        manifest.encode().tryGet(),
-        codec = ManifestCodec).tryGet()
+      manifestBlock =
+        bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
 
     (await localStore.putBlock(manifestBlock)).tryGet()
 
-    let
-      fetched = (await node.fetchManifest(manifestBlock.cid)).tryGet()
+    let fetched = (await node.fetchManifest(manifestBlock.cid)).tryGet()
 
     check:
       fetched == manifest
@@ -69,8 +67,8 @@ asyncchecksuite "Test Node - Basic":
     let
       cstore = CountingStore.new(engine, localStore)
       node = CodexNodeRef.new(switch, cstore, engine, blockDiscovery)
-      missingCid = Cid.init(
-        "zDvZRwzmCvtiyubW9AecnxgLnXK8GrBvpQJBDzToxmzDN6Nrc2CZ").get()
+      missingCid =
+        Cid.init("zDvZRwzmCvtiyubW9AecnxgLnXK8GrBvpQJBDzToxmzDN6Nrc2CZ").get()
 
     engine.blockFetchTimeout = timer.milliseconds(100)
 
@@ -82,29 +80,30 @@ asyncchecksuite "Test Node - Basic":
   test "Block Batching":
     let manifest = await storeDataGetManifest(localStore, chunker)
 
-    for batchSize in 1..12:
-      (await node.fetchBatched(
-        manifest,
-        batchSize = batchSize,
-        proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, async.} =
-          check blocks.len > 0 and blocks.len <= batchSize
-          return success()
-      )).tryGet()
+    for batchSize in 1 .. 12:
+      (
+        await node.fetchBatched(
+          manifest,
+          batchSize = batchSize,
+          proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, async.} =
+            check blocks.len > 0 and blocks.len <= batchSize
+            return success(),
+        )
+      ).tryGet()
 
   test "Store and retrieve Data Stream":
     let
       stream = BufferStream.new()
       storeFut = node.store(stream)
-      oddChunkSize = math.trunc(DefaultBlockSize.float / 3.14).NBytes  # Let's check that node.store can correctly rechunk these odd chunks
-      oddChunker = FileChunker.new(file = file, chunkSize = oddChunkSize, pad = false)  # TODO: doesn't work with pad=tue
+      oddChunkSize = math.trunc(DefaultBlockSize.float / 3.14).NBytes
+        # Let's check that node.store can correctly rechunk these odd chunks
+      oddChunker = FileChunker.new(file = file, chunkSize = oddChunkSize, pad = false)
+        # TODO: doesn't work with pad=tue
 
-    var
-      original: seq[byte]
+    var original: seq[byte]
 
     try:
-      while (
-        let chunk = await oddChunker.getBytes();
-        chunk.len > 0):
+      while (let chunk = await oddChunker.getBytes(); chunk.len > 0):
         original &= chunk
         await stream.pushData(chunk)
     finally:
@@ -129,7 +128,8 @@ asyncchecksuite "Test Node - Basic":
 
     (await localStore.putBlock(blk)).tryGet()
     let stream = (await node.retrieve(blk.cid)).tryGet()
-    defer: await stream.close()
+    defer:
+      await stream.close()
 
     var data = newSeq[byte](testString.len)
     await stream.readExactly(addr data[0], data.len)
@@ -139,20 +139,18 @@ asyncchecksuite "Test Node - Basic":
     let
       erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
       manifest = await storeDataGetManifest(localStore, chunker)
-      manifestBlock = bt.Block.new(
-        manifest.encode().tryGet(),
-        codec = ManifestCodec).tryGet()
+      manifestBlock =
+        bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
       protected = (await erasure.encode(manifest, 3, 2)).tryGet()
       builder = Poseidon2Builder.new(localStore, protected).tryGet()
       verifiable = (await builder.buildManifest()).tryGet()
-      verifiableBlock = bt.Block.new(
-        verifiable.encode().tryGet(),
-        codec = ManifestCodec).tryGet()
+      verifiableBlock =
+        bt.Block.new(verifiable.encode().tryGet(), codec = ManifestCodec).tryGet()
 
     (await localStore.putBlock(manifestBlock)).tryGet()
 
-    let
-      request = (await node.setupRequest(
+    let request = (
+      await node.setupRequest(
         cid = manifestBlock.cid,
         nodes = 5,
         tolerance = 2,
@@ -160,7 +158,9 @@ asyncchecksuite "Test Node - Basic":
         reward = 2.u256,
         proofProbability = 3.u256,
         expiry = 200.u256,
-        collateral = 200.u256)).tryGet
+        collateral = 200.u256,
+      )
+    ).tryGet
 
     check:
       (await verifiableBlock.cid in localStore) == true

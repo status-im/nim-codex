@@ -40,10 +40,12 @@ checksuite "Peer Context Store Peer Selection":
   setup:
     store = PeerCtxStore.new()
     addresses = collect(newSeq):
-      for i in 0..<10: BlockAddress(leaf: false, cid: Cid.example)
+      for i in 0 ..< 10:
+        BlockAddress(leaf: false, cid: Cid.example)
 
     peerCtxs = collect(newSeq):
-      for i in 0..<10: BlockExcPeerCtx.example
+      for i in 0 ..< 10:
+        BlockExcPeerCtx.example
 
     for p in peerCtxs:
       store.add(p)
@@ -56,34 +58,33 @@ checksuite "Peer Context Store Peer Selection":
   test "Should select peers that have Cid":
     peerCtxs[0].blocks = collect(initTable):
       for i, a in addresses:
-        { a: Presence(address: a, price: i.u256) }
+        {a: Presence(address: a, price: i.u256)}
 
     peerCtxs[5].blocks = collect(initTable):
       for i, a in addresses:
-        { a: Presence(address: a, price: i.u256) }
+        {a: Presence(address: a, price: i.u256)}
 
-    let
-      peers = store.peersHave(addresses[0])
+    let peers = store.peersHave(addresses[0])
 
     check peers.len == 2
     check peerCtxs[0] in peers
     check peerCtxs[5] in peers
 
   test "Should select peers that want Cid":
-    let
-      entries = addresses.mapIt(
-        WantListEntry(
-          address: it,
-          priority: 1,
-          cancel: false,
-          wantType: WantType.WantBlock,
-          sendDontHave: false))
+    let entries = addresses.mapIt(
+      WantListEntry(
+        address: it,
+        priority: 1,
+        cancel: false,
+        wantType: WantType.WantBlock,
+        sendDontHave: false,
+      )
+    )
 
     peerCtxs[0].peerWants = entries
     peerCtxs[5].peerWants = entries
 
-    let
-      peers = store.peersWant(addresses[4])
+    let peers = store.peersWant(addresses[4])
 
     check peers.len == 2
     check peerCtxs[0] in peers

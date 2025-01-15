@@ -17,7 +17,8 @@ type
   SaleUnknownError* = object of CatchableError
   UnexpectedSlotError* = object of SaleUnknownError
 
-method `$`*(state: SaleUnknown): string = "SaleUnknown"
+method `$`*(state: SaleUnknown): string =
+  "SaleUnknown"
 
 method onCancelled*(state: SaleUnknown, request: StorageRequest): ?State =
   return some State(SaleCancelled())
@@ -38,8 +39,8 @@ method run*(state: SaleUnknown, machine: Machine): Future[?State] {.async.} =
 
   case slotState
   of SlotState.Free:
-    let error = newException(UnexpectedSlotError,
-      "Slot state on chain should not be 'free'")
+    let error =
+      newException(UnexpectedSlotError, "Slot state on chain should not be 'free'")
     return some State(SaleErrored(error: error))
   of SlotState.Filled:
     return some State(SaleFilled())
@@ -52,6 +53,7 @@ method run*(state: SaleUnknown, machine: Machine): Future[?State] {.async.} =
   of SlotState.Cancelled:
     return some State(SaleCancelled())
   of SlotState.Repair:
-    let error = newException(SlotFreedError,
-      "Slot was forcible freed and host was removed from its hosting")
+    let error = newException(
+      SlotFreedError, "Slot was forcible freed and host was removed from its hosting"
+    )
     return some State(SaleErrored(error: error))

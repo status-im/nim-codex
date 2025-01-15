@@ -11,7 +11,8 @@
 
 import pkg/upraises
 
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import std/strutils
 import pkg/stew/io2
@@ -28,8 +29,8 @@ proc secureCreatePath*(path: string): IoResult[void] =
   when defined(windows):
     let sres = createFoldersUserOnlySecurityDescriptor()
     if sres.isErr():
-      error "Could not allocate security descriptor", path = path,
-            errorMsg = ioErrorMsg(sres.error), errorCode = $sres.error
+      error "Could not allocate security descriptor",
+        path = path, errorMsg = ioErrorMsg(sres.error), errorCode = $sres.error
       err(sres.error)
     else:
       var sd = sres.get()
@@ -37,13 +38,14 @@ proc secureCreatePath*(path: string): IoResult[void] =
   else:
     createPath(path, 0o700)
 
-proc secureWriteFile*[T: byte|char](path: string,
-                                    data: openArray[T]): IoResult[void] =
+proc secureWriteFile*[T: byte | char](
+    path: string, data: openArray[T]
+): IoResult[void] =
   when defined(windows):
     let sres = createFilesUserOnlySecurityDescriptor()
     if sres.isErr():
-      error "Could not allocate security descriptor", path = path,
-            errorMsg = ioErrorMsg(sres.error), errorCode = $sres.error
+      error "Could not allocate security descriptor",
+        path = path, errorMsg = ioErrorMsg(sres.error), errorCode = $sres.error
       err(sres.error)
     else:
       var sd = sres.get()
@@ -55,7 +57,7 @@ proc checkSecureFile*(path: string): IoResult[bool] =
   when defined(windows):
     checkCurrentUserOnlyACL(path)
   else:
-    ok (? getPermissionsSet(path) == {UserRead, UserWrite})
+    ok (?getPermissionsSet(path) == {UserRead, UserWrite})
 
 proc checkAndCreateDataDir*(dataDir: string): bool =
   when defined(posix):
@@ -64,30 +66,31 @@ proc checkAndCreateDataDir*(dataDir: string): bool =
       let currPermsRes = getPermissions(dataDir)
       if currPermsRes.isErr():
         fatal "Could not check data directory permissions",
-               data_dir = dataDir, errorCode = $currPermsRes.error,
-               errorMsg = ioErrorMsg(currPermsRes.error)
+          data_dir = dataDir,
+          errorCode = $currPermsRes.error,
+          errorMsg = ioErrorMsg(currPermsRes.error)
         return false
       else:
         let currPerms = currPermsRes.get()
         if currPerms != requiredPerms:
           warn "Data directory has insecure permissions. Correcting them.",
-                data_dir = dataDir,
-                current_permissions = currPerms.toOct(4),
-                required_permissions = requiredPerms.toOct(4)
+            data_dir = dataDir,
+            current_permissions = currPerms.toOct(4),
+            required_permissions = requiredPerms.toOct(4)
           let newPermsRes = setPermissions(dataDir, requiredPerms)
           if newPermsRes.isErr():
             fatal "Could not set data directory permissions",
-                   data_dir = dataDir,
-                   errorCode = $newPermsRes.error,
-                   errorMsg = ioErrorMsg(newPermsRes.error),
-                   old_permissions = currPerms.toOct(4),
-                   new_permissions = requiredPerms.toOct(4)
+              data_dir = dataDir,
+              errorCode = $newPermsRes.error,
+              errorMsg = ioErrorMsg(newPermsRes.error),
+              old_permissions = currPerms.toOct(4),
+              new_permissions = requiredPerms.toOct(4)
             return false
     else:
       let res = secureCreatePath(dataDir)
       if res.isErr():
-        fatal "Could not create data directory", data_dir = dataDir,
-              errorMsg = ioErrorMsg(res.error), errorCode = $res.error
+        fatal "Could not create data directory",
+          data_dir = dataDir, errorMsg = ioErrorMsg(res.error), errorCode = $res.error
         return false
   elif defined(windows):
     let amask = {AccessFlags.Read, AccessFlags.Write, AccessFlags.Execute}
@@ -95,8 +98,7 @@ proc checkAndCreateDataDir*(dataDir: string): bool =
       let cres = checkCurrentUserOnlyACL(dataDir)
       if cres.isErr():
         fatal "Could not check data folder's ACL",
-               data_dir = dataDir, errorCode = $cres.error,
-               errorMsg = ioErrorMsg(cres.error)
+          data_dir = dataDir, errorCode = $cres.error, errorMsg = ioErrorMsg(cres.error)
         return false
       else:
         if cres.get() == false:
@@ -105,8 +107,8 @@ proc checkAndCreateDataDir*(dataDir: string): bool =
     else:
       let res = secureCreatePath(dataDir)
       if res.isErr():
-        fatal "Could not create data folder", data_dir = dataDir,
-                errorMsg = ioErrorMsg(res.error), errorCode = $res.error
+        fatal "Could not create data folder",
+          data_dir = dataDir, errorMsg = ioErrorMsg(res.error), errorCode = $res.error
         return false
   else:
     fatal "Unsupported operation system"

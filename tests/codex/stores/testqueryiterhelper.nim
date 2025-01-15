@@ -18,8 +18,7 @@ proc decode(T: type string, bytes: seq[byte]): ?!T =
   success(string.fromBytes(bytes))
 
 asyncchecksuite "Test QueryIter helper":
-  var
-    tds: TypedDatastore
+  var tds: TypedDatastore
 
   setupAll:
     tds = TypedDatastore.init(SQLiteDatastore.new(Memory).tryGet())
@@ -29,10 +28,7 @@ asyncchecksuite "Test QueryIter helper":
 
   test "Should auto-dispose when QueryIter finishes":
     let
-      source = {
-        "a": "11",
-        "b": "22"
-      }.toTable
+      source = {"a": "11", "b": "22"}.toTable
       Root = Key.init("/queryitertest").tryGet()
 
     for k, v in source:

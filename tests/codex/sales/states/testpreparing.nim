@@ -38,7 +38,7 @@ asyncchecksuite "sales state 'preparing'":
       freeSize: request.ask.slotSize + 100.u256,
       duration: request.ask.duration + 60.u256,
       minPrice: request.ask.pricePerSlot - 10.u256,
-      maxCollateral: request.ask.collateral + 400.u256
+      maxCollateral: request.ask.collateral + 400.u256,
     )
     let repoDs = SQLiteDatastore.new(Memory).tryGet()
     let metaDs = SQLiteDatastore.new(Memory).tryGet()
@@ -46,17 +46,11 @@ asyncchecksuite "sales state 'preparing'":
     await repo.start()
 
     state = SalePreparing.new()
-    context = SalesContext(
-      market: market,
-      clock: clock
-    )
+    context = SalesContext(market: market, clock: clock)
 
     reservations = MockReservations.new(repo)
     context.reservations = reservations
-    agent = newSalesAgent(context,
-                          request.id,
-                          slotIndex,
-                          request.some)
+    agent = newSalesAgent(context, request.id, slotIndex, request.some)
 
   teardown:
     await repo.stop()
@@ -75,10 +69,8 @@ asyncchecksuite "sales state 'preparing'":
 
   proc createAvailability() {.async.} =
     let a = await reservations.createAvailability(
-      availability.totalSize,
-      availability.duration,
-      availability.minPrice,
-      availability.maxCollateral
+      availability.totalSize, availability.duration, availability.minPrice,
+      availability.maxCollateral,
     )
     availability = a.get
 

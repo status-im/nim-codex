@@ -10,8 +10,7 @@ import ../../asynctest
 import ../examples
 import ../merkletree/helpers
 
-let
-  hash: Poseidon2Hash = toF(12345)
+let hash: Poseidon2Hash = toF(12345)
 
 suite "Converters":
   test "CellBlock cid":
@@ -44,4 +43,4 @@ suite "Converters":
       poseidonProof = toVerifiableProof(codexProof).tryGet()
 
     check:
-        Poseidon2Proof.example == poseidonProof
+      Poseidon2Proof.example == poseidonProof

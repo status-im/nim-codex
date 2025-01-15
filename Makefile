@@ -17,6 +17,7 @@
 # version pinned by nimbus-build-system.
 #PINNED_NIM_VERSION := 38640664088251bbc88917b4bacfd86ec53014b8 # 1.6.21
 PINNED_NIM_VERSION := v2.0.14
+
 ifeq ($(NIM_COMMIT),)
 NIM_COMMIT := $(PINNED_NIM_VERSION)
 else ifeq ($(NIM_COMMIT),pinned)
@@ -198,5 +199,43 @@ clean: | clean-common
 ifneq ($(USE_LIBBACKTRACE), 0)
 	+ $(MAKE) -C vendor/nim-libbacktrace clean $(HANDLE_OUTPUT)
 endif
+
+############
+## Format ##
+############
+.PHONY: build-nph install-nph-hook clean-nph print-nph-path
+
+# Default location for nph binary shall be next to nim binary to make it available on the path.
+NPH:=$(shell dirname $(NIM_BINARY))/nph
+
+build-nph:
+ifeq ("$(wildcard $(NPH))","")
+		$(ENV_SCRIPT) nim c vendor/nph/src/nph.nim && \
+		mv vendor/nph/src/nph $(shell dirname $(NPH))
+		echo "nph utility is available at " $(NPH)
+endif
+
+GIT_PRE_COMMIT_HOOK := .git/hooks/pre-commit
+
+install-nph-hook: build-nph
+ifeq ("$(wildcard $(GIT_PRE_COMMIT_HOOK))","")
+	cp ./tools/scripts/git_pre_commit_format.sh $(GIT_PRE_COMMIT_HOOK)
+else
+	echo "$(GIT_PRE_COMMIT_HOOK) already present, will NOT override"
+	exit 1
+endif
+
+nph/%: build-nph
+	echo -e $(FORMAT_MSG) "nph/$*" && \
+		$(NPH) $*
+
+clean-nph:
+	rm -f $(NPH)
+
+# To avoid hardcoding nph binary location in several places
+print-nph-path:
+	echo "$(NPH)"
+
+clean: | clean-nph
 
 endif # "variables.mk" was not included

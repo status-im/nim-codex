@@ -9,7 +9,8 @@
 
 import pkg/upraises
 
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import pkg/libp2p
 import pkg/questionable
@@ -42,8 +43,8 @@ proc decode*(_: type CodexTree, data: seq[byte]): ?!CodexTree =
   var pb = initProtoBuffer(data, maxSize = MaxMerkleTreeSize)
   var mcodecCode: uint64
   var leavesCount: uint64
-  discard ? pb.getField(1, mcodecCode).mapFailure
-  discard ? pb.getField(2, leavesCount).mapFailure
+  discard ?pb.getField(1, mcodecCode).mapFailure
+  discard ?pb.getField(2, leavesCount).mapFailure
 
   let mcodec = MultiCodec.codec(mcodecCode.int)
   if mcodec == InvalidMultiCodec:
@@ -53,10 +54,10 @@ proc decode*(_: type CodexTree, data: seq[byte]): ?!CodexTree =
     nodesBuff: seq[seq[byte]]
     nodes: seq[ByteHash]
 
-  if ? pb.getRepeatedField(3, nodesBuff).mapFailure:
+  if ?pb.getRepeatedField(3, nodesBuff).mapFailure:
     for nodeBuff in nodesBuff:
       var node: ByteHash
-      discard ? initProtoBuffer(nodeBuff).getField(1, node).mapFailure
+      discard ?initProtoBuffer(nodeBuff).getField(1, node).mapFailure
       nodes.add node
 
   CodexTree.fromNodes(mcodec, nodes, leavesCount.int)
@@ -81,32 +82,29 @@ proc decode*(_: type CodexProof, data: seq[byte]): ?!CodexProof =
   var mcodecCode: uint64
   var index: uint64
   var nleaves: uint64
-  discard ? pb.getField(1, mcodecCode).mapFailure
+  discard ?pb.getField(1, mcodecCode).mapFailure
 
   let mcodec = MultiCodec.codec(mcodecCode.int)
   if mcodec == InvalidMultiCodec:
     return failure("Invalid MultiCodec code " & $mcodecCode)
 
-  discard ? pb.getField(2, index).mapFailure
-  discard ? pb.getField(3, nleaves).mapFailure
+  discard ?pb.getField(2, index).mapFailure
+  discard ?pb.getField(3, nleaves).mapFailure
 
   var
     nodesBuff: seq[seq[byte]]
     nodes: seq[ByteHash]
 
-  if ? pb.getRepeatedField(4, nodesBuff).mapFailure:
+  if ?pb.getRepeatedField(4, nodesBuff).mapFailure:
     for nodeBuff in nodesBuff:
       var node: ByteHash
       let nodePb = initProtoBuffer(nodeBuff)
-      discard ? nodePb.getField(1, node).mapFailure
+      discard ?nodePb.getField(1, node).mapFailure
       nodes.add node
 
   CodexProof.init(mcodec, index.int, nleaves.int, nodes)
 
-proc fromJson*(
-  _: type CodexProof,
-  json: JsonNode
-): ?!CodexProof =
+proc fromJson*(_: type CodexProof, json: JsonNode): ?!CodexProof =
   expectJsonKind(Cid, JString, json)
   var bytes: seq[byte]
   try:
@@ -116,4 +114,5 @@ proc fromJson*(
 
   CodexProof.decode(bytes)
 
-func `%`*(proof: CodexProof): JsonNode = % byteutils.toHex(proof.encode())
+func `%`*(proof: CodexProof): JsonNode =
+  %byteutils.toHex(proof.encode())

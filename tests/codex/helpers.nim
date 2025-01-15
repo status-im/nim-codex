@@ -41,25 +41,25 @@ proc lenPrefix*(msg: openArray[byte]): seq[byte] =
 
   let vbytes = PB.toBytes(msg.len().uint64)
   var buf = newSeqUninitialized[byte](msg.len() + vbytes.len)
-  buf[0..<vbytes.len] = vbytes.toOpenArray()
-  buf[vbytes.len..<buf.len] = msg
+  buf[0 ..< vbytes.len] = vbytes.toOpenArray()
+  buf[vbytes.len ..< buf.len] = msg
 
   return buf
 
 proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, CodexTree) =
-
   if blocks.len == 0:
     return failure("Blocks list was empty")
 
   let
     datasetSize = blocks.mapIt(it.data.len).foldl(a + b)
     blockSize = blocks.mapIt(it.data.len).foldl(max(a, b))
-    tree = ? CodexTree.init(blocks.mapIt(it.cid))
-    treeCid = ? tree.rootCid
+    tree = ?CodexTree.init(blocks.mapIt(it.cid))
+    treeCid = ?tree.rootCid
     manifest = Manifest.new(
       treeCid = treeCid,
       blockSize = NBytes(blockSize),
-      datasetSize = NBytes(datasetSize))
+      datasetSize = NBytes(datasetSize),
+    )
 
   return success((manifest, tree))
 
@@ -69,25 +69,27 @@ proc makeWantList*(
     cancel: bool = false,
     wantType: WantType = WantType.WantHave,
     full: bool = false,
-    sendDontHave: bool = false
-  ): WantList =
-    WantList(
-      entries: cids.mapIt(
-        WantListEntry(
-          address: BlockAddress(leaf: false, cid: it),
-          priority: priority.int32,
-          cancel: cancel,
-          wantType: wantType,
-          sendDontHave: sendDontHave) ),
-      full: full)
+    sendDontHave: bool = false,
+): WantList =
+  WantList(
+    entries: cids.mapIt(
+      WantListEntry(
+        address: BlockAddress(leaf: false, cid: it),
+        priority: priority.int32,
+        cancel: cancel,
+        wantType: wantType,
+        sendDontHave: sendDontHave,
+      )
+    ),
+    full: full,
+  )
 
-proc storeDataGetManifest*(store: BlockStore, chunker: Chunker): Future[Manifest] {.async.} =
+proc storeDataGetManifest*(
+    store: BlockStore, chunker: Chunker
+): Future[Manifest] {.async.} =
   var cids = newSeq[Cid]()
 
-  while (
-    let chunk = await chunker.getBytes();
-    chunk.len > 0):
-
+  while (let chunk = await chunker.getBytes(); chunk.len > 0):
     let blk = Block.new(chunk).tryGet()
     cids.add(blk.cid)
     (await store.putBlock(blk)).tryGet()
@@ -98,19 +100,20 @@ proc storeDataGetManifest*(store: BlockStore, chunker: Chunker): Future[Manifest
     manifest = Manifest.new(
       treeCid = treeCid,
       blockSize = NBytes(chunker.chunkSize),
-      datasetSize = NBytes(chunker.offset))
+      datasetSize = NBytes(chunker.offset),
+    )
 
-  for i in 0..<tree.leavesCount:
+  for i in 0 ..< tree.leavesCount:
     let proof = tree.getProof(i).tryGet()
     (await store.putCidAndProof(treeCid, i, cids[i], proof)).tryGet()
 
   return manifest
 
 proc makeRandomBlocks*(
-  datasetSize: int, blockSize: NBytes): Future[seq[Block]] {.async.} =
-
-  var chunker = RandomChunker.new(Rng.instance(), size = datasetSize,
-    chunkSize = blockSize)
+    datasetSize: int, blockSize: NBytes
+): Future[seq[Block]] {.async.} =
+  var chunker =
+    RandomChunker.new(Rng.instance(), size = datasetSize, chunkSize = blockSize)
 
   while true:
     let chunk = await chunker.getBytes()
@@ -120,9 +123,8 @@ proc makeRandomBlocks*(
     result.add(Block.new(chunk).tryGet())
 
 proc corruptBlocks*(
-  store: BlockStore,
-  manifest: Manifest,
-  blks, bytes: int): Future[seq[int]] {.async.} =
+    store: BlockStore, manifest: Manifest, blks, bytes: int
+): Future[seq[int]] {.async.} =
   var pos: seq[int]
 
   doAssert blks < manifest.blocksCount

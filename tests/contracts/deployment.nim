@@ -16,7 +16,4 @@ proc address*(_: type Marketplace, dummyVerifier = false): Address =
 
     return address
 
-  if dummyVerifier:
-    hardhatMarketWithDummyVerifier
-  else:
-    hardhatMarketAddress
+  if dummyVerifier: hardhatMarketWithDummyVerifier else: hardhatMarketAddress

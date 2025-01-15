@@ -23,7 +23,6 @@ import ../examples
 import ./commonstoretests
 
 checksuite "Test RepoStore start/stop":
-
   var
     repoDs: Datastore
     metaDs: Datastore
@@ -63,8 +62,7 @@ asyncchecksuite "RepoStore":
 
     repo: RepoStore
 
-  let
-    now: SecondsSince1970 = 123
+  let now: SecondsSince1970 = 123
 
   setup:
     repoDs = SQLiteDatastore.new(Memory).tryGet()
@@ -191,8 +189,7 @@ asyncchecksuite "RepoStore":
       duration = 10.seconds
       blk = createTestBlock(100)
 
-    let
-      expectedExpiration = BlockExpiration(cid: blk.cid, expiry: now + 10)
+    let expectedExpiration = BlockExpiration(cid: blk.cid, expiry: now + 10)
 
     (await repo.putBlock(blk, duration.some)).tryGet
 
@@ -202,11 +199,10 @@ asyncchecksuite "RepoStore":
       expectedExpiration in expirations
 
   test "Should store block with default expiration timestamp when not provided":
-    let
-      blk = createTestBlock(100)
+    let blk = createTestBlock(100)
 
-    let
-      expectedExpiration = BlockExpiration(cid: blk.cid, expiry: now + DefaultBlockTtl.seconds)
+    let expectedExpiration =
+      BlockExpiration(cid: blk.cid, expiry: now + DefaultBlockTtl.seconds)
 
     (await repo.putBlock(blk)).tryGet
 
@@ -234,8 +230,7 @@ asyncchecksuite "RepoStore":
       (await repo.ensureExpiry(blk.cid, 0)).tryGet
 
   test "Should fail when updating expiry of non-existing block":
-    let
-      blk = createTestBlock(100)
+    let blk = createTestBlock(100)
 
     expect BlockNotFoundError:
       (await repo.ensureExpiry(blk.cid, 10)).tryGet
@@ -296,7 +291,9 @@ asyncchecksuite "RepoStore":
       expirations.len == 0
 
   test "Should retrieve block expiration information":
-    proc unpack(beIter: Future[?!AsyncIter[BlockExpiration]]): Future[seq[BlockExpiration]] {.async.} =
+    proc unpack(
+        beIter: Future[?!AsyncIter[BlockExpiration]]
+    ): Future[seq[BlockExpiration]] {.async.} =
       var expirations = newSeq[BlockExpiration](0)
       without iter =? (await beIter), err:
         return expirations
@@ -311,22 +308,22 @@ asyncchecksuite "RepoStore":
       blk2 = createTestBlock(11)
       blk3 = createTestBlock(12)
 
-    let
-      expectedExpiration: SecondsSince1970 = now + 10
+    let expectedExpiration: SecondsSince1970 = now + 10
 
     proc assertExpiration(be: BlockExpiration, expectedBlock: bt.Block) =
       check:
         be.cid == expectedBlock.cid
         be.expiry == expectedExpiration
 
-
     (await repo.putBlock(blk1, duration.some)).tryGet
     (await repo.putBlock(blk2, duration.some)).tryGet
     (await repo.putBlock(blk3, duration.some)).tryGet
 
     let
-      blockExpirations1 = await unpack(repo.getBlockExpirations(maxNumber=2, offset=0))
-      blockExpirations2 = await unpack(repo.getBlockExpirations(maxNumber=2, offset=2))
+      blockExpirations1 =
+        await unpack(repo.getBlockExpirations(maxNumber = 2, offset = 0))
+      blockExpirations2 =
+        await unpack(repo.getBlockExpirations(maxNumber = 2, offset = 2))
 
     check blockExpirations1.len == 2
     assertExpiration(blockExpirations1[0], blk2)
@@ -358,15 +355,18 @@ asyncchecksuite "RepoStore":
     check has.get
 
 commonBlockStoreTests(
-  "RepoStore Sql backend", proc: BlockStore =
+  "RepoStore Sql backend",
+  proc(): BlockStore =
     BlockStore(
       RepoStore.new(
         SQLiteDatastore.new(Memory).tryGet(),
         SQLiteDatastore.new(Memory).tryGet(),
-        clock = MockClock.new())))
+        clock = MockClock.new(),
+      )
+    ),
+)
 
-const
-  path = currentSourcePath().parentDir / "test"
+const path = currentSourcePath().parentDir / "test"
 
 proc before() {.async.} =
   createDir(path)
@@ -374,15 +374,18 @@ proc before() {.async.} =
 proc after() {.async.} =
   removeDir(path)
 
-let
-  depth = path.split(DirSep).len
+let depth = path.split(DirSep).len
 
 commonBlockStoreTests(
-  "RepoStore FS backend", proc: BlockStore =
+  "RepoStore FS backend",
+  proc(): BlockStore =
     BlockStore(
       RepoStore.new(
         FSDatastore.new(path, depth).tryGet(),
         SQLiteDatastore.new(Memory).tryGet(),
-        clock = MockClock.new())),
+        clock = MockClock.new(),
+      )
+    ),
   before = before,
-  after = after)
+  after = after,
+)

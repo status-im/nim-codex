@@ -18,7 +18,7 @@ method run*(state: PurchaseCancelled, machine: Machine): Future[?State] {.async.
   codex_purchases_cancelled.inc()
   let purchase = Purchase(machine)
 
-  warn "Request cancelled, withdrawing remaining funds",  requestId = purchase.requestId
+  warn "Request cancelled, withdrawing remaining funds", requestId = purchase.requestId
   await purchase.market.withdrawFunds(purchase.requestId)
 
   let error = newException(Timeout, "Purchase cancelled due to timeout")

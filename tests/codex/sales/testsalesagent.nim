@@ -21,8 +21,11 @@ type
   MockState = ref object of SaleState
   MockErrorState = ref object of ErrorHandlingState
 
-method `$`*(state: MockState): string = "MockState"
-method `$`*(state: MockErrorState): string = "MockErrorState"
+method `$`*(state: MockState): string =
+  "MockState"
+
+method `$`*(state: MockErrorState): string =
+  "MockErrorState"
 
 method onCancelled*(state: MockState, request: StorageRequest): ?State =
   onCancelCalled = true
@@ -30,8 +33,9 @@ method onCancelled*(state: MockState, request: StorageRequest): ?State =
 method onFailed*(state: MockState, request: StorageRequest): ?State =
   onFailedCalled = true
 
-method onSlotFilled*(state: MockState, requestId: RequestId,
-                    slotIndex: UInt256): ?State =
+method onSlotFilled*(
+    state: MockState, requestId: RequestId, slotIndex: UInt256
+): ?State =
   onSlotFilledCalled = true
 
 method onError*(state: MockErrorState, err: ref CatchableError): ?State =
@@ -50,26 +54,21 @@ asyncchecksuite "Sales agent":
 
   setup:
     market = MockMarket.new()
-    market.requestExpiry[request.id] = getTime().toUnix() + request.expiry.truncate(int64)
+    market.requestExpiry[request.id] =
+      getTime().toUnix() + request.expiry.truncate(int64)
     clock = MockClock.new()
     context = SalesContext(market: market, clock: clock)
     slotIndex = 0.u256
     onCancelCalled = false
     onFailedCalled = false
     onSlotFilledCalled = false
-    agent = newSalesAgent(context,
-                          request.id,
-                          slotIndex,
-                          some request)
+    agent = newSalesAgent(context, request.id, slotIndex, some request)
 
   teardown:
     await agent.stop()
 
   test "can retrieve request":
-    agent = newSalesAgent(context,
-                          request.id,
-                          slotIndex,
-                          none StorageRequest)
+    agent = newSalesAgent(context, request.id, slotIndex, none StorageRequest)
     market.requested = @[request]
     await agent.retrieveRequest()
     check agent.data.request == some request
@@ -101,7 +100,9 @@ asyncchecksuite "Sales agent":
     clock.set(market.requestExpiry[request.id] + 1)
     check eventually onCancelCalled
 
-  for requestState in {RequestState.New, RequestState.Started, RequestState.Finished, RequestState.Failed}:
+  for requestState in {
+    RequestState.New, RequestState.Started, RequestState.Finished, RequestState.Failed
+  }:
     test "onCancelled is not called when request state is " & $requestState:
       agent.start(MockState.new())
       await agent.subscribe()

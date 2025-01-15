@@ -12,7 +12,8 @@ import std/monotimes
 
 import pkg/upraises
 
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import pkg/chronos
 import pkg/libp2p
@@ -25,11 +26,15 @@ import ../../logutils
 logScope:
   topics = "codex pendingblocks"
 
-declareGauge(codex_block_exchange_pending_block_requests, "codex blockexchange pending block requests")
-declareGauge(codex_block_exchange_retrieval_time_us, "codex blockexchange block retrieval time us")
+declareGauge(
+  codex_block_exchange_pending_block_requests,
+  "codex blockexchange pending block requests",
+)
+declareGauge(
+  codex_block_exchange_retrieval_time_us, "codex blockexchange block retrieval time us"
+)
 
-const
-  DefaultBlockTimeout* = 10.minutes
+const DefaultBlockTimeout* = 10.minutes
 
 type
   BlockReq* = object
@@ -44,10 +49,11 @@ proc updatePendingBlockGauge(p: PendingBlocksManager) =
   codex_block_exchange_pending_block_requests.set(p.blocks.len.int64)
 
 proc getWantHandle*(
-  p: PendingBlocksManager,
-  address: BlockAddress,
-  timeout = DefaultBlockTimeout,
-  inFlight = false): Future[Block] {.async.} =
+    p: PendingBlocksManager,
+    address: BlockAddress,
+    timeout = DefaultBlockTimeout,
+    inFlight = false,
+): Future[Block] {.async.} =
   ## Add an event for a block
   ##
 
@@ -56,7 +62,8 @@ proc getWantHandle*(
       p.blocks[address] = BlockReq(
         handle: newFuture[Block]("pendingBlocks.getWantHandle"),
         inFlight: inFlight,
-        startTime: getMonoTime().ticks)
+        startTime: getMonoTime().ticks,
+      )
 
     p.updatePendingBlockGauge()
     return await p.blocks[address].handle.wait(timeout)
@@ -72,15 +79,13 @@ proc getWantHandle*(
     p.updatePendingBlockGauge()
 
 proc getWantHandle*(
-  p: PendingBlocksManager,
-  cid: Cid,
-  timeout = DefaultBlockTimeout,
-  inFlight = false): Future[Block] =
+    p: PendingBlocksManager, cid: Cid, timeout = DefaultBlockTimeout, inFlight = false
+): Future[Block] =
   p.getWantHandle(BlockAddress.init(cid), timeout, inFlight)
 
 proc resolve*(
-  p: PendingBlocksManager,
-  blocksDelivery: seq[BlockDelivery]) {.gcsafe, raises: [].} =
+    p: PendingBlocksManager, blocksDelivery: seq[BlockDelivery]
+) {.gcsafe, raises: [].} =
   ## Resolve pending blocks
   ##
 
@@ -101,19 +106,14 @@ proc resolve*(
       else:
         trace "Block handle already finished", address = bd.address
 
-proc setInFlight*(
-  p: PendingBlocksManager,
-  address: BlockAddress,
-  inFlight = true) =
+proc setInFlight*(p: PendingBlocksManager, address: BlockAddress, inFlight = true) =
   ## Set inflight status for a block
   ##
 
   p.blocks.withValue(address, pending):
     pending[].inFlight = inFlight
 
-proc isInFlight*(
-  p: PendingBlocksManager,
-  address: BlockAddress): bool =
+proc isInFlight*(p: PendingBlocksManager, address: BlockAddress): bool =
   ## Check if a block is in flight
   ##
 

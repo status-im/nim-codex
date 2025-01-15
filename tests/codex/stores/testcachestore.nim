@@ -37,16 +37,13 @@ checksuite "Cache Store":
     # initial cache blocks total more than cache size, currentSize should
     # never exceed max cache size
     store = CacheStore.new(
-              blocks = @[newBlock1, newBlock2, newBlock3],
-              cacheSize = 200,
-              chunkSize = 1)
+      blocks = @[newBlock1, newBlock2, newBlock3], cacheSize = 200, chunkSize = 1
+    )
     check store.currentSize == 200'nb
 
     # cache size cannot be less than chunks size
     expect ValueError:
-      discard CacheStore.new(
-                cacheSize = 99,
-                chunkSize = 100)
+      discard CacheStore.new(cacheSize = 99, chunkSize = 100)
 
   test "putBlock":
     (await store.putBlock(newBlock1)).tryGet()
@@ -58,10 +55,8 @@ checksuite "Cache Store":
     check not (await store.hasBlock(newBlock1.cid)).tryGet()
 
     # block being added causes removal of LRU block
-    store = CacheStore.new(
-              @[newBlock1, newBlock2, newBlock3],
-              cacheSize = 200,
-              chunkSize = 1)
+    store =
+      CacheStore.new(@[newBlock1, newBlock2, newBlock3], cacheSize = 200, chunkSize = 1)
     check:
       not (await store.hasBlock(newBlock1.cid)).tryGet()
       (await store.hasBlock(newBlock2.cid)).tryGet()
@@ -69,5 +64,7 @@ checksuite "Cache Store":
       store.currentSize.int == newBlock2.data.len + newBlock3.data.len # 200
 
 commonBlockStoreTests(
-  "Cache", proc: BlockStore =
-    BlockStore(CacheStore.new(cacheSize = 1000, chunkSize = 1)))
+  "Cache",
+  proc(): BlockStore =
+    BlockStore(CacheStore.new(cacheSize = 1000, chunkSize = 1)),
+)

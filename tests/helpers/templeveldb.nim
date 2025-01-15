@@ -4,10 +4,9 @@ import pkg/datastore
 import pkg/chronos
 import pkg/questionable/results
 
-type
-  TempLevelDb* = ref object
-    currentPath: string
-    ds: LevelDbDatastore
+type TempLevelDb* = ref object
+  currentPath: string
+  ds: LevelDbDatastore
 
 var number = 0
 

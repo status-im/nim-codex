@@ -15,27 +15,24 @@ import pkg/stew/byteutils
 import ../merkletree
 
 func spongeDigest*(
-  _: type Poseidon2Hash,
-  bytes: openArray[byte],
-  rate: static int = 2): ?!Poseidon2Hash =
+    _: type Poseidon2Hash, bytes: openArray[byte], rate: static int = 2
+): ?!Poseidon2Hash =
   ## Hashes chunks of data with a sponge of rate 1 or 2.
   ##
 
   success Sponge.digest(bytes, rate)
 
 func spongeDigest*(
-  _: type Poseidon2Hash,
-  bytes: openArray[Bn254Fr],
-  rate: static int = 2): ?!Poseidon2Hash =
+    _: type Poseidon2Hash, bytes: openArray[Bn254Fr], rate: static int = 2
+): ?!Poseidon2Hash =
   ## Hashes chunks of elements with a sponge of rate 1 or 2.
   ##
 
   success Sponge.digest(bytes, rate)
 
 func digestTree*(
-  _: type Poseidon2Tree,
-  bytes: openArray[byte],
-  chunkSize: int): ?!Poseidon2Tree =
+    _: type Poseidon2Tree, bytes: openArray[byte], chunkSize: int
+): ?!Poseidon2Tree =
   ## Hashes chunks of data with a sponge of rate 2, and combines the
   ## resulting chunk hashes in a merkle root.
   ##
@@ -50,30 +47,27 @@ func digestTree*(
   while index < bytes.len:
     let start = index
     let finish = min(index + chunkSize, bytes.len)
-    let digest = ? Poseidon2Hash.spongeDigest(bytes.toOpenArray(start, finish - 1), 2)
+    let digest = ?Poseidon2Hash.spongeDigest(bytes.toOpenArray(start, finish - 1), 2)
     leaves.add(digest)
     index += chunkSize
   return Poseidon2Tree.init(leaves)
 
 func digest*(
-  _: type Poseidon2Tree,
-  bytes: openArray[byte],
-  chunkSize: int): ?!Poseidon2Hash =
+    _: type Poseidon2Tree, bytes: openArray[byte], chunkSize: int
+): ?!Poseidon2Hash =
   ## Hashes chunks of data with a sponge of rate 2, and combines the
   ## resulting chunk hashes in a merkle root.
   ##
 
-  (? Poseidon2Tree.digestTree(bytes, chunkSize)).root
+  (?Poseidon2Tree.digestTree(bytes, chunkSize)).root
 
 func digestMhash*(
-  _: type Poseidon2Tree,
-  bytes: openArray[byte],
-  chunkSize: int): ?!MultiHash =
+    _: type Poseidon2Tree, bytes: openArray[byte], chunkSize: int
+): ?!MultiHash =
   ## Hashes chunks of data with a sponge of rate 2 and
   ## returns the multihash of the root
   ##
 
-  let
-    hash = ? Poseidon2Tree.digest(bytes, chunkSize)
+  let hash = ?Poseidon2Tree.digest(bytes, chunkSize)
 
-  ? MultiHash.init(Pos2Bn128MrklCodec, hash).mapFailure
+  ?MultiHash.init(Pos2Bn128MrklCodec, hash).mapFailure

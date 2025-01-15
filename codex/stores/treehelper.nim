@@ -9,7 +9,8 @@
 
 import pkg/upraises
 
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import std/sugar
 import pkg/chronos
@@ -22,13 +23,18 @@ import ./blockstore
 import ../utils/asynciter
 import ../merkletree
 
-proc putSomeProofs*(store: BlockStore, tree: CodexTree, iter: Iter[int]): Future[?!void] {.async.} =
+proc putSomeProofs*(
+    store: BlockStore, tree: CodexTree, iter: Iter[int]
+): Future[?!void] {.async.} =
   without treeCid =? tree.rootCid, err:
     return failure(err)
 
   for i in iter:
-    if i notin 0..<tree.leavesCount:
-      return failure("Invalid leaf index " & $i & ", tree with cid " & $treeCid & " has " & $tree.leavesCount & " leaves")
+    if i notin 0 ..< tree.leavesCount:
+      return failure(
+        "Invalid leaf index " & $i & ", tree with cid " & $treeCid & " has " &
+          $tree.leavesCount & " leaves"
+      )
 
     without blkCid =? tree.getLeafCid(i), err:
       return failure(err)
@@ -43,8 +49,10 @@ proc putSomeProofs*(store: BlockStore, tree: CodexTree, iter: Iter[int]): Future
 
   success()
 
-proc putSomeProofs*(store: BlockStore, tree: CodexTree, iter: Iter[Natural]): Future[?!void] =
+proc putSomeProofs*(
+    store: BlockStore, tree: CodexTree, iter: Iter[Natural]
+): Future[?!void] =
   store.putSomeProofs(tree, iter.map((i: Natural) => i.ord))
 
 proc putAllProofs*(store: BlockStore, tree: CodexTree): Future[?!void] =
-  store.putSomeProofs(tree, Iter[int].new(0..<tree.leavesCount))
+  store.putSomeProofs(tree, Iter[int].new(0 ..< tree.leavesCount))

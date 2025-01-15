@@ -15,7 +15,6 @@ import ../../examples
 import ../../helpers
 
 checksuite "sales state 'unknown'":
-
   let request = StorageRequest.example
   let slotIndex = (request.ask.slots div 2).u256
   let slotId = slotId(request.id, slotIndex)
@@ -27,10 +26,7 @@ checksuite "sales state 'unknown'":
   setup:
     market = MockMarket.new()
     let context = SalesContext(market: market)
-    agent = newSalesAgent(context,
-                          request.id,
-                          slotIndex,
-                          StorageRequest.none)
+    agent = newSalesAgent(context, request.id, slotIndex, StorageRequest.none)
     state = SaleUnknown.new()
 
   test "switches to error state when on chain state cannot be fetched":

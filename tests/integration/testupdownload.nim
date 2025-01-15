@@ -56,7 +56,8 @@ twonodessuite "Uploads and downloads":
     let manifest = jsonData["manifest"]
 
     check manifest.hasKey("treeCid") == true
-    check manifest["treeCid"].getStr() == "zDzSvJTezk7bJNQqFq8k1iHXY84psNuUfZVusA5bBQQUSuyzDSVL"
+    check manifest["treeCid"].getStr() ==
+      "zDzSvJTezk7bJNQqFq8k1iHXY84psNuUfZVusA5bBQQUSuyzDSVL"
     check manifest.hasKey("datasetSize") == true
     check manifest["datasetSize"].getInt() == 18
     check manifest.hasKey("blockSize") == true
@@ -83,12 +84,12 @@ twonodessuite "Uploads and downloads":
 
   test "reliable transfer test", twoNodesConfig:
     proc transferTest(a: CodexClient, b: CodexClient) {.async.} =
-      let data = await RandomChunker.example(blocks=8)
+      let data = await RandomChunker.example(blocks = 8)
       let cid = a.upload(data).get
       let response = b.download(cid).get
       check:
         response == data
 
-    for run in 0..10:
+    for run in 0 .. 10:
       await transferTest(client1, client2)
       await transferTest(client2, client1)

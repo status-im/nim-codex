@@ -31,7 +31,6 @@ template WrapOption*(input: untyped): type =
   else:
     Option[input]
 
-
 macro createType(t: typedesc): untyped =
   var objectType = getType(t)
 
@@ -47,22 +46,26 @@ macro createType(t: typedesc): untyped =
   # re-wrapping already filed which is `Option[T]`.
   for field in objectType[2]:
     let fieldType = getTypeInst(field)
-    let newFieldNode =
-          nnkIdentDefs.newTree(ident($field), nnkCall.newTree(ident("WrapOption"), fieldType), newEmptyNode())
+    let newFieldNode = nnkIdentDefs.newTree(
+      ident($field), nnkCall.newTree(ident("WrapOption"), fieldType), newEmptyNode()
+    )
 
     fields.add(newFieldNode)
 
   # Creates new object type T with the fields lists from steps above.
   let tSym = genSym(nskType, "T")
   nnkStmtList.newTree(
-      nnkTypeSection.newTree(
-        nnkTypeDef.newTree(tSym, newEmptyNode(), nnkObjectTy.newTree(newEmptyNode(), newEmptyNode(), fields))
-      ),
-      tSym
+    nnkTypeSection.newTree(
+      nnkTypeDef.newTree(
+        tSym,
+        newEmptyNode(),
+        nnkObjectTy.newTree(newEmptyNode(), newEmptyNode(), fields),
+      )
+    ),
+    tSym,
   )
 
 template Optionalize*(t: typed): untyped =
   ## Takes object type and wraps all the first level fields into
   ## Option type unless it is already Option type.
   createType(t)
-

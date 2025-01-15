@@ -12,28 +12,23 @@ export market
 export sets
 export validationconfig
 
-type
-  Validation* = ref object
-    slots: HashSet[SlotId]
-    clock: Clock
-    market: Market
-    subscriptions: seq[Subscription]
-    running: Future[void]
-    periodicity: Periodicity
-    proofTimeout: UInt256
-    config: ValidationConfig
+type Validation* = ref object
+  slots: HashSet[SlotId]
+  clock: Clock
+  market: Market
+  subscriptions: seq[Subscription]
+  running: Future[void]
+  periodicity: Periodicity
+  proofTimeout: UInt256
+  config: ValidationConfig
 
-const
-  MaxStorageRequestDuration = 30.days
+const MaxStorageRequestDuration = 30.days
 
 logScope:
   topics = "codex validator"
 
 proc new*(
-  _: type Validation,
-  clock: Clock,
-  market: Market,
-  config: ValidationConfig
+    _: type Validation, clock: Clock, market: Market, config: ValidationConfig
 ): Validation =
   Validation(clock: clock, market: market, config: config)
 
@@ -49,20 +44,17 @@ proc waitUntilNextPeriod(validation: Validation) {.async.} =
   trace "Waiting until next period", currentPeriod = period
   await validation.clock.waitUntil(periodEnd.truncate(int64) + 1)
 
-func groupIndexForSlotId*(slotId: SlotId,
-                          validationGroups: ValidationGroups): uint16 =
+func groupIndexForSlotId*(slotId: SlotId, validationGroups: ValidationGroups): uint16 =
   let slotIdUInt256 = UInt256.fromBytesBE(slotId.toArray)
   (slotIdUInt256 mod validationGroups.u256).truncate(uint16)
 
 func maxSlotsConstraintRespected(validation: Validation): bool =
-  validation.config.maxSlots == 0 or
-    validation.slots.len < validation.config.maxSlots
+  validation.config.maxSlots == 0 or validation.slots.len < validation.config.maxSlots
 
 func shouldValidateSlot(validation: Validation, slotId: SlotId): bool =
   without validationGroups =? validation.config.groups:
     return true
-  groupIndexForSlotId(slotId, validationGroups) ==
-    validation.config.groupIndex
+  groupIndexForSlotId(slotId, validationGroups) == validation.config.groupIndex
 
 proc subscribeSlotFilled(validation: Validation) {.async.} =
   proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
@@ -72,6 +64,7 @@ proc subscribeSlotFilled(validation: Validation) {.async.} =
     if validation.shouldValidateSlot(slotId):
       trace "Adding slot", slotId
       validation.slots.incl(slotId)
+
   let subscription = await validation.market.subscribeSlotFilled(onSlotFilled)
   validation.subscriptions.add(subscription)
 
@@ -85,9 +78,9 @@ proc removeSlotsThatHaveEnded(validation: Validation) {.async.} =
       ended.incl(slotId)
   validation.slots.excl(ended)
 
-proc markProofAsMissing(validation: Validation,
-                        slotId: SlotId,
-                        period: Period) {.async.} =
+proc markProofAsMissing(
+    validation: Validation, slotId: SlotId, period: Period
+) {.async.} =
   logScope:
     currentPeriod = validation.getCurrentPeriod()
 
@@ -122,15 +115,16 @@ proc run(validation: Validation) {.async: (raises: []).} =
   except CatchableError as e:
     error "Validation failed", msg = e.msg
 
-proc epochForDurationBackFromNow(validation: Validation,
-    duration: Duration): SecondsSince1970 =
+proc epochForDurationBackFromNow(
+    validation: Validation, duration: Duration
+): SecondsSince1970 =
   return validation.clock.now - duration.secs
 
 proc restoreHistoricalState(validation: Validation) {.async.} =
   trace "Restoring historical state..."
   let startTimeEpoch = validation.epochForDurationBackFromNow(MaxStorageRequestDuration)
-  let slotFilledEvents = await validation.market.queryPastSlotFilledEvents(
-    fromTime = startTimeEpoch)
+  let slotFilledEvents =
+    await validation.market.queryPastSlotFilledEvents(fromTime = startTimeEpoch)
   for event in slotFilledEvents:
     if not validation.maxSlotsConstraintRespected:
       break
@@ -142,8 +136,8 @@ proc restoreHistoricalState(validation: Validation) {.async.} =
   trace "Historical state restored", numberOfSlots = validation.slots.len
 
 proc start*(validation: Validation) {.async.} =
-  trace "Starting validator", groups = validation.config.groups,
-    groupIndex = validation.config.groupIndex
+  trace "Starting validator",
+    groups = validation.config.groups, groupIndex = validation.config.groupIndex
   validation.periodicity = await validation.market.periodicity()
   validation.proofTimeout = await validation.market.proofTimeout()
   await validation.subscribeSlotFilled()

@@ -11,7 +11,8 @@ export questionable
 export stint
 export BlockPresenceType
 
-upraises.push: {.upraises: [].}
+upraises.push:
+  {.upraises: [].}
 
 type
   PresenceMessage* = blockexc.BlockPresence
@@ -32,15 +33,12 @@ func init*(_: type Presence, message: PresenceMessage): ?Presence =
   some Presence(
     address: message.address,
     have: message.`type` == BlockPresenceType.Have,
-    price: price
+    price: price,
   )
 
 func init*(_: type PresenceMessage, presence: Presence): PresenceMessage =
   PresenceMessage(
     address: presence.address,
-    `type`: if presence.have:
-        BlockPresenceType.Have
-      else:
-        BlockPresenceType.DontHave,
-    price: @(presence.price.toBytesBE)
+    `type`: if presence.have: BlockPresenceType.Have else: BlockPresenceType.DontHave,
+    price: @(presence.price.toBytesBE),
   )

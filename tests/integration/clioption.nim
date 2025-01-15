@@ -1,7 +1,6 @@
-type
-  CliOption* = object
-    key*: string            # option key, including `--`
-    value*: string          # option value
+type CliOption* = object
+  key*: string # option key, including `--`
+  value*: string # option value
 
 proc `$`*(option: CliOption): string =
   var res = option.key

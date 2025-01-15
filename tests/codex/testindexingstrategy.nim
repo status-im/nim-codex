@@ -59,8 +59,7 @@ suite "Indexing strategies":
       discard LinearStrategy.init(0, 10, 0)
 
   test "should split elements evenly when possible":
-    let
-      l = LinearStrategy.init(0, 11, 3)
+    let l = LinearStrategy.init(0, 11, 3)
     check:
       toSeq(l.getIndicies(0)) == @[0, 1, 2, 3].mapIt(it)
       toSeq(l.getIndicies(1)) == @[4, 5, 6, 7].mapIt(it)

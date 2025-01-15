@@ -7,10 +7,4 @@ import ./stores/keyutils
 import ./stores/treehelper
 
 export
-  cachestore,
-  blockstore,
-  networkstore,
-  repostore,
-  keyutils,
-  treehelper,
-  maintenance
+  cachestore, blockstore, networkstore, repostore, keyutils, treehelper, maintenance

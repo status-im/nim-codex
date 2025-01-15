@@ -21,20 +21,15 @@ suite "tools/cirdl":
 
     let args = [circuitPath, rpcEndpoint, $marketplaceAddress]
 
-    let process = osproc.startProcess(
-      cirdl,
-      workdir,
-      args,
-      options={poParentStreams}
-    )
+    let process = osproc.startProcess(cirdl, workdir, args, options = {poParentStreams})
 
     let returnCode = process.waitForExit()
     check returnCode == 0
 
     check:
-      fileExists(circuitPath/"proof_main_verification_key.json")
-      fileExists(circuitPath/"proof_main.r1cs")
-      fileExists(circuitPath/"proof_main.wasm")
-      fileExists(circuitPath/"proof_main.zkey")
+      fileExists(circuitPath / "proof_main_verification_key.json")
+      fileExists(circuitPath / "proof_main.r1cs")
+      fileExists(circuitPath / "proof_main.wasm")
+      fileExists(circuitPath / "proof_main.zkey")
 
     removeDir(circuitPath)

@@ -11,11 +11,11 @@ export StateChannelUpdate
 export stint
 export nitro
 
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
-type
-  Account* = object
-    address*: EthAddress
+type Account* = object
+  address*: EthAddress
 
 func init*(_: type AccountMessage, account: Account): AccountMessage =
   AccountMessage(address: @(account.address.toArray))
@@ -24,7 +24,7 @@ func parse(_: type EthAddress, bytes: seq[byte]): ?EthAddress =
   var address: array[20, byte]
   if bytes.len != address.len:
     return EthAddress.none
-  for i in 0..<address.len:
+  for i in 0 ..< address.len:
     address[i] = bytes[i]
   EthAddress(address).some
 

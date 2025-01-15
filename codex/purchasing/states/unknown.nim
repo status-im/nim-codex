@@ -19,7 +19,6 @@ method run*(state: PurchaseUnknown, machine: Machine): Future[?State] {.async.} 
   let purchase = Purchase(machine)
   if (request =? await purchase.market.getRequest(purchase.requestId)) and
       (requestState =? await purchase.market.requestState(purchase.requestId)):
-
     purchase.request = some request
 
     case requestState

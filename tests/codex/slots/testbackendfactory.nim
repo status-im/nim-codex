@@ -12,17 +12,13 @@ import pkg/codex/utils/natutils
 import ../helpers
 import ../examples
 
-type
-  BackendUtilsMock = ref object of BackendUtils
-    argR1csFile: string
-    argWasmFile: string
-    argZKeyFile: string
+type BackendUtilsMock = ref object of BackendUtils
+  argR1csFile: string
+  argWasmFile: string
+  argZKeyFile: string
 
 method initializeCircomBackend*(
-  self: BackendUtilsMock,
-  r1csFile: string,
-  wasmFile: string,
-  zKeyFile: string
+    self: BackendUtilsMock, r1csFile: string, wasmFile: string, zKeyFile: string
 ): AnyBackend =
   self.argR1csFile = r1csFile
   self.argWasmFile = wasmFile
@@ -48,15 +44,13 @@ suite "Test BackendFactory":
     let
       config = CodexConf(
         cmd: StartUpCmd.persistence,
-        nat: NatConfig(
-          hasExtIp: false,
-          nat: NatNone),
+        nat: NatConfig(hasExtIp: false, nat: NatNone),
         metricsAddress: parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         marketplaceAddress: EthAddress.example.some,
         circomR1cs: InputFile("tests/circuits/fixtures/proof_main.r1cs"),
         circomWasm: InputFile("tests/circuits/fixtures/proof_main.wasm"),
-        circomZkey: InputFile("tests/circuits/fixtures/proof_main.zkey")
+        circomZkey: InputFile("tests/circuits/fixtures/proof_main.zkey"),
       )
       backend = config.initializeBackend(utilsMock).tryGet
 
@@ -70,16 +64,14 @@ suite "Test BackendFactory":
     let
       config = CodexConf(
         cmd: StartUpCmd.persistence,
-        nat: NatConfig(
-          hasExtIp: false,
-          nat: NatNone),
+        nat: NatConfig(hasExtIp: false, nat: NatNone),
         metricsAddress: parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         marketplaceAddress: EthAddress.example.some,
 
         # Set the circuitDir such that the tests/circuits/fixtures/ files
         # will be picked up as local files:
-        circuitDir: OutDir("tests/circuits/fixtures")
+        circuitDir: OutDir("tests/circuits/fixtures"),
       )
       backend = config.initializeBackend(utilsMock).tryGet
 
@@ -93,13 +85,11 @@ suite "Test BackendFactory":
     let
       config = CodexConf(
         cmd: StartUpCmd.persistence,
-        nat: NatConfig(
-          hasExtIp: false,
-          nat: NatNone),
+        nat: NatConfig(hasExtIp: false, nat: NatNone),
         metricsAddress: parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         marketplaceAddress: EthAddress.example.some,
-        circuitDir: OutDir(circuitDir)
+        circuitDir: OutDir(circuitDir),
       )
       backendResult = config.initializeBackend(utilsMock)
 

@@ -11,11 +11,8 @@ import ../contracts/deployment
 export mp
 export multinodes
 
-template marketplacesuite*(name: string,
-    body: untyped) =
-
+template marketplacesuite*(name: string, body: untyped) =
   multinodesuite name:
-
     var marketplace {.inject, used.}: Marketplace
     var period: uint64
     var periodicity: Periodicity
@@ -32,12 +29,12 @@ template marketplacesuite*(name: string,
       await ethProvider.advanceTimeTo(endOfPeriod + 1)
 
     template eventuallyP(condition: untyped, finalPeriod: Period): bool =
-
-      proc eventuallyP: Future[bool] {.async.} =
-        while(
-          let currentPeriod = await getCurrentPeriod();
+      proc eventuallyP(): Future[bool] {.async.} =
+        while (
+          let currentPeriod = await getCurrentPeriod()
           currentPeriod <= finalPeriod
-        ):
+        )
+        :
           if condition:
             return true
           await sleepAsync(1.millis)
@@ -50,34 +47,36 @@ template marketplacesuite*(name: string,
 
     proc createAvailabilities(datasetSize: int, duration: uint64) =
       # post availability to each provider
-      for i in 0..<providers().len:
+      for i in 0 ..< providers().len:
         let provider = providers()[i].client
 
         discard provider.postAvailability(
-          totalSize=datasetSize.u256, # should match 1 slot only
-          duration=duration.u256,
-          minPrice=300.u256,
-          maxCollateral=200.u256
+          totalSize = datasetSize.u256, # should match 1 slot only
+          duration = duration.u256,
+          minPrice = 300.u256,
+          maxCollateral = 200.u256,
         )
 
-    proc requestStorage(client: CodexClient,
-                        cid: Cid,
-                        proofProbability = 1,
-                        duration: uint64 = 12.periods,
-                        reward = 400.u256,
-                        collateral = 100.u256,
-                        expiry: uint64 = 4.periods,
-                        nodes = providers().len,
-                        tolerance = 0): Future[PurchaseId] {.async.} =
+    proc requestStorage(
+        client: CodexClient,
+        cid: Cid,
+        proofProbability = 1,
+        duration: uint64 = 12.periods,
+        reward = 400.u256,
+        collateral = 100.u256,
+        expiry: uint64 = 4.periods,
+        nodes = providers().len,
+        tolerance = 0,
+    ): Future[PurchaseId] {.async.} =
       let id = client.requestStorage(
         cid,
-        expiry=expiry.uint,
-        duration=duration.u256,
-        proofProbability=proofProbability.u256,
-        collateral=collateral,
-        reward=reward,
-        nodes=nodes.uint,
-        tolerance=tolerance.uint
+        expiry = expiry.uint,
+        duration = duration.u256,
+        proofProbability = proofProbability.u256,
+        collateral = collateral,
+        reward = reward,
+        nodes = nodes.uint,
+        tolerance = tolerance.uint,
       ).get
 
       return id

@@ -23,12 +23,14 @@ method run*(state: PurchaseSubmitted, machine: Machine): Future[?State] {.async.
   let market = purchase.market
   let clock = purchase.clock
 
-  info "Request submitted, waiting for slots to be filled", requestId = purchase.requestId
+  info "Request submitted, waiting for slots to be filled",
+    requestId = purchase.requestId
 
-  proc wait {.async.} =
+  proc wait() {.async.} =
     let done = newFuture[void]()
     proc callback(_: RequestId) =
       done.complete()
+
     let subscription = await market.subscribeFulfillment(request.id, callback)
     await done
     await subscription.unsubscribe()

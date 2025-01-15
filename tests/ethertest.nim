@@ -11,15 +11,13 @@ import ./checktest
 ## changes to the blockchain do not persist.
 template ethersuite*(name, body) =
   asyncchecksuite name:
-
     var ethProvider {.inject, used.}: JsonRpcProvider
     var accounts {.inject, used.}: seq[Address]
     var snapshot: JsonNode
 
     setup:
       ethProvider = JsonRpcProvider.new(
-        "http://127.0.0.1:8545",
-        pollingInterval = chronos.milliseconds(100)
+        "http://127.0.0.1:8545", pollingInterval = chronos.milliseconds(100)
       )
       snapshot = await send(ethProvider, "evm_snapshot")
       accounts = await ethProvider.listAccounts()

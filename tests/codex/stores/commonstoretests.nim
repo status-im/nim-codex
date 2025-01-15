@@ -22,11 +22,9 @@ type
   Before* = proc(): Future[void] {.gcsafe.}
   After* = proc(): Future[void] {.gcsafe.}
 
-proc commonBlockStoreTests*(name: string,
-                            provider: StoreProvider,
-                            before: Before = nil,
-                            after: After = nil) =
-
+proc commonBlockStoreTests*(
+    name: string, provider: StoreProvider, before: Before = nil, after: After = nil
+) =
   asyncchecksuite name & " Store Common":
     var
       newBlock, newBlock1, newBlock2, newBlock3: Block
@@ -40,7 +38,8 @@ proc commonBlockStoreTests*(name: string,
       newBlock2 = Block.new("2".repeat(100).toBytes()).tryGet()
       newBlock3 = Block.new("3".repeat(100).toBytes()).tryGet()
 
-      (manifest, tree) = makeManifestAndTree(@[newBlock, newBlock1, newBlock2, newBlock3]).tryGet()
+      (manifest, tree) =
+        makeManifestAndTree(@[newBlock, newBlock1, newBlock2, newBlock3]).tryGet()
 
       if not isNil(before):
         await before()
@@ -59,8 +58,9 @@ proc commonBlockStoreTests*(name: string,
 
     test "putBlock raises onBlockStored":
       var storedCid = Cid.example
-      proc onStored(cid: Cid) {.async.} = 
+      proc onStored(cid: Cid) {.async.} =
         storedCid = cid
+
       store.onBlockStored = onStored.some()
 
       (await store.putBlock(newBlock1)).tryGet()
@@ -100,15 +100,13 @@ proc commonBlockStoreTests*(name: string,
       let
         blocks = @[newBlock1, newBlock2, newBlock3]
 
-        putHandles = await allFinished(
-          blocks.mapIt( store.putBlock( it ) ))
+        putHandles = await allFinished(blocks.mapIt(store.putBlock(it)))
 
       for handle in putHandles:
         check not handle.failed
         check handle.read.isOk
 
-      let
-        cids = (await store.listBlocks(blockType = BlockType.Block)).tryGet()
+      let cids = (await store.listBlocks(blockType = BlockType.Block)).tryGet()
 
       var count = 0
       for c in cids:
@@ -121,17 +119,18 @@ proc commonBlockStoreTests*(name: string,
     test "listBlocks Manifest":
       let
         blocks = @[newBlock1, newBlock2, newBlock3]
-        manifestBlock = Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
+        manifestBlock =
+          Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
         treeBlock = Block.new(tree.encode()).tryGet()
         putHandles = await allFinished(
-         (@[treeBlock, manifestBlock] & blocks).mapIt( store.putBlock( it ) ))
+          (@[treeBlock, manifestBlock] & blocks).mapIt(store.putBlock(it))
+        )
 
       for handle in putHandles:
         check not handle.failed
         check handle.read.isOk
 
-      let
-        cids = (await store.listBlocks(blockType = BlockType.Manifest)).tryGet()
+      let cids = (await store.listBlocks(blockType = BlockType.Manifest)).tryGet()
 
       var count = 0
       for c in cids:
@@ -145,17 +144,18 @@ proc commonBlockStoreTests*(name: string,
     test "listBlocks Both":
       let
         blocks = @[newBlock1, newBlock2, newBlock3]
-        manifestBlock = Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
+        manifestBlock =
+          Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
         treeBlock = Block.new(tree.encode()).tryGet()
         putHandles = await allFinished(
-         (@[treeBlock, manifestBlock] & blocks).mapIt( store.putBlock( it ) ))
+          (@[treeBlock, manifestBlock] & blocks).mapIt(store.putBlock(it))
+        )
 
       for handle in putHandles:
         check not handle.failed
         check handle.read.isOk
 
-      let
-        cids = (await store.listBlocks(blockType = BlockType.Both)).tryGet()
+      let cids = (await store.listBlocks(blockType = BlockType.Both)).tryGet()
 
       var count = 0
       for c in cids:

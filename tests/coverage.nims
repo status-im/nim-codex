@@ -1,4 +1,3 @@
-
 switch("debugger", "native")
 switch("lineDir", "on")
 switch("define", "debug")

@@ -24,6 +24,7 @@ type
     debug: bool
     trackedFutures*: TrackedFutures
     name*: string
+
   NodeProcessError* = object of CatchableError
 
 method workingDir(node: NodeProcess): string {.base, gcsafe.} =
@@ -38,10 +39,12 @@ method startedOutput(node: NodeProcess): string {.base, gcsafe.} =
 method processOptions(node: NodeProcess): set[AsyncProcessOption] {.base, gcsafe.} =
   raiseAssert "not implemented"
 
-method outputLineEndings(node: NodeProcess): string {.base, gcsafe raises: [].} =
+method outputLineEndings(node: NodeProcess): string {.base, gcsafe, raises: [].} =
   raiseAssert "not implemented"
 
-method onOutputLineCaptured(node: NodeProcess, line: string) {.base, gcsafe, raises: [].} =
+method onOutputLineCaptured(
+    node: NodeProcess, line: string
+) {.base, gcsafe, raises: [].} =
   raiseAssert "not implemented"
 
 method start*(node: NodeProcess) {.base, async.} =
@@ -63,7 +66,7 @@ method start*(node: NodeProcess) {.base, async.} =
       node.workingDir,
       node.arguments,
       options = poptions,
-      stdoutHandle = AsyncProcess.Pipe
+      stdoutHandle = AsyncProcess.Pipe,
     )
   except CancelledError as error:
     raise error
@@ -71,11 +74,8 @@ method start*(node: NodeProcess) {.base, async.} =
     error "failed to start node process", error = e.msg
 
 proc captureOutput(
-  node: NodeProcess,
-  output: string,
-  started: Future[void]
+    node: NodeProcess, output: string, started: Future[void]
 ) {.async: (raises: []).} =
-
   logScope:
     nodeName = node.name
 
@@ -85,7 +85,7 @@ proc captureOutput(
 
   try:
     while node.process.running.option == some true:
-      while(let line = await stream.readLine(0, node.outputLineEndings); line != ""):
+      while (let line = await stream.readLine(0, node.outputLineEndings); line != ""):
         if node.debug:
           # would be nice if chronicles could parse and display with colors
           echo line
@@ -97,27 +97,21 @@ proc captureOutput(
 
         await sleepAsync(1.millis)
       await sleepAsync(1.millis)
-
   except CancelledError:
     discard # do not propagate as captureOutput was asyncSpawned
-
   except AsyncStreamError as e:
     error "error reading output stream", error = e.msgDetail
 
 proc startNode*[T: NodeProcess](
-  _: type T,
-  args: seq[string],
-  debug: string | bool = false,
-  name: string
+    _: type T, args: seq[string], debug: string | bool = false, name: string
 ): Future[T] {.async.} =
-
   ## Starts a Codex Node with the specified arguments.
   ## Set debug to 'true' to see output of the node.
   let node = T(
     arguments: @args,
     debug: ($debug != "false"),
     trackedFutures: TrackedFutures.new(),
-    name: name
+    name: name,
   )
   await node.start()
   return node
@@ -144,7 +138,6 @@ method stop*(node: NodeProcess) {.base, async.} =
       raise error
     except CatchableError as e:
       error "error stopping node process", error = e.msg
-
     finally:
       node.process = nil
 
@@ -172,8 +165,8 @@ proc waitUntilStarted*(node: NodeProcess) {.async.} =
     await node.stop()
     # raise error here so that all nodes (not just this one) can be
     # shutdown gracefully
-    raise newException(NodeProcessError, "node did not output '" &
-      node.startedOutput & "'")
+    raise
+      newException(NodeProcessError, "node did not output '" & node.startedOutput & "'")
 
 proc restart*(node: NodeProcess) {.async.} =
   await node.stop()

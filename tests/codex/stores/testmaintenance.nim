@@ -34,10 +34,7 @@ checksuite "BlockMaintainer":
   var testBe3: BlockExpiration
 
   proc createTestExpiration(expiry: SecondsSince1970): BlockExpiration =
-    BlockExpiration(
-      cid: bt.Block.example.cid,
-      expiry: expiry
-    )
+    BlockExpiration(cid: bt.Block.example.cid, expiry: expiry)
 
   setup:
     mockClock = MockClock.new()
@@ -56,11 +53,8 @@ checksuite "BlockMaintainer":
     mockTimer = MockTimer.new()
 
     blockMaintainer = BlockMaintainer.new(
-      mockRepoStore,
-      interval,
-      numberOfBlocksPerInterval = 2,
-      mockTimer,
-      mockClock)
+      mockRepoStore, interval, numberOfBlocksPerInterval = 2, mockTimer, mockClock
+    )
 
   test "Start should start timer at provided interval":
     blockMaintainer.start()
@@ -179,9 +173,11 @@ checksuite "BlockMaintainer":
     mockClock.set(650)
     await invokeTimerManyTimes()
     # First new block has expired
-    check mockRepoStore.delBlockCids == [testBe1.cid, testBe2.cid, testBe3.cid, testBe4.cid]
+    check mockRepoStore.delBlockCids ==
+      [testBe1.cid, testBe2.cid, testBe3.cid, testBe4.cid]
 
     mockClock.set(750)
     await invokeTimerManyTimes()
     # Second new block has expired
-    check mockRepoStore.delBlockCids == [testBe1.cid, testBe2.cid, testBe3.cid, testBe4.cid, testBe5.cid]
+    check mockRepoStore.delBlockCids ==
+      [testBe1.cid, testBe2.cid, testBe3.cid, testBe4.cid, testBe5.cid]

@@ -7,7 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-
 {.push raises: [].}
 
 import pkg/chronos
@@ -28,10 +27,9 @@ export blockstore, blockexchange, asyncheapqueue
 logScope:
   topics = "codex networkstore"
 
-type
-  NetworkStore* = ref object of BlockStore
-    engine*: BlockExcEngine # blockexc decision engine
-    localStore*: BlockStore # local block store
+type NetworkStore* = ref object of BlockStore
+  engine*: BlockExcEngine # blockexc decision engine
+  localStore*: BlockStore # local block store
 
 method getBlock*(self: NetworkStore, address: BlockAddress): Future[?!Block] {.async.} =
   without blk =? (await self.localStore.getBlock(address)), err:
@@ -60,9 +58,8 @@ method getBlock*(self: NetworkStore, treeCid: Cid, index: Natural): Future[?!Blo
   self.getBlock(BlockAddress.init(treeCid, index))
 
 method putBlock*(
-  self: NetworkStore,
-  blk: Block,
-  ttl = Duration.none): Future[?!void] {.async.} =
+    self: NetworkStore, blk: Block, ttl = Duration.none
+): Future[?!void] {.async.} =
   ## Store block locally and notify the network
   ##
   let res = await self.localStore.putBlock(blk, ttl)
@@ -73,26 +70,21 @@ method putBlock*(
   return success()
 
 method putCidAndProof*(
-  self: NetworkStore,
-  treeCid: Cid,
-  index: Natural,
-  blockCid: Cid,
-  proof: CodexProof): Future[?!void] =
+    self: NetworkStore, treeCid: Cid, index: Natural, blockCid: Cid, proof: CodexProof
+): Future[?!void] =
   self.localStore.putCidAndProof(treeCid, index, blockCid, proof)
 
 method getCidAndProof*(
-  self: NetworkStore,
-  treeCid: Cid,
-  index: Natural): Future[?!(Cid, CodexProof)] =
+    self: NetworkStore, treeCid: Cid, index: Natural
+): Future[?!(Cid, CodexProof)] =
   ## Get a block proof from the blockstore
   ##
 
   self.localStore.getCidAndProof(treeCid, index)
 
 method ensureExpiry*(
-  self: NetworkStore,
-  cid: Cid,
-  expiry: SecondsSince1970): Future[?!void] {.async.} =
+    self: NetworkStore, cid: Cid, expiry: SecondsSince1970
+): Future[?!void] {.async.} =
   ## Ensure that block's assosicated expiry is at least given timestamp
   ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##
@@ -108,10 +100,8 @@ method ensureExpiry*(
   return success()
 
 method ensureExpiry*(
-  self: NetworkStore,
-  treeCid: Cid,
-  index: Natural,
-  expiry: SecondsSince1970): Future[?!void] {.async.} =
+    self: NetworkStore, treeCid: Cid, index: Natural, expiry: SecondsSince1970
+): Future[?!void] {.async.} =
   ## Ensure that block's associated expiry is at least given timestamp
   ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##
@@ -127,8 +117,8 @@ method ensureExpiry*(
   return success()
 
 method listBlocks*(
-  self: NetworkStore,
-  blockType = BlockType.Manifest): Future[?!AsyncIter[?Cid]] =
+    self: NetworkStore, blockType = BlockType.Manifest
+): Future[?!AsyncIter[?Cid]] =
   self.localStore.listBlocks(blockType)
 
 method delBlock*(self: NetworkStore, cid: Cid): Future[?!void] =
@@ -155,9 +145,7 @@ method close*(self: NetworkStore): Future[void] {.async.} =
     await self.localStore.close
 
 proc new*(
-  T: type NetworkStore,
-  engine: BlockExcEngine,
-  localStore: BlockStore
+    T: type NetworkStore, engine: BlockExcEngine, localStore: BlockStore
 ): NetworkStore =
   ## Create new instance of a NetworkStore
   ##

@@ -11,25 +11,17 @@ import pkg/chronos
 
 import codex/utils/timer
 
-type
-  MockTimer* = ref object of Timer
-    startCalled*: int
-    stopCalled*: int
-    mockInterval*: Duration
-    mockCallback: timer.TimerCallback
+type MockTimer* = ref object of Timer
+  startCalled*: int
+  stopCalled*: int
+  mockInterval*: Duration
+  mockCallback: timer.TimerCallback
 
 proc new*(T: type MockTimer): MockTimer =
   ## Create a mocked Timer instance
-  MockTimer(
-    startCalled: 0,
-    stopCalled: 0
-  )
+  MockTimer(startCalled: 0, stopCalled: 0)
 
-method start*(
-    mockTimer: MockTimer,
-    callback: timer.TimerCallback,
-    interval: Duration
-) =
+method start*(mockTimer: MockTimer, callback: timer.TimerCallback, interval: Duration) =
   mockTimer.mockCallback = callback
   mockTimer.mockInterval = interval
   inc mockTimer.startCalled

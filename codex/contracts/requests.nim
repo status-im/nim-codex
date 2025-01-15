@@ -18,6 +18,7 @@ type
     content* {.serialize.}: StorageContent
     expiry* {.serialize.}: UInt256
     nonce*: Nonce
+
   StorageAsk* = object
     slots* {.serialize.}: uint64
     slotSize* {.serialize.}: UInt256
@@ -26,12 +27,15 @@ type
     reward* {.serialize.}: UInt256
     collateral* {.serialize.}: UInt256
     maxSlotLoss* {.serialize.}: uint64
+
   StorageContent* = object
     cid* {.serialize.}: string
     merkleRoot*: array[32, byte]
+
   Slot* = object
     request* {.serialize.}: StorageRequest
     slotIndex* {.serialize.}: UInt256
+
   SlotId* = distinct array[32, byte]
   RequestId* = distinct array[32, byte]
   Nonce* = distinct array[32, byte]
@@ -41,6 +45,7 @@ type
     Cancelled
     Finished
     Failed
+
   SlotState* {.pure.} = enum
     Free
     Filled
@@ -80,27 +85,26 @@ proc toHex*[T: distinct](id: T): string =
   type baseType = T.distinctBase
   baseType(id).toHex
 
-logutils.formatIt(LogFormat.textLines, Nonce): it.short0xHexLog
-logutils.formatIt(LogFormat.textLines, RequestId): it.short0xHexLog
-logutils.formatIt(LogFormat.textLines, SlotId): it.short0xHexLog
-logutils.formatIt(LogFormat.json, Nonce): it.to0xHexLog
-logutils.formatIt(LogFormat.json, RequestId): it.to0xHexLog
-logutils.formatIt(LogFormat.json, SlotId): it.to0xHexLog
+logutils.formatIt(LogFormat.textLines, Nonce):
+  it.short0xHexLog
+logutils.formatIt(LogFormat.textLines, RequestId):
+  it.short0xHexLog
+logutils.formatIt(LogFormat.textLines, SlotId):
+  it.short0xHexLog
+logutils.formatIt(LogFormat.json, Nonce):
+  it.to0xHexLog
+logutils.formatIt(LogFormat.json, RequestId):
+  it.to0xHexLog
+logutils.formatIt(LogFormat.json, SlotId):
+  it.to0xHexLog
 
 func fromTuple(_: type StorageRequest, tupl: tuple): StorageRequest =
   StorageRequest(
-    client: tupl[0],
-    ask: tupl[1],
-    content: tupl[2],
-    expiry: tupl[3],
-    nonce: tupl[4]
+    client: tupl[0], ask: tupl[1], content: tupl[2], expiry: tupl[3], nonce: tupl[4]
   )
 
 func fromTuple(_: type Slot, tupl: tuple): Slot =
-  Slot(
-    request: tupl[0],
-    slotIndex: tupl[1]
-  )
+  Slot(request: tupl[0], slotIndex: tupl[1])
 
 func fromTuple(_: type StorageAsk, tupl: tuple): StorageAsk =
   StorageAsk(
@@ -110,14 +114,11 @@ func fromTuple(_: type StorageAsk, tupl: tuple): StorageAsk =
     proofProbability: tupl[3],
     reward: tupl[4],
     collateral: tupl[5],
-    maxSlotLoss: tupl[6]
+    maxSlotLoss: tupl[6],
   )
 
 func fromTuple(_: type StorageContent, tupl: tuple): StorageContent =
-  StorageContent(
-    cid: tupl[0],
-    merkleRoot: tupl[1]
-  )
+  StorageContent(cid: tupl[0], merkleRoot: tupl[1])
 
 func solidityType*(_: type StorageContent): string =
   solidityType(StorageContent.fieldTypes)
@@ -160,7 +161,7 @@ func decode*(decoder: var AbiDecoder, T: type Slot): ?!T =
   success Slot.fromTuple(tupl)
 
 func id*(request: StorageRequest): RequestId =
-  let encoding = AbiEncoder.encode((request, ))
+  let encoding = AbiEncoder.encode((request,))
   RequestId(keccak256.digest(encoding).data)
 
 func slotId*(requestId: RequestId, slotIndex: UInt256): SlotId =

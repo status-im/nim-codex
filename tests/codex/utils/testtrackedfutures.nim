@@ -63,5 +63,3 @@ asyncchecksuite "tracked futures":
     check eventually fut2.cancelled
     check eventually fut3.cancelled
     check eventually module.trackedFutures.len == 0
-
-

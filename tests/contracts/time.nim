@@ -13,5 +13,6 @@ proc advanceTime*(provider: JsonRpcProvider, seconds: UInt256) {.async.} =
 
 proc advanceTimeTo*(provider: JsonRpcProvider, timestamp: UInt256) {.async.} =
   if (await provider.currentTime()) != timestamp:
-    discard await provider.send("evm_setNextBlockTimestamp", @[%("0x" & timestamp.toHex)])
+    discard
+      await provider.send("evm_setNextBlockTimestamp", @[%("0x" & timestamp.toHex)])
     discard await provider.send("evm_mine")

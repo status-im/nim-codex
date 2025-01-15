@@ -13,7 +13,8 @@ import std/algorithm
 
 import pkg/upraises
 
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import pkg/chronos
 import pkg/libp2p
@@ -21,7 +22,6 @@ import pkg/libp2p
 import ../protobuf/blockexc
 import ../../blocktype
 import ../../logutils
-
 
 import ./peercontext
 export peercontext
@@ -32,6 +32,7 @@ logScope:
 type
   PeerCtxStore* = ref object of RootObj
     peers*: OrderedTable[PeerId, BlockExcPeerCtx]
+
   PeersForBlock* = object of RootObj
     with*: seq[BlockExcPeerCtx]
     without*: seq[BlockExcPeerCtx]
@@ -44,7 +45,7 @@ proc contains*(a: openArray[BlockExcPeerCtx], b: PeerId): bool =
   ## Convenience method to check for peer precense
   ##
 
-  a.anyIt( it.id == b )
+  a.anyIt(it.id == b)
 
 func contains*(self: PeerCtxStore, peerId: PeerId): bool =
   peerId in self.peers
@@ -62,21 +63,21 @@ func len*(self: PeerCtxStore): int =
   self.peers.len
 
 func peersHave*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt( it.peerHave.anyIt( it == address ) )
+  toSeq(self.peers.values).filterIt(it.peerHave.anyIt(it == address))
 
 func peersHave*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt( it.peerHave.anyIt( it.cidOrTreeCid == cid ) )
+  toSeq(self.peers.values).filterIt(it.peerHave.anyIt(it.cidOrTreeCid == cid))
 
 func peersWant*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt( it.peerWants.anyIt( it == address ) )
+  toSeq(self.peers.values).filterIt(it.peerWants.anyIt(it == address))
 
 func peersWant*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt( it.peerWants.anyIt( it.address.cidOrTreeCid == cid ) )
+  toSeq(self.peers.values).filterIt(it.peerWants.anyIt(it.address.cidOrTreeCid == cid))
 
 proc getPeersForBlock*(self: PeerCtxStore, address: BlockAddress): PeersForBlock =
   var res = PeersForBlock()
   for peer in self:
-    if peer.peerHave.anyIt( it == address ):
+    if peer.peerHave.anyIt(it == address):
       res.with.add(peer)
     else:
       res.without.add(peer)

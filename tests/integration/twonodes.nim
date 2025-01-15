@@ -10,9 +10,10 @@ import ./nodeconfigs
 export codexclient
 export multinodes
 
-template twonodessuite*(name: string, body: untyped) = 
+template twonodessuite*(name: string, body: untyped) =
   multinodesuite name:
-    let twoNodesConfig {.inject, used.} = NodeConfigs(clients: CodexConfigs.init(nodes=2).some)
+    let twoNodesConfig {.inject, used.} =
+      NodeConfigs(clients: CodexConfigs.init(nodes = 2).some)
 
     var node1 {.inject, used.}: CodexProcess
     var node2 {.inject, used.}: CodexProcess

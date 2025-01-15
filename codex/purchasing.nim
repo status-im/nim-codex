@@ -18,16 +18,13 @@ type
     clock: Clock
     purchases: Table[PurchaseId, Purchase]
     proofProbability*: UInt256
+
   PurchaseTimeout* = Timeout
 
 const DefaultProofProbability = 100.u256
 
 proc new*(_: type Purchasing, market: Market, clock: Clock): Purchasing =
-  Purchasing(
-    market: market,
-    clock: clock,
-    proofProbability: DefaultProofProbability,
-  )
+  Purchasing(market: market, clock: clock, proofProbability: DefaultProofProbability)
 
 proc load*(purchasing: Purchasing) {.async.} =
   let market = purchasing.market
@@ -43,9 +40,9 @@ proc start*(purchasing: Purchasing) {.async.} =
 proc stop*(purchasing: Purchasing) {.async.} =
   discard
 
-proc populate*(purchasing: Purchasing,
-               request: StorageRequest
-              ): Future[StorageRequest] {.async.} =
+proc populate*(
+    purchasing: Purchasing, request: StorageRequest
+): Future[StorageRequest] {.async.} =
   result = request
   if result.ask.proofProbability == 0.u256:
     result.ask.proofProbability = purchasing.proofProbability
@@ -55,9 +52,9 @@ proc populate*(purchasing: Purchasing,
     result.nonce = Nonce(id)
   result.client = await purchasing.market.getSigner()
 
-proc purchase*(purchasing: Purchasing,
-               request: StorageRequest
-              ): Future[Purchase] {.async.} =
+proc purchase*(
+    purchasing: Purchasing, request: StorageRequest
+): Future[Purchase] {.async.} =
   let request = await purchasing.populate(request)
   let purchase = Purchase.new(request, purchasing.market, purchasing.clock)
   purchase.start()
@@ -75,4 +72,3 @@ func getPurchaseIds*(purchasing: Purchasing): seq[PurchaseId] =
   for key in purchasing.purchases.keys:
     pIds.add(key)
   return pIds
-

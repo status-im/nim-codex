@@ -29,4 +29,3 @@ checksuite "keyutils":
   test "reads key file when it does exist":
     let key = setupKey(path / "keyfile").get()
     check setupKey(path / "keyfile").get() == key
-

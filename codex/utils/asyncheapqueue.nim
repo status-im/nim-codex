@@ -15,7 +15,8 @@ import pkg/stew/results
 
 type
   QueueType* {.pure.} = enum
-    Min, Max
+    Min
+    Max
 
   AsyncHeapQueue*[T] = ref object of RootRef
     ## A priority queue
@@ -31,11 +32,11 @@ type
     maxsize: int
 
   AsyncHQErrors* {.pure.} = enum
-    Empty, Full
+    Empty
+    Full
 
 proc newAsyncHeapQueue*[T](
-    maxsize: int = 0,
-    queueType: QueueType = QueueType.Min
+    maxsize: int = 0, queueType: QueueType = QueueType.Min
 ): AsyncHeapQueue[T] =
   ## Creates a new asynchronous queue ``AsyncHeapQueue``.
   ##
@@ -54,12 +55,12 @@ proc wakeupNext(waiters: var seq[Future[void]]) {.inline.} =
     var waiter = waiters[i]
     inc(i)
 
-    if not(waiter.finished()):
+    if not (waiter.finished()):
       waiter.complete()
       break
 
   if i > 0:
-    waiters.delete(0..(i-1))
+    waiters.delete(0 .. (i - 1))
 
 proc heapCmp[T](x, y: T, max: bool = false): bool {.inline.} =
   if max:
@@ -93,17 +94,17 @@ proc siftup[T](heap: AsyncHeapQueue[T], p: int) =
   let startpos = pos
   let newitem = heap[pos]
   # Bubble up the smaller child until hitting a leaf.
-  var childpos = 2*pos + 1 # leftmost child position
+  var childpos = 2 * pos + 1 # leftmost child position
   while childpos < endpos:
     # Set childpos to index of smaller child.
     let rightpos = childpos + 1
     if rightpos < endpos and
-      not heapCmp(heap[childpos], heap[rightpos], heap.queueType == QueueType.Max):
+        not heapCmp(heap[childpos], heap[rightpos], heap.queueType == QueueType.Max):
       childpos = rightpos
     # Move the smaller child up.
     heap.queue[pos] = heap[childpos]
     pos = childpos
-    childpos = 2*pos + 1
+    childpos = 2 * pos + 1
   # The leaf at pos is empty now.  Put newitem there, and bubble it up
   # to its final resting place (by sifting its parents down).
   heap.queue[pos] = newitem
@@ -131,7 +132,7 @@ proc pushNoWait*[T](heap: AsyncHeapQueue[T], item: T): Result[void, AsyncHQError
     return err(AsyncHQErrors.Full)
 
   heap.queue.add(item)
-  siftdown(heap, 0, len(heap)-1)
+  siftdown(heap, 0, len(heap) - 1)
   heap.getters.wakeupNext()
 
   return ok()
@@ -147,7 +148,7 @@ proc push*[T](heap: AsyncHeapQueue[T], item: T) {.async, gcsafe.} =
     try:
       await putter
     except CatchableError as exc:
-      if not(heap.full()) and not(putter.cancelled()):
+      if not (heap.full()) and not (putter.cancelled()):
         heap.putters.wakeupNext()
       raise exc
 
@@ -180,7 +181,7 @@ proc pop*[T](heap: AsyncHeapQueue[T]): Future[T] {.async.} =
     try:
       await getter
     except CatchableError as exc:
-      if not(heap.empty()) and not(getter.cancelled()):
+      if not (heap.empty()) and not (getter.cancelled()):
         heap.getters.wakeupNext()
       raise exc
 
@@ -225,7 +226,9 @@ proc update*[T](heap: AsyncHeapQueue[T], item: T): bool =
     heap.siftup(0)
     return true
 
-proc pushOrUpdateNoWait*[T](heap: AsyncHeapQueue[T], item: T): Result[void, AsyncHQErrors] =
+proc pushOrUpdateNoWait*[T](
+    heap: AsyncHeapQueue[T], item: T
+): Result[void, AsyncHQErrors] =
   ## Update an item if it exists or push a new one
   ##
 
@@ -285,12 +288,12 @@ proc size*[T](heap: AsyncHeapQueue[T]): int {.inline.} =
   ## Return the maximum number of elements in ``heap``.
   heap.maxsize
 
-proc `[]`*[T](heap: AsyncHeapQueue[T], i: Natural) : T {.inline.} =
+proc `[]`*[T](heap: AsyncHeapQueue[T], i: Natural): T {.inline.} =
   ## Access the i-th element of ``heap`` by order from first to last.
   ## ``heap[0]`` is the first element, ``heap[^1]`` is the last element.
   heap.queue[i]
 
-proc `[]`*[T](heap: AsyncHeapQueue[T], i: BackwardsIndex) : T {.inline.} =
+proc `[]`*[T](heap: AsyncHeapQueue[T], i: BackwardsIndex): T {.inline.} =
   ## Access the i-th element of ``heap`` by order from first to last.
   ## ``heap[0]`` is the first element, ``heap[^1]`` is the last element.
   heap.queue[len(heap.queue) - int(i)]
@@ -314,14 +317,16 @@ proc contains*[T](heap: AsyncHeapQueue[T], item: T): bool {.inline.} =
   ## Return true if ``item`` is in ``heap`` or false if not found. Usually used
   ## via the ``in`` operator.
   for e in heap.queue.items():
-    if e == item: return true
+    if e == item:
+      return true
   return false
 
 proc `$`*[T](heap: AsyncHeapQueue[T]): string =
   ## Turn an async queue ``heap`` into its string representation.
   var res = "["
   for item in heap.queue.items():
-    if len(res) > 1: res.add(", ")
+    if len(res) > 1:
+      res.add(", ")
     res.addQuoted(item)
   res.add("]")
   res

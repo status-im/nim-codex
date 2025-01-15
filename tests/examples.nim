@@ -22,13 +22,14 @@ export units
 proc exampleString*(length: int): string =
   let chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
   result = newString(length) # Create a new empty string with a given length
-  for i in 0..<length:
-    result[i] = chars[rand(chars.len-1)] # Generate a random index and set the string's character
+  for i in 0 ..< length:
+    result[i] = chars[rand(chars.len - 1)]
+      # Generate a random index and set the string's character
 
 proc example*[T: SomeInteger](_: type T): T =
   rand(T)
 
-proc example*[T,N](_: type array[N, T]): array[N, T] =
+proc example*[T, N](_: type array[N, T]): array[N, T] =
   for item in result.mitems:
     item = T.example
 
@@ -53,14 +54,14 @@ proc example*(_: type StorageRequest): StorageRequest =
       collateral: 200.u256,
       proofProbability: 4.u256, # require a proof roughly once every 4 periods
       reward: 84.u256,
-      maxSlotLoss: 2 # 2 slots can be freed without data considered to be lost
+      maxSlotLoss: 2, # 2 slots can be freed without data considered to be lost
     ),
     content: StorageContent(
       cid: "zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob",
-      merkleRoot: array[32, byte].example
+      merkleRoot: array[32, byte].example,
     ),
-    expiry:(60 * 60).u256, # 1 hour ,
-    nonce: Nonce.example
+    expiry: (60 * 60).u256, # 1 hour ,
+    nonce: Nonce.example,
   )
 
 proc example*(_: type Slot): Slot =
@@ -79,25 +80,22 @@ proc example(_: type G1Point): G1Point =
 proc example(_: type G2Point): G2Point =
   G2Point(
     x: Fp2Element(real: UInt256.example, imag: UInt256.example),
-    y: Fp2Element(real: UInt256.example, imag: UInt256.example)
+    y: Fp2Element(real: UInt256.example, imag: UInt256.example),
   )
 
 proc example*(_: type Groth16Proof): Groth16Proof =
-  Groth16Proof(
-    a: G1Point.example,
-    b: G2Point.example,
-    c: G1Point.example
-  )
+  Groth16Proof(a: G1Point.example, b: G2Point.example, c: G1Point.example)
 
 proc example*(_: type RandomChunker, blocks: int): Future[string] {.async.} =
   # doAssert blocks >= 3, "must be more than 3 blocks"
   let rng = Rng.instance()
   let chunker = RandomChunker.new(
-    rng, size = DefaultBlockSize * blocks.NBytes, chunkSize = DefaultBlockSize)
+    rng, size = DefaultBlockSize * blocks.NBytes, chunkSize = DefaultBlockSize
+  )
   var data: seq[byte]
   while (let moar = await chunker.getBytes(); moar != []):
     data.add moar
   return byteutils.toHex(data)
 
-proc example*(_:  type RandomChunker): Future[string] {.async.} =
+proc example*(_: type RandomChunker): Future[string] {.async.} =
   await RandomChunker.example(3)

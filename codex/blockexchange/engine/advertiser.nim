@@ -34,20 +34,19 @@ const
   DefaultConcurrentAdvertRequests = 10
   DefaultAdvertiseLoopSleep = 30.minutes
 
-type
-  Advertiser* = ref object of RootObj
-    localStore*: BlockStore                                      # Local block store for this instance
-    discovery*: Discovery                                        # Discovery interface
+type Advertiser* = ref object of RootObj
+  localStore*: BlockStore # Local block store for this instance
+  discovery*: Discovery # Discovery interface
 
-    advertiserRunning*: bool                                     # Indicates if discovery is running
-    concurrentAdvReqs: int                                       # Concurrent advertise requests
+  advertiserRunning*: bool # Indicates if discovery is running
+  concurrentAdvReqs: int # Concurrent advertise requests
 
-    advertiseLocalStoreLoop*: Future[void]                                 # Advertise loop task handle
-    advertiseQueue*: AsyncQueue[Cid]                             # Advertise queue
-    trackedFutures*: TrackedFutures                              # Advertise tasks futures
+  advertiseLocalStoreLoop*: Future[void] # Advertise loop task handle
+  advertiseQueue*: AsyncQueue[Cid] # Advertise queue
+  trackedFutures*: TrackedFutures # Advertise tasks futures
 
-    advertiseLocalStoreLoopSleep: Duration                                 # Advertise loop sleep
-    inFlightAdvReqs*: Table[Cid, Future[void]]                   # Inflight advertise requests
+  advertiseLocalStoreLoopSleep: Duration # Advertise loop sleep
+  inFlightAdvReqs*: Table[Cid, Future[void]] # Inflight advertise requests
 
 proc addCidToQueue(b: Advertiser, cid: Cid) {.async.} =
   if cid notin b.advertiseQueue:
@@ -83,7 +82,6 @@ proc advertiseLocalStoreLoop(b: Advertiser) {.async: (raises: []).} =
         trace "Advertiser iterating blocks finished."
 
       await sleepAsync(b.advertiseLocalStoreLoopSleep)
-
     except CancelledError:
       break # do not propagate as advertiseLocalStoreLoop was asyncSpawned
     except CatchableError as e:
@@ -94,20 +92,17 @@ proc advertiseLocalStoreLoop(b: Advertiser) {.async: (raises: []).} =
 proc processQueueLoop(b: Advertiser) {.async: (raises: []).} =
   while b.advertiserRunning:
     try:
-      let
-        cid = await b.advertiseQueue.get()
+      let cid = await b.advertiseQueue.get()
 
       if cid in b.inFlightAdvReqs:
         continue
 
       try:
-        let
-          request = b.discovery.provide(cid)
+        let request = b.discovery.provide(cid)
 
         b.inFlightAdvReqs[cid] = request
         codex_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
         await request
-
       finally:
         b.inFlightAdvReqs.del(cid)
         codex_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
@@ -125,7 +120,7 @@ proc start*(b: Advertiser) {.async.} =
 
   trace "Advertiser start"
 
-  proc onBlock(cid: Cid) {.async.} = 
+  proc onBlock(cid: Cid) {.async.} =
     await b.advertiseBlock(cid)
 
   doAssert(b.localStore.onBlockStored.isNone())
@@ -136,7 +131,7 @@ proc start*(b: Advertiser) {.async.} =
     return
 
   b.advertiserRunning = true
-  for i in 0..<b.concurrentAdvReqs:
+  for i in 0 ..< b.concurrentAdvReqs:
     let fut = b.processQueueLoop()
     b.trackedFutures.track(fut)
     asyncSpawn fut
@@ -166,7 +161,7 @@ proc new*(
     localStore: BlockStore,
     discovery: Discovery,
     concurrentAdvReqs = DefaultConcurrentAdvertRequests,
-    advertiseLocalStoreLoopSleep = DefaultAdvertiseLoopSleep
+    advertiseLocalStoreLoopSleep = DefaultAdvertiseLoopSleep,
 ): Advertiser =
   ## Create a advertiser instance
   ##
@@ -177,4 +172,5 @@ proc new*(
     advertiseQueue: newAsyncQueue[Cid](concurrentAdvReqs),
     trackedFutures: TrackedFutures.new(),
     inFlightAdvReqs: initTable[Cid, Future[void]](),
-    advertiseLocalStoreLoopSleep: advertiseLocalStoreLoopSleep)
+    advertiseLocalStoreLoopSleep: advertiseLocalStoreLoopSleep,
+  )
