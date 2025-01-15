@@ -183,7 +183,7 @@ func key*(availability: Availability): ?!Key =
   return availability.id.key
 
 func maxCollateralPerByte*(availability: Availability): UInt256 =
-  return availability.totalCollateral / availability.freeSize
+  return availability.totalCollateral.div(availability.freeSize)
 
 func key*(reservation: Reservation): ?!Key =
   return key(reservation.id, reservation.availabilityId)
