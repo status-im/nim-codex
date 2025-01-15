@@ -73,7 +73,6 @@ type
     size* {.serialize.}: UInt256
     requestId* {.serialize.}: RequestId
     slotIndex* {.serialize.}: UInt256
-    collateralPerByte* {.serialize.}: UInt256
   Reservations* = ref object of RootObj
     availabilityLock: AsyncLock # Lock for protecting assertions of availability's sizes when searching for matching availability
     repo: RepoStore
@@ -135,15 +134,13 @@ proc init*(
   availabilityId: AvailabilityId,
   size: UInt256,
   requestId: RequestId,
-  slotIndex: UInt256,
-  collateralPerByte: UInt256
+  slotIndex: UInt256
 ): Reservation =
 
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
   Reservation(id: ReservationId(id), availabilityId: availabilityId,
-    size: size, requestId: requestId, slotIndex: slotIndex,
-    collateralPerByte: collateralPerByte)
+    size: size, requestId: requestId, slotIndex: slotIndex)
 
 func toArray(id: SomeStorableId): array[32, byte] =
   array[32, byte](id)
@@ -333,7 +330,8 @@ proc delete(
 proc deleteReservation*(
   self: Reservations,
   reservationId: ReservationId,
-  availabilityId: AvailabilityId): Future[?!void] {.async.} =
+  availabilityId: AvailabilityId,
+  currentCollateral: ?UInt256 = UInt256.none): Future[?!void] {.async.} =
 
   logScope:
     reservationId
@@ -362,9 +360,8 @@ proc deleteReservation*(
 
       availability.freeSize += reservation.size
 
-      # MC2: shall we return the collateral to the availability?
-      availability.totalCollateral += reservation.size *
-        reservation.collateralPerByte
+      if returnedCollateral =? currentCollateral:
+        availability.totalCollateral += returnedCollateral
 
       if updateErr =? (await self.updateAvailability(availability)).errorOption:
         return failure(updateErr)
@@ -432,7 +429,7 @@ method createReservation*(
     trace "Creating reservation", availabilityId, slotSize, requestId, slotIndex
 
     let reservation = Reservation.init(availabilityId, slotSize, requestId,
-      slotIndex, collateralPerByte)
+      slotIndex)
 
     if createResErr =? (await self.update(reservation)).errorOption:
       return failure(createResErr)

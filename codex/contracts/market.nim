@@ -159,6 +159,12 @@ method getHost(market: OnChainMarket,
     else:
       return none Address
 
+method currentCollateral*(market: OnChainMarket,
+                          slotId: SlotId): Future[UInt256] {.async.} =
+  convertEthersError:
+    return await market.contract.currentCollateral(slotId)
+
+
 method getActiveSlot*(market: OnChainMarket,
                       slotId: SlotId): Future[?Slot] {.async.} =
   convertEthersError:
