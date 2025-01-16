@@ -102,7 +102,8 @@ proc retrieveCid(
 
     if manifest.filename.isSome:
       resp.setHeader("Content-Disposition", "attachment; filename=\"" & manifest.filename.get() & "\"")
-
+    else:
+      resp.setHeader("Content-Disposition", "attachment")
 
     await resp.prepareChunked()
 
