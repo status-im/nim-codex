@@ -30,6 +30,7 @@ method run(state: SalePayout, machine: Machine): Future[?State] {.async.} =
 
   let slot = Slot(request: request, slotIndex: data.slotIndex)
   debug "Collecting finished slot's reward",  requestId = data.requestId, slotIndex = data.slotIndex
+  let currentCollateral = await market.currentCollateral(slot.id)
   await market.freeSlot(slot.id)
 
-  return some State(SaleFinished())
+  return some State(SaleFinished(currentCollateral: some currentCollateral))
