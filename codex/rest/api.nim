@@ -273,10 +273,6 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
           Http400,
           $cid.error(), headers = headers)
 
-      if corsOrigin =? allowedOrigin:
-        resp.setCorsHeaders("GET", corsOrigin)
-        resp.setHeader("Access-Control-Headers", "X-Requested-With")
-
       without manifest =? (await node.fetchManifest(cid.get())), err:
         error "Failed to fetch manifest", err = err.msg
         return RestApiResponse.error(
