@@ -408,7 +408,8 @@ proc wantListHandler*(
           b.pricing.get(Pricing(price: 0.u256))
           .price.toBytesBE)
 
-      if e.wantType == WantType.WantHave:
+      case e.wantType:
+      of WantType.WantHave:
         if have:
           presence.add(
             BlockPresence(
@@ -425,17 +426,19 @@ proc wantListHandler*(
           peerCtx.peerWants.add(e)
 
         codex_block_exchange_want_have_lists_received.inc()
-      elif e.wantType == WantType.WantBlock:
+      of WantType.WantBlock:
         peerCtx.peerWants.add(e)
         schedulePeer = true
         codex_block_exchange_want_block_lists_received.inc()
     else: # Updating existing entry in peer wants
       # peer doesn't want this block anymore
       if e.cancel:
+        trace "Canceling want for block", address = e.address
         peerCtx.peerWants.del(idx)
       else:
         # peer might want to ask for the same cid with
         # different want params
+        trace "Updating want for block", address = e.address
         peerCtx.peerWants[idx] = e # update entry
 
   if presence.len > 0:
