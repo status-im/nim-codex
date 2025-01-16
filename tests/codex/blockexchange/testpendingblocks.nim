@@ -63,8 +63,8 @@ checksuite "Pending Blocks":
     discard blks.mapIt( pendingBlocks.getWantHandle( it.cid ) )
 
     check:
-      blks.mapIt( $it.cid ).sorted(cmp[string]) ==
-      toSeq(pendingBlocks.wantListBlockCids).mapIt( $it ).sorted(cmp[string])
+      blks.mapIt( $BlockAddress.init(it.cid) ).sorted(cmp[string]) ==
+      toSeq(pendingBlocks.wantList).mapIt( $it ).sorted(cmp[string])
 
   test "Should get want handles list":
     let

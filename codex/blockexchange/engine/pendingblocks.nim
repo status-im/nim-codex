@@ -130,19 +130,6 @@ iterator wantList*(p: PendingBlocksManager): BlockAddress =
   for a in p.blocks.keys:
     yield a
 
-iterator wantListBlockCids*(p: PendingBlocksManager): Cid =
-  for a in p.blocks.keys:
-    if not a.leaf:
-      yield a.cid
-
-iterator wantListCids*(p: PendingBlocksManager): Cid =
-  var yieldedCids = initHashSet[Cid]()
-  for a in p.blocks.keys:
-    let cid = a.cidOrTreeCid
-    if cid notin yieldedCids:
-      yieldedCids.incl(cid)
-      yield cid
-
 iterator wantHandles*(p: PendingBlocksManager): Future[Block] =
   for v in p.blocks.values:
     yield v.handle
