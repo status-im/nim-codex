@@ -5,6 +5,7 @@ import ./integration/testsales
 import ./integration/testpurchasing
 import ./integration/testblockexpiration
 import ./integration/testmarketplace
+import ./integration/testslotreservations
 import ./integration/testproofs
 import ./integration/testvalidator
 import ./integration/testecbug

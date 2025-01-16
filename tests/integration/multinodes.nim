@@ -244,6 +244,26 @@ template multinodesuite*(name: string, body: untyped) =
 
       return await newCodexProcess(validatorIdx, config, Role.Validator)
 
+
+    proc searchLogs(role: Role, text: string): seq[bool] =
+      var hits: seq[bool] = @[]
+      if role == Role.Hardhat:
+        return @[hardhat().logFileContains(text)]
+      elif role == Role.Client:
+        for client in clients():
+          hits.add client.logFileContains(text)
+      else:
+        for provider in providers():
+          hits.add provider.logFileContains(text)
+
+      return hits
+
+    proc logsContain(role: Role, text: string): bool =
+      return searchLogs(role, text).allIt(it)
+
+    proc logsDoNotContain(role: Role, text: string): bool =
+      return searchLogs(role, text).allIt(not it)
+
     proc teardownImpl() {.async.} =
       for nodes in @[validators(), clients(), providers()]:
         for node in nodes:
