@@ -120,10 +120,8 @@ method getRequest*(market: OnChainMarket,
   convertEthersError:
     try:
       return some await market.contract.getRequest(id)
-    except ProviderError as e:
-      if e.msgDetail.contains("Unknown request"):
-        return none StorageRequest
-      raise e
+    except Marketplace_UnknownRequest:
+      return none StorageRequest
 
 method requestState*(market: OnChainMarket,
                      requestId: RequestId): Future[?RequestState] {.async.} =
@@ -131,10 +129,8 @@ method requestState*(market: OnChainMarket,
     try:
       let overrides = CallOverrides(blockTag: some BlockTag.pending)
       return some await market.contract.requestState(requestId, overrides)
-    except ProviderError as e:
-      if e.msgDetail.contains("Unknown request"):
-        return none RequestState
-      raise e
+    except Marketplace_UnknownRequest:
+      return none RequestState
 
 method slotState*(market: OnChainMarket,
                   slotId: SlotId): Future[SlotState] {.async.} =
@@ -168,10 +164,8 @@ method getActiveSlot*(market: OnChainMarket,
   convertEthersError:
     try:
       return some await market.contract.getActiveSlot(slotId)
-    except ProviderError as e:
-      if e.msgDetail.contains("Slot is free"):
-        return none Slot
-      raise e
+    except Marketplace_SlotIsFree:
+      return none Slot
 
 method fillSlot(market: OnChainMarket,
                 requestId: RequestId,
@@ -219,10 +213,8 @@ method isProofRequired*(market: OnChainMarket,
     try:
       let overrides = CallOverrides(blockTag: some BlockTag.pending)
       return await market.contract.isProofRequired(id, overrides)
-    except ProviderError as e:
-      if e.msgDetail.contains("Slot is free"):
-        return false
-      raise e
+    except Marketplace_SlotIsFree:
+      return false
 
 method willProofBeRequired*(market: OnChainMarket,
                             id: SlotId): Future[bool] {.async.} =
@@ -230,10 +222,8 @@ method willProofBeRequired*(market: OnChainMarket,
     try:
       let overrides = CallOverrides(blockTag: some BlockTag.pending)
       return await market.contract.willProofBeRequired(id, overrides)
-    except ProviderError as e:
-      if e.msgDetail.contains("Slot is free"):
-        return false
-      raise e
+    except Marketplace_SlotIsFree:
+      return false
 
 method getChallenge*(market: OnChainMarket, id: SlotId): Future[ProofChallenge] {.async.} =
   convertEthersError:
@@ -490,7 +480,7 @@ method queryPastSlotFilledEvents*(
   fromTime: SecondsSince1970): Future[seq[SlotFilled]] {.async.} =
 
   convertEthersError:
-    let fromBlock = 
+    let fromBlock =
       await market.contract.provider.blockNumberForEpoch(fromTime)
     return await market.queryPastSlotFilledEvents(BlockTag.init(fromBlock))
 
