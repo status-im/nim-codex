@@ -164,5 +164,5 @@ asyncchecksuite "Test Node - Basic":
 
     check:
       (await verifiableBlock.cid in localStore) == true
-      request.content.cid == $verifiableBlock.cid
+      request.content.cid == verifiableBlock.cid.data.buffer
       request.content.merkleRoot == builder.verifyRoot.get.toBytes

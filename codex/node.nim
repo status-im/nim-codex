@@ -456,7 +456,7 @@ proc setupRequest(
         maxSlotLoss: tolerance
       ),
       content: StorageContent(
-        cid: $manifestBlk.cid, # TODO: why string?
+        cid: manifestBlk.cid.data.buffer,
         merkleRoot: verifyRoot
       ),
       expiry: expiry
@@ -649,7 +649,7 @@ proc onProve(
 
 proc onExpiryUpdate(
   self: CodexNodeRef,
-  rootCid: string,
+  rootCid: seq[byte],
   expiry: SecondsSince1970): Future[?!void] {.async.} =
   without cid =? Cid.init(rootCid):
     trace "Unable to parse Cid", cid
@@ -683,7 +683,7 @@ proc start*(self: CodexNodeRef) {.async.} =
         onBatch: BatchProc): Future[?!void] = self.onStore(request, slot, onBatch)
 
     hostContracts.sales.onExpiryUpdate =
-      proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] =
+      proc(rootCid: seq[byte], expiry: SecondsSince1970): Future[?!void] =
         self.onExpiryUpdate(rootCid, expiry)
 
     hostContracts.sales.onClear =

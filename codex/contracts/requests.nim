@@ -27,7 +27,7 @@ type
     collateral* {.serialize.}: UInt256
     maxSlotLoss* {.serialize.}: uint64
   StorageContent* = object
-    cid* {.serialize.}: string
+    cid*: seq[byte]
     merkleRoot*: array[32, byte]
   Slot* = object
     request* {.serialize.}: StorageRequest

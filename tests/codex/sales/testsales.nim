@@ -47,7 +47,7 @@ asyncchecksuite "Sales - start":
         collateral: 200.u256,
       ),
       content: StorageContent(
-        cid: "some cid"
+        cid: "some cid".toBytes
       ),
       expiry: (getTime() + initDuration(hours=1)).toUnix.u256
     )
@@ -65,7 +65,7 @@ asyncchecksuite "Sales - start":
                          onBatch: BatchProc): Future[?!void] {.async.} =
       return success()
 
-    sales.onExpiryUpdate = proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] {.async.} =
+    sales.onExpiryUpdate = proc(rootCid: seq[byte], expiry: SecondsSince1970): Future[?!void] {.async.} =
       return success()
 
     queue = sales.context.slotQueue
@@ -151,7 +151,7 @@ asyncchecksuite "Sales":
         collateral: 200.u256,
       ),
       content: StorageContent(
-        cid: "some cid"
+        cid: "some cid".toBytes
       ),
       expiry: (getTime() + initDuration(hours=1)).toUnix.u256
     )
@@ -174,7 +174,7 @@ asyncchecksuite "Sales":
                          onBatch: BatchProc): Future[?!void] {.async.} =
       return success()
 
-    sales.onExpiryUpdate = proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] {.async.} =
+    sales.onExpiryUpdate = proc(rootCid: seq[byte], expiry: SecondsSince1970): Future[?!void] {.async.} =
       return success()
 
     queue = sales.context.slotQueue
