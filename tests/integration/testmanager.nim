@@ -25,11 +25,17 @@ type
     lastHardhatPort: int
     lastCodexApiPort: int
     lastCodexDiscPort: int
-    debugTestHarness: bool # output chronicles logs for the manager and multinodes harness
+    # Echoes stderr if there's a test failure (eg test failed, compilation
+    # error) or error (eg test manager error)
+    debugTestHarness: bool
+    # Echoes stdout from Hardhat process
     debugHardhat: bool
-    debugCodexNodes: bool # output chronicles logs for the codex nodes running in the tests
-    timeStart: Moment
-    timeEnd: Moment
+    # Echoes stdout from the integration test file process. Codex process logs
+    # can also be output if a test uses a multinodesuite, requires
+    # CodexConfig.debug to be enabled
+    debugCodexNodes: bool
+    timeStart: ?Moment
+    timeEnd: ?Moment
     codexPortLock: AsyncLock
     hardhatPortLock: AsyncLock
     hardhatProcessLock: AsyncLock
@@ -91,25 +97,6 @@ proc new*(
   debugHardhat = false,
   debugCodexNodes = false,
   testTimeout = 60.minutes): TestManager =
-
-  if debugTestHarness:
-    when enabledLogLevel != LogLevel.TRACE:
-      echoStyled bgWhite, fgBlack, styleBright, "\n\n  ",
-        styleUnderscore, "ADDITIONAL LOGGING AVAILABILE\n\n",
-        resetStyle, bgWhite, fgBlack, styleBright, """
-  More integration test harness logs available by running with
-  -d:chronicles_log_level=TRACE, eg:""",
-        resetStyle, bgWhite, fgBlack,
-          "\n\n  nim c -d:chronicles_log_level=TRACE -r ./testIntegration.nim\n\n"
-
-  if debugCodexNodes:
-      echoStyled bgWhite, fgBlack, styleBright, "\n\n  ",
-        styleUnderscore, "ENABLE CODEX LOGGING\n\n",
-        resetStyle, bgWhite, fgBlack, styleBright, """
-  For integration test suites that are multinodesuites, or for
-  tests launching a CodexProcess, ensure that CodexConfig.debug
-  is enabled.
-  """
 
   TestManager(
     configs: configs,
