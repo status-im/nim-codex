@@ -173,7 +173,7 @@ proc monitorBlockHandle(
 
     # drop unresponsive peer
     await b.network.switch.disconnect(peerId)
-    b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
+    b.discovery.queueFindBlocksReq(@[address])
 
 proc pickPseudoRandom(address: BlockAddress, peers: seq[BlockExcPeerCtx]): BlockExcPeerCtx =
   return peers[hash(address) mod peers.len]
@@ -188,7 +188,7 @@ proc requestBlock*(
     let peers = b.peers.getPeersForBlock(address)
 
     if peers.with.len == 0:
-      b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
+      b.discovery.queueFindBlocksReq(@[address])
     else:
       let selected = pickPseudoRandom(address, peers.with)
       asyncSpawn b.monitorBlockHandle(blockFuture, address, selected.id)
@@ -246,21 +246,24 @@ proc blockPresenceHandler*(
   # if none of the connected peers report our wants in their have list,
   # fire up discovery
   b.discovery.queueFindBlocksReq(
-    toSeq(b.pendingBlocks.wantListCids)
-    .filter do(cid: Cid) -> bool:
-      not b.peers.anyIt( cid in it.peerHaveCids ))
+    toSeq(b.pendingBlocks.wantList).filterIt(b.peers.peersHave(it).len == 0)
+  )
 
 proc scheduleTasks(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.async.} =
   let
-    cids = blocksDelivery.mapIt( it.blk.cid )
+    addresses = blocksDelivery.mapIt( it.address )
+
+  # TODO: This code assumes p.peerWants are of type wantBlock, and will schedule
+  # the block-sending task. But, want might be wantHave. In this case,
+  # we should send a presence update. Peer is scheduled but task handler
+  # can only send blocks.
 
   # schedule any new peers to provide blocks to
   for p in b.peers:
-    for c in cids: # for each cid
-      # schedule a peer if it wants at least one cid
-      # and we have it in our local store
-      if c in p.peerWantsCids:
-        if await (c in b.localStore):
+    for address in addresses:
+      # schedule a peer if it wants at least one
+      if address in p.peerWants:
+        if await (address in b.localStore):
           if b.scheduleTask(p):
             trace "Task scheduled for peer", peer = p.id
           else:

@@ -58,7 +58,8 @@ type
 
 proc discoveryQueueLoop(b: DiscoveryEngine) {.async: (raises: []).} =
   while b.discEngineRunning:
-    for cid in toSeq(b.pendingBlocks.wantListBlockCids):
+    for address in toSeq(b.pendingBlocks.wantList):
+      let cid = address.cidOrTreeCid
       try:
         await b.discoveryQueue.put(cid)
       except CancelledError:
@@ -88,10 +89,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async: (raises: []).} =
         trace "Discovery request already in progress", cid
         continue
 
-      let
-        haves = b.peers.peersHave(cid)
-
-      if haves.len < b.minPeersPerBlock:
+      if b.peers.countPeersWhoHave(cid) < b.minPeersPerBlock:
         try:
           let
             request = b.discovery
@@ -134,6 +132,9 @@ proc queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
         b.discoveryQueue.putNoWait(cid)
       except CatchableError as exc:
         warn "Exception queueing discovery request", exc = exc.msg
+
+proc queueFindBlocksReq*(b: DiscoveryEngine, addresses: seq[BlockAddress]) {.inline.} =
+  b.queueFindBlocksReq(addresses.mapIt(it.cidOrTreeCid))
 
 proc start*(b: DiscoveryEngine) {.async.} =
   ## Start the discengine task

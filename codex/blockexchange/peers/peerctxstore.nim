@@ -64,14 +64,11 @@ func len*(self: PeerCtxStore): int =
 func peersHave*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
   toSeq(self.peers.values).filterIt( it.peerHave.anyIt( it == address ) )
 
-func peersHave*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt( it.peerHave.anyIt( it.cidOrTreeCid == cid ) )
+func countPeersWhoHave*(self: PeerCtxStore, cid: Cid): int =
+  self.peers.values.countIt(it.peerHave.anyIt( it.cidOrTreeCid == cid ) )
 
 func peersWant*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
   toSeq(self.peers.values).filterIt( it.peerWants.anyIt( it == address ) )
-
-func peersWant*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt( it.peerWants.anyIt( it.address.cidOrTreeCid == cid ) )
 
 proc getPeersForBlock*(self: PeerCtxStore, address: BlockAddress): PeersForBlock =
   var res = PeersForBlock()
