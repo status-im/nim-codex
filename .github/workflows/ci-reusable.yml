@@ -39,7 +39,7 @@ jobs:
         if: matrix.os == 'linux' || matrix.os == 'macos'
         with:
           create-symlink: true
-          key: ${{ matrix.os }}-${{ matrix.builder }}-${{ matrix.cpu }}
+          key: ${{ matrix.os }}-${{ matrix.builder }}-${{ matrix.cpu }}-${{ matrix.tests }}-${{ matrix.nim_version }}
 
       - name: Setup Nimbus Build System
         uses: ./.github/actions/nimbus-build-system
