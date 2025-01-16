@@ -5,6 +5,7 @@ import pkg/chronicles
 import pkg/chronos/asyncproc
 import pkg/ethers
 import pkg/libp2p
+import pkg/stew/io2
 import std/os
 import std/strutils
 import codex/conf
@@ -40,6 +41,20 @@ method outputLineEndings(node: CodexProcess): string {.raises: [].} =
 method onOutputLineCaptured(node: CodexProcess, line: string) {.raises: [].} =
   discard
 
+method logFileContains*(node: CodexProcess, text: string): bool =
+  let config = CodexConf.load(cmdLine = node.arguments, quitOnFailure = false)
+  without logFile =? config.logFile.?string:
+    raiseAssert "codex node does have a --log-file option set (use .withLogFile())"
+
+  let resLogContents = logFile.readAllChars
+  if resLogContents.isErr:
+  # without logContents =? logFile.readAllChars:
+    raiseAssert "failed to open codex log file, aborting (log path: " & logFile & ")"
+
+  let logContents = resLogContents.value
+
+  return logContents.contains(text)
+
 proc dataDir(node: CodexProcess): string =
   let config = CodexConf.load(cmdLine = node.arguments, quitOnFailure = false)
   return config.dataDir.string
@@ -73,4 +88,4 @@ method stop*(node: CodexProcess) {.async.} =
     node.client = none CodexClient
 
 method removeDataDir*(node: CodexProcess) =
-  removeDir(node.dataDir)
+  os.removeDir(node.dataDir)

@@ -40,6 +40,25 @@ method processOptions(node: HardhatProcess): set[AsyncProcessOption] =
 method outputLineEndings(node: HardhatProcess): string {.raises: [].} =
   return "\n"
 
+method logFileContains*(hardhat: HardhatProcess, text: string): bool =
+  without fileHandle =? hardhat.logFile:
+    raiseAssert "failed to open hardhat log file, aborting"
+
+  without fileSize =? fileHandle.getFileSize:
+    raiseAssert "failed to get current hardhat log file size, aborting"
+
+  if checkFileSize(fileSize).isErr:
+    raiseAssert "file size too big for nim indexing"
+
+  var data = ""
+  data.setLen(fileSize)
+
+  without bytesRead =? readFile(fileHandle,
+                                data.toOpenArray(0, len(data) - 1)):
+    raiseAssert "unable to read hardhat log, aborting"
+
+  return data.contains(text)
+
 proc openLogFile(node: HardhatProcess, logFilePath: string): IoHandle =
   let logFileHandle = openFile(
     logFilePath,
