@@ -34,7 +34,7 @@ checksuite "sales state 'filled'":
 
     market.requestEnds[request.id] = 321
     onExpiryUpdatePassedExpiry = -1
-    let onExpiryUpdate = proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] {.async.} =
+    let onExpiryUpdate = proc(rootCid: seq[byte], expiry: SecondsSince1970): Future[?!void] {.async.} =
       onExpiryUpdatePassedExpiry = expiry
       return success()
     let context = SalesContext(market: market, onExpiryUpdate: some onExpiryUpdate)

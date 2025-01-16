@@ -56,7 +56,7 @@ proc example*(_: type StorageRequest): StorageRequest =
       maxSlotLoss: 2 # 2 slots can be freed without data considered to be lost
     ),
     content: StorageContent(
-      cid: "zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob",
+      cid: "zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob".toBytes,
       merkleRoot: array[32, byte].example
     ),
     expiry:(60 * 60).u256, # 1 hour ,
