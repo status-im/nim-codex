@@ -22,7 +22,7 @@
         circomCompatPkg = circom-compat.packages.${system}.default;
         buildTarget = pkgsFor.${system}.callPackage ./nix/default.nix rec {
           inherit stableSystems circomCompatPkg;
-          src = pkgsFor.${system}.lib.traceValFn (v: "self.submodules: ${toString v.submodules}") self;
+          src = self;
         };
         build = targets: buildTarget.override { inherit targets; };
       in rec {

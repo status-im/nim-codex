@@ -4,7 +4,7 @@
 
 A development shell can be started using:
 ```sh
-nix develop
+nix develop '.?submodules=1#'
 ```
 
 ## Building

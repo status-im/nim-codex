@@ -3,15 +3,15 @@
   src ? ../.,
   targets ? ["all"],
   # Options: 0,1,2
-  verbosity ? 0,
-  # Use system Nim compiler instead of building it with nimbus-build-system
-  useSystemNim ? true,
+  verbosity ? 1,
   commit ? builtins.substring 0 7 (src.rev or "dirty"),
   # These are the only platforms tested in CI and considered stable.
   stableSystems ? [
     "x86_64-linux" "aarch64-linux"
     "x86_64-darwin" "aarch64-darwin"
   ],
+  # Perform 2-stage bootstrap instead of 3-stage to save time.
+  quickAndDirty ? true,
   circomCompatPkg ? (
     builtins.getFlake "github:codex-storage/circom-compat-ffi"
   ).packages.${builtins.currentSystem}.default
@@ -26,7 +26,7 @@ let
   revision = lib.substring 0 8 (src.rev or "dirty");
 
   tools = callPackage ./tools.nix {};
-in pkgs.gcc11Stdenv.mkDerivation rec {
+in pkgs.gcc13Stdenv.mkDerivation rec {
 
   pname = "codex";
 
@@ -49,10 +49,7 @@ in pkgs.gcc11Stdenv.mkDerivation rec {
   in
     with pkgs; [
       cmake
-      pkg-config
-      nimble
       which
-      nim-unwrapped-1
       lsb-release
       circomCompatPkg
       fakeGit
@@ -66,11 +63,23 @@ in pkgs.gcc11Stdenv.mkDerivation rec {
 
   makeFlags = targets ++ [
     "V=${toString verbosity}"
-    "USE_SYSTEM_NIM=${if useSystemNim then "1" else "0"}"
+    "QUICK_AND_DIRTY_COMPILER=${if quickAndDirty then "1" else "0"}"
+    "QUICK_AND_DIRTY_NIMBLE=${if quickAndDirty then "1" else "0"}"
   ];
 
   configurePhase = ''
-    patchShebangs . > /dev/null
+    patchShebangs . vendor/nimbus-build-system > /dev/null
+    make nimbus-build-system-paths
+  '';
+
+  preBuild = ''
+    pushd vendor/nimbus-build-system/vendor/Nim
+    mkdir dist
+    cp -r ${callPackage ./nimble.nix {}}    dist/nimble
+    cp -r ${callPackage ./checksums.nix {}} dist/checksums
+    cp -r ${callPackage ./csources.nix {}}  csources_v2
+    chmod 777 -R dist/nimble csources_v2
+    popd
   '';
 
   installPhase = ''
