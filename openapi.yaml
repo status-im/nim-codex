@@ -178,8 +178,8 @@ components:
         - $ref: "#/components/schemas/SalesAvailability"
         - required:
             - totalSize
-            - minPricePerByte
-            - totalCollateral
+            - minPricePerBytePerSecond
+            - totalRemainingCollateral
             - duration
 
     Slot:
@@ -243,7 +243,7 @@ components:
     StorageRequestCreation:
       type: object
       required:
-        - pricePerByte
+        - pricePerBytePerSecond
         - duration
         - proofProbability
         - collateralPerByte
@@ -251,7 +251,7 @@ components:
       properties:
         duration:
           $ref: "#/components/schemas/Duration"
-        pricePerByte:
+        pricePerBytePerSecond:
           $ref: "#/components/schemas/PricePerByte"
         proofProbability:
           $ref: "#/components/schemas/ProofProbability"
@@ -272,7 +272,7 @@ components:
     StorageAsk:
       type: object
       required:
-        - pricePerByte
+        - pricePerBytePerSecond
       properties:
         slots:
           description: Number of slots (eq. hosts) that the Request want to have the content spread over
@@ -284,8 +284,8 @@ components:
           $ref: "#/components/schemas/Duration"
         proofProbability:
           $ref: "#/components/schemas/ProofProbability"
-        pricePerByte:
-          $ref: "#/components/schemas/PricePerByte"
+        pricePerBytePerSecond:
+          $ref: "#/components/schemas/PricePerByteSecond"
         maxSlotLoss:
           type: integer
           description: Max slots that can be lost without data considered to be lost

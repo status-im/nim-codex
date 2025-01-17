@@ -15,7 +15,7 @@ type
   StorageRequestParams* = object
     duration* {.serialize.}: UInt256
     proofProbability* {.serialize.}: UInt256
-    pricePerByte* {.serialize.}: UInt256
+    pricePerBytePerSecond* {.serialize.}: UInt256
     collateralPerByte* {.serialize.}: UInt256
     expiry* {.serialize.}: ?UInt256
     nodes* {.serialize.}: ?uint
@@ -30,8 +30,8 @@ type
   RestAvailability* = object
     totalSize* {.serialize.}: UInt256
     duration* {.serialize.}: UInt256
-    minPricePerByte* {.serialize.}: UInt256
-    totalCollateral* {.serialize.}: UInt256
+    minPricePerBytePerSecond* {.serialize.}: UInt256
+    totalRemainingCollateral* {.serialize.}: UInt256
     freeSize* {.serialize.}: ?UInt256
 
   RestSalesAgent* = object

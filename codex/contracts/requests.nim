@@ -18,20 +18,24 @@ type
     content* {.serialize.}: StorageContent
     expiry* {.serialize.}: UInt256
     nonce*: Nonce
+
   StorageAsk* = object
     slots* {.serialize.}: uint64
     slotSize* {.serialize.}: UInt256
     duration* {.serialize.}: UInt256
     proofProbability* {.serialize.}: UInt256
-    pricePerByte* {.serialize.}: UInt256
+    pricePerBytePerSecond* {.serialize.}: UInt256
     collateralPerByte* {.serialize.}: UInt256
     maxSlotLoss* {.serialize.}: uint64
+
   StorageContent* = object
     cid* {.serialize.}: string
     merkleRoot*: array[32, byte]
+
   Slot* = object
     request* {.serialize.}: StorageRequest
     slotIndex* {.serialize.}: UInt256
+
   SlotId* = distinct array[32, byte]
   RequestId* = distinct array[32, byte]
   Nonce* = distinct array[32, byte]
@@ -41,6 +45,7 @@ type
     Cancelled
     Finished
     Failed
+
   SlotState* {.pure.} = enum
     Free
     Filled
@@ -108,7 +113,7 @@ func fromTuple(_: type StorageAsk, tupl: tuple): StorageAsk =
     slotSize: tupl[1],
     duration: tupl[2],
     proofProbability: tupl[3],
-    pricePerByte: tupl[4],
+    pricePerBytePerSecond: tupl[4],
     collateralPerByte: tupl[5],
     maxSlotLoss: tupl[6]
   )
@@ -173,14 +178,20 @@ func slotId*(request: StorageRequest, slotIndex: UInt256): SlotId =
 func id*(slot: Slot): SlotId =
   slotId(slot.request, slot.slotIndex)
 
-func pricePerSlot*(ask: StorageAsk): UInt256 =
-  ask.duration * ask.pricePerByte * ask.slotSize
+func pricePerSlotPerSecond*(ask: StorageAsk): UInt256 =
+  ask.pricePerBytePerSecond * ask.slotSize
 
-func price*(ask: StorageAsk): UInt256 =
+func pricePerSlot*(ask: StorageAsk): UInt256 =
+  ask.duration * ask.pricePerSlotPerSecond
+
+func totalPrice*(ask: StorageAsk): UInt256 =
   ask.slots.u256 * ask.pricePerSlot
 
-func price*(request: StorageRequest): UInt256 =
-  request.ask.price
+func totalPrice*(request: StorageRequest): UInt256 =
+  request.ask.totalPrice
+
+func collateralPerSlot*(ask: StorageAsk): UInt256 =
+  ask.collateralPerByte * ask.slotSize
 
 func size*(ask: StorageAsk): UInt256 =
   ask.slots.u256 * ask.slotSize

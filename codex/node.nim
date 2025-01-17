@@ -387,7 +387,7 @@ proc setupRequest(
   proofProbability: UInt256,
   nodes: uint,
   tolerance: uint,
-  pricePerByte: UInt256,
+  pricePerBytePerSecond: UInt256,
   collateralPerByte: UInt256,
   expiry:  UInt256): Future[?!StorageRequest] {.async.} =
   ## Setup slots for a given dataset
@@ -398,16 +398,16 @@ proc setupRequest(
     ecM = tolerance
 
   logScope:
-    cid               = cid
-    duration          = duration
-    nodes             = nodes
-    tolerance         = tolerance
-    pricePerByte      = pricePerByte
-    proofProbability  = proofProbability
-    collateralPerByte = collateralPerByte
-    expiry            = expiry
-    ecK               = ecK
-    ecM               = ecM
+    cid                   = cid
+    duration              = duration
+    nodes                 = nodes
+    tolerance             = tolerance
+    pricePerBytePerSecond = pricePerByteSecond
+    proofProbability      = proofProbability
+    collateralPerByte     = collateralPerByte
+    expiry                = expiry
+    ecK                   = ecK
+    ecM                   = ecM
 
   trace "Setting up slots"
 
@@ -451,7 +451,7 @@ proc setupRequest(
         slotSize: builder.slotBytes.uint.u256,
         duration: duration,
         proofProbability: proofProbability,
-        pricePerByte: pricePerByte,
+        pricePerBytePerSecond: pricePerBytePerSecond,
         collateralPerByte: collateralPerByte,
         maxSlotLoss: tolerance
       ),
@@ -472,7 +472,7 @@ proc requestStorage*(
   proofProbability: UInt256,
   nodes: uint,
   tolerance: uint,
-  pricePerByte: UInt256,
+  pricePerBytePerSecond: UInt256,
   collateralPerByte: UInt256,
   expiry:  UInt256): Future[?!PurchaseId] {.async.} =
   ## Initiate a request for storage sequence, this might

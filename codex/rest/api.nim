@@ -416,12 +416,15 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
     MethodPost,
     "/api/codex/v1/sales/availability") do () -> RestApiResponse:
       ## Add available storage to sell.
-      ## Every time Availability's offer finishes, its capacity is returned to the availability.
+      ## Every time Availability's offer finishes, its capacity is
+      ## returned to the availability.
       ##
-      ## totalSize        - size of available storage in bytes
-      ## duration         - maximum time the storage should be sold for (in seconds)
-      ## minPricePerByte  - minimal price per byte paid (in amount of tokens) to be matched against the request's pricePerByte
-      ## totalCollateral  - total collateral (in amount of tokens) that can be distributed among matching requests
+      ## totalSize - size of available storage in bytes
+      ## duration - maximum time the storage should be sold for (in seconds)
+      ## minPricePerBytePerSecond - minimal price per byte paid (in amount of
+      ##   tokens) to be matched against the request's pricePerBytePerSecond
+      ## totalRemainingCollateral - total remaining collateral (in amount of
+      ##   tokens) that can be distributed among matching requests
 
       var headers = buildCorsHeaders("POST", allowedOrigin)
 
@@ -446,8 +449,8 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
           await reservations.createAvailability(
             restAv.totalSize,
             restAv.duration,
-            restAv.minPricePerByte,
-            restAv.totalCollateral)
+            restAv.minPricePerBytePerSecond,
+            restAv.totalRemainingCollateral)
           ), error:
           return RestApiResponse.error(Http500, error.msg, headers = headers)
 
@@ -476,10 +479,14 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       ## The new parameters will be only considered for new requests.
       ## Existing Requests linked to this Availability will continue as is.
       ##
-      ## totalSize      - size of available storage in bytes. When decreasing the size, then lower limit is the currently `totalSize - freeSize`.
-      ## duration       - maximum time the storage should be sold for (in seconds)
-      ## minPricePerByte  - minimal price per byte paid (in amount of tokens) to be matched against the request's pricePerByte
-      ## totalCollateral  - total collateral (in amount of tokens) that can be distributed among matching requests
+      ## totalSize - size of available storage in bytes.
+      ##   When decreasing the size, then lower limit is
+      ##   the currently `totalSize - freeSize`.
+      ## duration - maximum time the storage should be sold for (in seconds)
+      ## minPricePerBytePerSecond - minimal price per byte paid (in amount of
+      ##   tokens) to be matched against the request's pricePerBytePerSecond
+      ## totalRemainingCollateral - total remaining collateral (in amount of
+      ##   tokens) that can be distributed among matching requests
       try:
         without contracts =? node.contracts.host:
           return RestApiResponse.error(Http503, "Persistence is not enabled")
@@ -520,8 +527,8 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
         if minPricePerByte =? restAv.minPricePerByte:
           availability.minPricePerByte = minPricePerByte
 
-        if totalCollateral =? restAv.totalCollateral:
-          availability.totalCollateral = totalCollateral
+        if totalRemainingCollateral =? restAv.totalRemainingCollateral:
+          availability.totalRemainingCollateral = totalRemainingCollateral
 
         if err =? (await reservations.update(availability)).errorOption:
           return RestApiResponse.error(Http500, err.msg)
@@ -577,7 +584,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       ## cid              - the cid of a previously uploaded dataset
       ## duration         - the duration of the request in seconds
       ## proofProbability - how often storage proofs are required
-      ## pricePerByte     - the amount of tokens paid per byte second per slot to hosts the client is willing to pay
+      ## pricePerBytePerSecond - the amount of tokens paid per byte per second to hosts the client is willing to pay
       ## expiry           - specifies threshold in seconds from now when the request expires if the Request does not find requested amount of nodes to host the data
       ## nodes            - number of nodes the content should be stored on
       ## tolerance        - allowed number of nodes that can be lost before content is lost
@@ -623,7 +630,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
           params.proofProbability,
           nodes,
           tolerance,
-          params.pricePerByte,
+          params.pricePerBytePerSecond,
           params.collateralPerByte,
           expiry), error:
 

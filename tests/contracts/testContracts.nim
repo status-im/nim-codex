@@ -19,7 +19,7 @@ ethersuite "Marketplace contracts":
   var filledAt: UInt256
 
   proc expectedPayout(endTimestamp: UInt256): UInt256 =
-    return (endTimestamp - filledAt) * request.ask.reward
+    return (endTimestamp - filledAt) * request.ask.pricePerSlotPerSecond()
 
   proc switchAccount(account: Signer) =
     marketplace = marketplace.connect(account)
@@ -44,10 +44,11 @@ ethersuite "Marketplace contracts":
     request.client = await client.getAddress()
 
     switchAccount(client)
-    discard await token.approve(marketplace.address, request.price).confirm(1)
+    discard await token.approve(marketplace.address, request.totalPrice).confirm(1)
     discard await marketplace.requestStorage(request).confirm(1)
     switchAccount(host)
-    discard await token.approve(marketplace.address, request.ask.collateral).confirm(1)
+    discard
+      await token.approve(marketplace.address, request.ask.collateralPerSlot).confirm(1)
     discard await marketplace.reserveSlot(request.id, 0.u256).confirm(1)
     let receipt = await marketplace.fillSlot(request.id, 0.u256, proof).confirm(1)
     filledAt = await ethProvider.blockTime(BlockTag.init(!receipt.blockNumber))
@@ -65,8 +66,9 @@ ethersuite "Marketplace contracts":
 
   proc startContract() {.async.} =
     for slotIndex in 1 ..< request.ask.slots:
-      discard
-        await token.approve(marketplace.address, request.ask.collateral).confirm(1)
+      discard await token
+        .approve(marketplace.address, request.ask.collateralPerSlot)
+        .confirm(1)
       discard await marketplace.reserveSlot(request.id, slotIndex.u256).confirm(1)
       discard await marketplace.fillSlot(request.id, slotIndex.u256, proof).confirm(1)
 
@@ -94,7 +96,7 @@ ethersuite "Marketplace contracts":
     discard await marketplace.freeSlot(slotId).confirm(1)
     let endBalance = await token.balanceOf(address)
     check endBalance ==
-      (startBalance + expectedPayout(requestEnd.u256) + request.ask.collateral)
+      (startBalance + expectedPayout(requestEnd.u256) + request.ask.collateralPerSlot)
 
   test "can be paid out at the end, specifying reward and collateral recipient":
     switchAccount(host)
@@ -114,7 +116,8 @@ ethersuite "Marketplace contracts":
 
     check endBalanceHost == startBalanceHost
     check endBalanceReward == (startBalanceReward + expectedPayout(requestEnd.u256))
-    check endBalanceCollateral == (startBalanceCollateral + request.ask.collateral)
+    check endBalanceCollateral ==
+      (startBalanceCollateral + request.ask.collateralPerSlot)
 
   test "cannot mark proofs missing for cancelled request":
     let expiry = await marketplace.requestExpiry(request.id)

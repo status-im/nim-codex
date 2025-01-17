@@ -50,9 +50,9 @@ proc example*(_: type StorageRequest): StorageRequest =
       slots: 4,
       slotSize: (1 * 1024 * 1024 * 1024).u256, # 1 Gigabyte
       duration: (10 * 60 * 60).u256, # 10 hours
-      collateral: 200.u256,
+      collateralPerByte: 1.u256,
       proofProbability: 4.u256, # require a proof roughly once every 4 periods
-      reward: 84.u256,
+      pricePerBytePerSecond: 1.u256,
       maxSlotLoss: 2 # 2 slots can be freed without data considered to be lost
     ),
     content: StorageContent(
