@@ -154,8 +154,11 @@ runs:
           llvm_bin_dir="${llvm_dir}/bin"
           llvm_lib_dir="${llvm_dir}/lib"
           echo "${llvm_bin_dir}" >> ${GITHUB_PATH}
+          # Make sure ccache has precedence (GITHUB_PATH is appending before)
+          echo "$(brew --prefix)/opt/ccache/libexec" >> ${GITHUB_PATH}
+          echo $PATH
           echo "LDFLAGS=${LDFLAGS} -L${libomp_lib_dir} -L${llvm_lib_dir} -Wl,-rpath,${llvm_lib_dir}" >> ${GITHUB_ENV}
-          NIMFLAGS="${NIMFLAGS} $(quote "-d:LeopardCmakeFlags='-DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=${llvm_bin_dir}/clang -DCMAKE_CXX_COMPILER=${llvm_bin_dir}/clang++' -d:LeopardExtraCompilerlags='-fopenmp' -d:LeopardExtraLinkerFlags='-fopenmp -L${libomp_lib_dir}'")"
+          NIMFLAGS="${NIMFLAGS} $(quote "-d:LeopardCmakeFlags='-DCMAKE_BUILD_TYPE=Release' -d:LeopardExtraCompilerFlags='-fopenmp' -d:LeopardExtraLinkerFlags='-fopenmp -L${libomp_lib_dir}'")"
           echo "NIMFLAGS=${NIMFLAGS}" >> $GITHUB_ENV
         fi
 
