@@ -97,6 +97,12 @@ runs:
         # Set GCC-14 as the default
         sudo update-alternatives --set gcc /usr/bin/gcc-14
 
+    - name: Install ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      if: inputs.os == 'windows'
+      with:
+        key: ${{ matrix.os }}-${{ matrix.builder }}-${{ matrix.cpu }}-${{ matrix.tests }}-${{ matrix.nim_version }}
+
     - name: Derive environment variables
       shell: ${{ inputs.shell }} {0}
       run: |
@@ -144,6 +150,32 @@ runs:
           echo "CXXFLAGS=${CXXFLAGS}" >> ${GITHUB_ENV}
           NIMFLAGS="${NIMFLAGS} --passC:-mno-adx"
           echo "NIMFLAGS=${NIMFLAGS}" >> $GITHUB_ENV
+        fi
+
+        # Enable CCACHE on Windows
+        which gcc
+        ls -la $(dirname $(which gcc))
+        if [[ '${{ inputs.os }}' == 'windows' ]]; then
+          CCACHE_DIR=$(dirname $(which ccache))
+          echo ${CCACHE_DIR}
+          ls -la ${CCACHE_DIR}
+          ln -s $(which ccache) ${CCACHE_DIR}/gcc
+          ln -s $(which ccache) ${CCACHE_DIR}/g++
+          ln -s $(which ccache) ${CCACHE_DIR}/cc
+          ln -s $(which ccache) ${CCACHE_DIR}/c++
+          ln -s $(which ccache) ${CCACHE_DIR}/gcc.exe
+          ln -s $(which ccache) ${CCACHE_DIR}/g++.exe
+          ln -s $(which ccache) ${CCACHE_DIR}/cc.exe
+          ln -s $(which ccache) ${CCACHE_DIR}/c++.exe
+          echo $PATH
+          # echo "${CCACHE_DIR}" >> ${GITHUB_PATH} # unfortunately not working in msys2, see https://github.com/msys2/setup-msys2/issues/347
+          # echo $PATH
+          # export PATH=${CCACHE_DIR}:$PATH # works temporarily, but not saving in msys2, might work with shell: msys2 {0}
+          # ls -la ${CCACHE_DIR}
+          # echo $PATH
+          # which gcc
+          # echo "PATH=${CCACHE_DIR}:$PATH" >> ${GITHUB_ENV} # this might work ...
+          echo "PATH=${CCACHE_DIR}:\$PATH" >> $HOME/.bashrc # this might also work ...
         fi
 
         # Enable OpenMP on macOS
@@ -194,6 +226,9 @@ runs:
     - name: Build Nim and Codex dependencies
       shell: ${{ inputs.shell }} {0}
       run: |
+        echo $HOME/.bashrc
+        echo $PATH
+        which gcc
         gcc --version
         make -j${ncpu} CI_CACHE=NimBinaries ${ARCH_OVERRIDE} QUICK_AND_DIRTY_COMPILER=1 update
         echo
