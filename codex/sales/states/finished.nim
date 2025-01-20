@@ -12,6 +12,7 @@ logScope:
 
 type
   SaleFinished* = ref object of ErrorHandlingState
+    currentCollateral*: ?UInt256
 
 method `$`*(state: SaleFinished): string = "SaleFinished"
 
@@ -31,4 +32,4 @@ method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
   info "Slot finished and paid out", requestId = data.requestId, slotIndex = data.slotIndex
 
   if onCleanUp =? agent.onCleanUp:
-    await onCleanUp()
+    await onCleanUp(currentCollateral = state.currentCollateral)

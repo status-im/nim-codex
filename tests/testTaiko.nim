@@ -48,11 +48,14 @@ suite "Taiko L2 Integration Tests":
     node2.removeDataDir()
 
   test "node 1 buys storage from node 2":
+    let size = 0xFFFFF.u256
+    let minPricePerBytePerSecond = 1.u256
+    let totalCollateral = size*minPricePerBytePerSecond
     discard node2.client.postAvailability(
-      size=0xFFFFF.u256,
+      size=size,
       duration=200.u256,
-      minPrice=300.u256,
-      maxCollateral=300.u256
+      minPricePerBytePerSecond=minPricePerBytePerSecond,
+      totalRemainingCollateral=totalCollateral
     )
     let cid = !node1.client.upload("some file contents")
 
@@ -61,9 +64,9 @@ suite "Taiko L2 Integration Tests":
     let purchase = !node1.client.requestStorage(
       cid,
       duration=30.u256,
-      reward=400.u256,
+      pricePerBytePerSecond=1.u256,
       proofProbability=3.u256,
-      collateral=200.u256,
+      collateralPerByte=1.u256,
       expiry=expiry.u256
     )
 

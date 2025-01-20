@@ -387,8 +387,8 @@ proc setupRequest(
   proofProbability: UInt256,
   nodes: uint,
   tolerance: uint,
-  reward: UInt256,
-  collateral: UInt256,
+  pricePerBytePerSecond: UInt256,
+  collateralPerByte: UInt256,
   expiry:  UInt256): Future[?!StorageRequest] {.async.} =
   ## Setup slots for a given dataset
   ##
@@ -398,16 +398,16 @@ proc setupRequest(
     ecM = tolerance
 
   logScope:
-    cid               = cid
-    duration          = duration
-    nodes             = nodes
-    tolerance         = tolerance
-    reward            = reward
-    proofProbability  = proofProbability
-    collateral        = collateral
-    expiry            = expiry
-    ecK               = ecK
-    ecM               = ecM
+    cid                   = cid
+    duration              = duration
+    nodes                 = nodes
+    tolerance             = tolerance
+    pricePerBytePerSecond = pricePerBytePerSecond
+    proofProbability      = proofProbability
+    collateralPerByte     = collateralPerByte
+    expiry                = expiry
+    ecK                   = ecK
+    ecM                   = ecM
 
   trace "Setting up slots"
 
@@ -451,8 +451,8 @@ proc setupRequest(
         slotSize: builder.slotBytes.uint.u256,
         duration: duration,
         proofProbability: proofProbability,
-        reward: reward,
-        collateral: collateral,
+        pricePerBytePerSecond: pricePerBytePerSecond,
+        collateralPerByte: collateralPerByte,
         maxSlotLoss: tolerance
       ),
       content: StorageContent(
@@ -472,23 +472,23 @@ proc requestStorage*(
   proofProbability: UInt256,
   nodes: uint,
   tolerance: uint,
-  reward: UInt256,
-  collateral: UInt256,
+  pricePerBytePerSecond: UInt256,
+  collateralPerByte: UInt256,
   expiry:  UInt256): Future[?!PurchaseId] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
   ##
 
   logScope:
-    cid               = cid
-    duration          = duration
-    nodes             = nodes
-    tolerance         = tolerance
-    reward            = reward
-    proofProbability  = proofProbability
-    collateral        = collateral
-    expiry            = expiry.truncate(int64)
-    now               = self.clock.now
+    cid                   = cid
+    duration              = duration
+    nodes                 = nodes
+    tolerance             = tolerance
+    pricePerBytePerSecond = pricePerBytePerSecond
+    proofProbability      = proofProbability
+    collateralPerByte     = collateralPerByte
+    expiry                = expiry.truncate(int64)
+    now                   = self.clock.now
 
   trace "Received a request for storage!"
 
@@ -503,8 +503,8 @@ proc requestStorage*(
       proofProbability,
       nodes,
       tolerance,
-      reward,
-      collateral,
+      pricePerBytePerSecond,
+      collateralPerByte,
       expiry)), err:
     trace "Unable to setup request"
     return failure err

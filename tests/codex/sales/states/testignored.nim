@@ -24,9 +24,14 @@ asyncchecksuite "sales state 'ignored'":
   var reprocessSlotWas = false
 
   setup:
-    let onCleanUp = proc (returnBytes = false, reprocessSlot = false) {.async.} =
-                      returnBytesWas = returnBytes
-                      reprocessSlotWas = reprocessSlot
+    let onCleanUp =
+      proc (
+        returnBytes = false,
+        reprocessSlot = false,
+        currentCollateral = UInt256.none
+      ) {.async.} =
+        returnBytesWas = returnBytes
+        reprocessSlotWas = reprocessSlot
 
     let context = SalesContext(
       market: market,

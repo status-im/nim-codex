@@ -58,6 +58,7 @@ type
     slotIndex*: UInt256
     proof*: Groth16Proof
     timestamp: ?SecondsSince1970
+    collateral: UInt256
   Subscriptions = object
     onRequest: seq[RequestSubscription]
     onFulfillment: seq[FulfillmentSubscription]
@@ -198,6 +199,14 @@ method getHost*(market: MockMarket,
       return some slot.host
   return none Address
 
+method currentCollateral*(market: MockMarket,
+                          slotId: SlotId): Future[UInt256] {.async.} =
+  
+  for slot in market.filled:
+    if slotId == slotId(slot.requestId, slot.slotIndex):
+      return slot.collateral
+  return 0.u256
+
 proc emitSlotFilled*(market: MockMarket,
                      requestId: RequestId,
                      slotIndex: UInt256) =
@@ -253,13 +262,15 @@ proc fillSlot*(market: MockMarket,
                requestId: RequestId,
                slotIndex: UInt256,
                proof: Groth16Proof,
-               host: Address) =
+               host: Address,
+               collateral = 0.u256) =
   let slot = MockSlot(
     requestId: requestId,
     slotIndex: slotIndex,
     proof: proof,
     host: host,
-    timestamp: market.clock.?now
+    timestamp: market.clock.?now,
+    collateral: collateral
   )
   market.filled.add(slot)
   market.slotState[slotId(slot.requestId, slot.slotIndex)] = SlotState.Filled
@@ -270,7 +281,7 @@ method fillSlot*(market: MockMarket,
                  slotIndex: UInt256,
                  proof: Groth16Proof,
                  collateral: UInt256) {.async.} =
-  market.fillSlot(requestId, slotIndex, proof, market.signer)
+  market.fillSlot(requestId, slotIndex, proof, market.signer, collateral)
 
 method freeSlot*(market: MockMarket, slotId: SlotId) {.async.} =
   market.freed.add(slotId)

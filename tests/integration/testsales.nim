@@ -75,10 +75,10 @@ multinodesuite "Sales":
     let id = client.requestStorage(
       cid,
       duration=20*60.u256,
-      reward=400.u256,
+      pricePerBytePerSecond=1.u256,
       proofProbability=3.u256,
       expiry=10*60,
-      collateral=200.u256,
+      collateralPerByte=1.u256,
       nodes = 3,
       tolerance = 1).get
 

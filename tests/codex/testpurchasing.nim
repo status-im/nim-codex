@@ -30,7 +30,7 @@ asyncchecksuite "Purchasing":
         slots: uint8.example.uint64,
         slotSize: uint32.example.u256,
         duration: uint16.example.u256,
-        reward: uint8.example.u256
+        pricePerBytePerSecond: uint8.example.u256
       )
     )
 
@@ -46,7 +46,8 @@ asyncchecksuite "Purchasing":
     check market.requested[0].ask.slots == request.ask.slots
     check market.requested[0].ask.slotSize == request.ask.slotSize
     check market.requested[0].ask.duration == request.ask.duration
-    check market.requested[0].ask.reward == request.ask.reward
+    check market.requested[0].ask.pricePerBytePerSecond ==
+      request.ask.pricePerBytePerSecond
 
   test "remembers purchases":
     let purchase1 = await purchasing.purchase(request)
@@ -132,7 +133,7 @@ checksuite "Purchasing state machine":
         slots: uint8.example.uint64,
         slotSize: uint32.example.u256,
         duration: uint16.example.u256,
-        reward: uint8.example.u256
+        pricePerBytePerSecond: uint8.example.u256
       )
     )
 

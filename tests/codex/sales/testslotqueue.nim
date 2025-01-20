@@ -142,16 +142,16 @@ suite "Slot queue":
   test "correctly compares SlotQueueItems":
     var requestA = StorageRequest.example
     requestA.ask.duration = 1.u256
-    requestA.ask.reward = 1.u256
-    check requestA.ask.pricePerSlot == 1.u256
-    requestA.ask.collateral = 100000.u256
+    requestA.ask.pricePerBytePerSecond = 1.u256
+    check requestA.ask.pricePerSlot == 1.u256 * requestA.ask.slotSize
+    requestA.ask.collateralPerByte = 100000.u256
     requestA.expiry = 1001.u256
 
     var requestB = StorageRequest.example
     requestB.ask.duration = 100.u256
-    requestB.ask.reward = 1000.u256
-    check requestB.ask.pricePerSlot == 100000.u256
-    requestB.ask.collateral = 1.u256
+    requestB.ask.pricePerBytePerSecond = 1000.u256
+    check requestB.ask.pricePerSlot == 100000.u256 * requestB.ask.slotSize
+    requestB.ask.collateralPerByte = 1.u256
     requestB.expiry = 1000.u256
 
     let itemA = SlotQueueItem.init(requestA, 0)
@@ -166,8 +166,8 @@ suite "Slot queue":
       slotIndex: 0,
       slotSize: 1.u256,
       duration: 1.u256,
-      reward: 2.u256, # profitability is higher (good)
-      collateral: 1.u256,
+      pricePerBytePerSecond: 2.u256, # profitability is higher (good)
+      collateralPerByte: 1.u256,
       expiry: 1.u256,
       seen: true # seen (bad), more weight than profitability
     )
@@ -176,8 +176,8 @@ suite "Slot queue":
       slotIndex: 0,
       slotSize: 1.u256,
       duration: 1.u256,
-      reward: 1.u256, # profitability is lower (bad)
-      collateral: 1.u256,
+      pricePerBytePerSecond: 1.u256, # profitability is lower (bad)
+      collateralPerByte: 1.u256,
       expiry: 1.u256,
       seen: false # not seen (good)
     )
@@ -191,8 +191,8 @@ suite "Slot queue":
       slotIndex: 0,
       slotSize: 1.u256,
       duration: 1.u256,
-      reward: 1.u256, # reward is lower (bad)
-      collateral: 1.u256, # collateral is lower (good)
+      pricePerBytePerSecond: 1.u256, # reward is lower (bad)
+      collateralPerByte: 1.u256, # collateral is lower (good)
       expiry: 1.u256,
       seen: false
     )
@@ -201,8 +201,8 @@ suite "Slot queue":
       slotIndex: 0,
       slotSize: 1.u256,
       duration: 1.u256,
-      reward: 2.u256, # reward is higher (good), more weight than collateral
-      collateral: 2.u256, # collateral is higher (bad)
+      pricePerBytePerSecond: 2.u256, # reward is higher (good), more weight than collateral
+      collateralPerByte: 2.u256, # collateral is higher (bad)
       expiry: 1.u256,
       seen: false
     )
@@ -216,8 +216,8 @@ suite "Slot queue":
       slotIndex: 0,
       slotSize: 1.u256,
       duration: 1.u256,
-      reward: 1.u256,
-      collateral: 2.u256, # collateral is higher (bad)
+      pricePerBytePerSecond: 1.u256,
+      collateralPerByte: 2.u256, # collateral is higher (bad)
       expiry: 2.u256, # expiry is longer (good)
       seen: false
     )
@@ -226,8 +226,8 @@ suite "Slot queue":
       slotIndex: 0,
       slotSize: 1.u256,
       duration: 1.u256,
-      reward: 1.u256,
-      collateral: 1.u256, # collateral is lower (good), more weight than expiry
+      pricePerBytePerSecond: 1.u256,
+      collateralPerByte: 1.u256, # collateral is lower (good), more weight than expiry
       expiry: 1.u256, # expiry is shorter (bad)
       seen: false
     )
@@ -241,8 +241,8 @@ suite "Slot queue":
       slotIndex: 0,
       slotSize: 1.u256, # slotSize is smaller (good)
       duration: 1.u256,
-      reward: 1.u256,
-      collateral: 1.u256,
+      pricePerBytePerSecond: 1.u256,
+      collateralPerByte: 1.u256,
       expiry: 1.u256, # expiry is shorter (bad)
       seen: false
     )
@@ -251,8 +251,8 @@ suite "Slot queue":
       slotIndex: 0,
       slotSize: 2.u256, # slotSize is larger (bad)
       duration: 1.u256,
-      reward: 1.u256,
-      collateral: 1.u256,
+      pricePerBytePerSecond: 1.u256,
+      collateralPerByte: 1.u256,
       expiry: 2.u256, # expiry is longer (good), more weight than slotSize
       seen: false
     )
@@ -266,8 +266,8 @@ suite "Slot queue":
       slotIndex: 0,
       slotSize: 2.u256, # slotSize is larger (bad)
       duration: 1.u256,
-      reward: 1.u256,
-      collateral: 1.u256,
+      pricePerBytePerSecond: 1.u256,
+      collateralPerByte: 1.u256,
       expiry: 1.u256, # expiry is shorter (bad)
       seen: false
     )
@@ -276,13 +276,16 @@ suite "Slot queue":
       slotIndex: 0,
       slotSize: 1.u256, # slotSize is smaller (good)
       duration: 1.u256,
-      reward: 1.u256,
-      collateral: 1.u256,
+      pricePerBytePerSecond: 1.u256,
+      collateralPerByte: 1.u256,
       expiry: 1.u256,
       seen: false
     )
 
-    check itemB.toSlotQueueItem < itemA.toSlotQueueItem # < indicates higher priority
+    # now slotSize impact profitability - larger slotSize means higher 
+    # profitability which has higher priority than slotSize alone
+    # check itemB.toSlotQueueItem < itemA.toSlotQueueItem # < indicates higher priority
+    check itemA.toSlotQueueItem < itemB.toSlotQueueItem # < indicates higher priority
 
   test "expands available all possible slot indices on init":
     let request = StorageRequest.example
@@ -322,7 +325,7 @@ suite "Slot queue":
     newSlotQueue(maxSize = 8, maxWorkers = 1, processSlotDelay = 10.millis)
     let request0 = StorageRequest.example
     var request1 = StorageRequest.example
-    request1.ask.collateral += 1.u256
+    request1.ask.collateralPerByte += 1.u256
     let items0 = SlotQueueItem.init(request0)
     let items1 = SlotQueueItem.init(request1)
     check queue.push(items0).isOk
@@ -332,8 +335,8 @@ suite "Slot queue":
     check populated.slotIndex == 12'u16
     check populated.slotSize == request1.ask.slotSize
     check populated.duration == request1.ask.duration
-    check populated.reward == request1.ask.reward
-    check populated.collateral == request1.ask.collateral
+    check populated.pricePerBytePerSecond == request1.ask.pricePerBytePerSecond
+    check populated.collateralPerByte == request1.ask.collateralPerByte
 
   test "does not find exisiting request metadata":
     newSlotQueue(maxSize = 2, maxWorkers = 2)
@@ -394,7 +397,7 @@ suite "Slot queue":
     newSlotQueue(maxSize = 8, maxWorkers = 1, processSlotDelay = 10.millis)
     let request0 = StorageRequest.example
     var request1 = StorageRequest.example
-    request1.ask.collateral += 1.u256
+    request1.ask.collateralPerByte += 1.u256
     let items0 = SlotQueueItem.init(request0)
     let items1 = SlotQueueItem.init(request1)
     check queue.push(items0).isOk
@@ -410,7 +413,7 @@ suite "Slot queue":
     newSlotQueue(maxSize = 8, maxWorkers = 1, processSlotDelay = 10.millis)
     let request0 = StorageRequest.example
     var request1 = StorageRequest.example
-    request1.ask.collateral += 1.u256
+    request1.ask.collateralPerByte += 1.u256
     let items0 = SlotQueueItem.init(request0)
     let items1 = SlotQueueItem.init(request1)
     check queue.push(items0).isOk
@@ -426,11 +429,11 @@ suite "Slot queue":
     var request3 = StorageRequest.example
     var request4 = StorageRequest.example
     var request5 = StorageRequest.example
-    request1.ask.collateral = request0.ask.collateral + 1
-    request2.ask.collateral = request1.ask.collateral + 1
-    request3.ask.collateral = request2.ask.collateral + 1
-    request4.ask.collateral = request3.ask.collateral + 1
-    request5.ask.collateral = request4.ask.collateral + 1
+    request1.ask.collateralPerByte = request0.ask.collateralPerByte + 1
+    request2.ask.collateralPerByte = request1.ask.collateralPerByte + 1
+    request3.ask.collateralPerByte = request2.ask.collateralPerByte + 1
+    request4.ask.collateralPerByte = request3.ask.collateralPerByte + 1
+    request5.ask.collateralPerByte = request4.ask.collateralPerByte + 1
     let item0 = SlotQueueItem.init(request0, 0)
     let item1 = SlotQueueItem.init(request1, 0)
     let item2 = SlotQueueItem.init(request2, 0)
@@ -441,17 +444,17 @@ suite "Slot queue":
     check queue.push(@[item0, item1, item2, item3, item4, item5]).isOk
     check queue.contains(item5)
 
-  test "sorts items by profitability ascending (higher pricePerSlot = higher priority)":
+  test "sorts items by profitability ascending (higher pricePerBytePerSecond = higher priority)":
     var request = StorageRequest.example
     let item0 = SlotQueueItem.init(request, 0)
-    request.ask.reward += 1.u256
+    request.ask.pricePerBytePerSecond += 1.u256
     let item1 = SlotQueueItem.init(request, 1)
     check item1 < item0
 
-  test "sorts items by collateral ascending (less required collateral = higher priority)":
+  test "sorts items by collateral ascending (less required collateralPerByte = higher priority)":
     var request = StorageRequest.example
     let item0 = SlotQueueItem.init(request, 0)
-    request.ask.collateral -= 1.u256
+    request.ask.collateralPerByte -= 1.u256
     let item1 = SlotQueueItem.init(request, 1)
     check item1 < item0
 
@@ -462,12 +465,12 @@ suite "Slot queue":
     let item1 = SlotQueueItem.init(request, 1)
     check item1 < item0
 
-  test "sorts items by slot size ascending (smaller dataset = higher priority)":
-    var request = StorageRequest.example
-    let item0 = SlotQueueItem.init(request, 0)
-    request.ask.slotSize -= 1.u256
-    let item1 = SlotQueueItem.init(request, 1)
-    check item1 < item0
+  # test "sorts items by slot size ascending (smaller dataset = higher priority)":
+  #   var request = StorageRequest.example
+  #   let item0 = SlotQueueItem.init(request, 0)
+  #   request.ask.slotSize -= 1.u256
+  #   let item1 = SlotQueueItem.init(request, 1)
+  #   check item1 < item0
 
   test "should call callback once an item is added":
     newSlotQueue(maxSize = 2, maxWorkers = 2)
@@ -490,11 +493,11 @@ suite "Slot queue":
     # calling the callback for each pushed/updated item
     var request = StorageRequest.example
     let item0 = SlotQueueItem.init(request, 0)
-    request.ask.reward += 1.u256
+    request.ask.pricePerBytePerSecond += 1.u256
     let item1 = SlotQueueItem.init(request, 1)
-    request.ask.reward += 1.u256
+    request.ask.pricePerBytePerSecond += 1.u256
     let item2 = SlotQueueItem.init(request, 2)
-    request.ask.reward += 1.u256
+    request.ask.pricePerBytePerSecond += 1.u256
     let item3 = SlotQueueItem.init(request, 3)
 
     check queue.push(item0).isOk

@@ -157,10 +157,10 @@ asyncchecksuite "Test Node - Basic":
         nodes = 5,
         tolerance = 2,
         duration = 100.u256,
-        reward = 2.u256,
+        pricePerBytePerSecond = 1.u256,
         proofProbability = 3.u256,
         expiry = 200.u256,
-        collateral = 200.u256)).tryGet
+        collateralPerByte = 1.u256)).tryGet
 
     check:
       (await verifiableBlock.cid in localStore) == true

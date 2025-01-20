@@ -59,16 +59,19 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
     slotIndex = data.slotIndex
     slotSize = request.ask.slotSize
     duration = request.ask.duration
-    pricePerSlot = request.ask.pricePerSlot
+    pricePerBytePerSecond = request.ask.pricePerBytePerSecond
+    collateralPerByte = request.ask.collateralPerByte
 
+  # MC2: IS THIS COMMENT CORRECT? I do not see any availability matching done
+  # when slot is being pushed to the slot queue
   # availability was checked for this slot when it entered the queue, however
   # check to the ensure that there is still availability as they may have
   # changed since being added (other slots may have been processed in that time)
   without availability =? await reservations.findAvailability(
       request.ask.slotSize,
       request.ask.duration,
-      request.ask.pricePerSlot,
-      request.ask.collateral):
+      request.ask.pricePerBytePerSecond,
+      request.ask.collateralPerByte):
     debug "No availability found for request, ignoring"
 
     return some State(SaleIgnored(reprocessSlot: true))
@@ -79,7 +82,8 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
     availability.id,
     request.ask.slotSize,
     request.id,
-    data.slotIndex
+    data.slotIndex,
+    request.ask.collateralPerByte
   ), error:
     trace "Creation of reservation failed"
     # Race condition:

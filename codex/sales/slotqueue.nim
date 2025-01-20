@@ -32,8 +32,8 @@ type
     slotIndex: uint16
     slotSize: UInt256
     duration: UInt256
-    reward: UInt256
-    collateral: UInt256
+    pricePerBytePerSecond: UInt256
+    collateralPerByte: UInt256
     expiry: UInt256
     seen: bool
 
@@ -69,9 +69,8 @@ const DefaultMaxWorkers = 3
 const DefaultMaxSize = 128'u16
 
 proc profitability(item: SlotQueueItem): UInt256 =
-  StorageAsk(collateral: item.collateral,
-             duration: item.duration,
-             reward: item.reward,
+  StorageAsk(duration: item.duration,
+             pricePerBytePerSecond: item.pricePerBytePerSecond,
              slotSize: item.slotSize).pricePerSlot
 
 proc `<`*(a, b: SlotQueueItem): bool =
@@ -90,8 +89,8 @@ proc `<`*(a, b: SlotQueueItem): bool =
   scoreA.addIf(a.profitability > b.profitability, 3)
   scoreB.addIf(a.profitability < b.profitability, 3)
 
-  scoreA.addIf(a.collateral < b.collateral, 2)
-  scoreB.addIf(a.collateral > b.collateral, 2)
+  scoreA.addIf(a.collateralPerByte < b.collateralPerByte, 2)
+  scoreB.addIf(a.collateralPerByte > b.collateralPerByte, 2)
 
   scoreA.addIf(a.expiry > b.expiry, 1)
   scoreB.addIf(a.expiry < b.expiry, 1)
@@ -143,8 +142,8 @@ proc init*(_: type SlotQueueItem,
     slotIndex: slotIndex,
     slotSize: ask.slotSize,
     duration: ask.duration,
-    reward: ask.reward,
-    collateral: ask.collateral,
+    pricePerBytePerSecond: ask.pricePerBytePerSecond,
+    collateralPerByte: ask.collateralPerByte,
     expiry: expiry,
     seen: seen
   )
@@ -188,8 +187,9 @@ proc requestId*(self: SlotQueueItem): RequestId = self.requestId
 proc slotIndex*(self: SlotQueueItem): uint16 = self.slotIndex
 proc slotSize*(self: SlotQueueItem): UInt256 = self.slotSize
 proc duration*(self: SlotQueueItem): UInt256 = self.duration
-proc reward*(self: SlotQueueItem): UInt256 = self.reward
-proc collateral*(self: SlotQueueItem): UInt256 = self.collateral
+proc pricePerBytePerSecond*(self: SlotQueueItem): UInt256 =
+  self.pricePerBytePerSecond
+proc collateralPerByte*(self: SlotQueueItem): UInt256 = self.collateralPerByte
 proc seen*(self: SlotQueueItem): bool = self.seen
 
 proc running*(self: SlotQueue): bool = self.running
@@ -235,8 +235,8 @@ proc populateItem*(self: SlotQueue,
         slotIndex: slotIndex,
         slotSize: item.slotSize,
         duration: item.duration,
-        reward: item.reward,
-        collateral: item.collateral,
+        pricePerBytePerSecond: item.pricePerBytePerSecond,
+        collateralPerByte: item.collateralPerByte,
         expiry: item.expiry
       )
   return none SlotQueueItem

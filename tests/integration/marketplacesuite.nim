@@ -56,16 +56,16 @@ template marketplacesuite*(name: string,
         discard provider.postAvailability(
           totalSize=datasetSize.u256, # should match 1 slot only
           duration=duration.u256,
-          minPrice=300.u256,
-          maxCollateral=200.u256
+          minPricePerBytePerSecond=1.u256,
+          totalRemainingCollateral=200.u256
         )
 
     proc requestStorage(client: CodexClient,
                         cid: Cid,
                         proofProbability = 1,
                         duration: uint64 = 12.periods,
-                        reward = 400.u256,
-                        collateral = 100.u256,
+                        pricePerBytePerSecond = 1.u256,
+                        collateralPerByte = 1.u256,
                         expiry: uint64 = 4.periods,
                         nodes = providers().len,
                         tolerance = 0): Future[PurchaseId] {.async.} =
@@ -74,8 +74,8 @@ template marketplacesuite*(name: string,
         expiry=expiry.uint,
         duration=duration.u256,
         proofProbability=proofProbability.u256,
-        collateral=collateral,
-        reward=reward,
+        collateralPerByte=collateralPerByte,
+        pricePerBytePerSecond=pricePerBytePerSecond,
         nodes=nodes.uint,
         tolerance=tolerance.uint
       ).get
