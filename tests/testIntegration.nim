@@ -38,7 +38,7 @@ proc run() {.async.} =
   # Echoes stdout from the integration test file process. Codex process logs can
   # also be output if a test uses a multinodesuite, requires CodexConfig.debug
   # to be enabled
-  const debugCodexNodes = true
+  const debugCodexNodes = false
   # Shows test status updates at time intervals. Useful for running locally with
   # active terminal interaction. Set to false for unattended runs, eg CI.
   const showContinuousStatusUpdates = true

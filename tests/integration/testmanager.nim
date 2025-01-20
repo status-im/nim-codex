@@ -166,7 +166,7 @@ proc startHardhat(
     hardhat.output.add line
 
   withLock(test.manager.hardhatPortLock):
-    port = await nextFreePort(test.manager.lastHardhatPort + 10)
+    port = await nextFreePort(test.manager.lastHardhatPort + 1)
     test.manager.lastHardhatPort = port
 
   args.add("--port")
@@ -282,22 +282,11 @@ proc buildCommand(
   test: IntegrationTest,
   hardhatPort: ?int): Future[string] {.async: (raises:[CancelledError, TestManagerError]).} =
 
-  var apiPort, discPort: int
-  withLock(test.manager.codexPortLock):
-    # TODO: needed? nextFreePort should take care of this
-    # inc by 20 to allow each test to run 20 codex nodes (clients, SPs,
-    # validators) giving a good chance the port will be free
-    apiPort = await nextFreePort(test.manager.lastCodexApiPort + 20)
-    test.manager.lastCodexApiPort = apiPort
-    discPort = await nextFreePort(test.manager.lastCodexDiscPort + 20)
-    test.manager.lastCodexDiscPort = discPort
-
-  var logging = ""
-  if test.manager.debugTestHarness:
-    logging = "-d:chronicles_log_level=TRACE " &
-              "-d:chronicles_disabled_topics=websock " &
-              "-d:chronicles_default_output_device=stdout " &
-              "-d:chronicles_sinks=textlines"
+  let logging = if not test.manager.debugTestHarness: ""
+                else: "-d:chronicles_log_level=TRACE " &
+                      "-d:chronicles_disabled_topics=websock,JSONRPC-HTTP-CLIENT,JSONRPC-WS-CLIENT " &
+                      "-d:chronicles_default_output_device=stdout " &
+                      "-d:chronicles_sinks=textlines"
 
   let strHardhatPort =
     if not test.config.startHardhat: ""
@@ -314,28 +303,38 @@ proc buildCommand(
   except ValueError as parent:
     raiseTestManagerError "bad file name, testFile: " & test.config.testFile, parent
 
-  var command: string
-  withLock(test.manager.hardhatPortLock):
-    try:
-      return  "nim c " &
-              &"-d:CodexApiPort={apiPort} " &
-              &"-d:CodexDiscPort={discPort} " &
-              &"{strHardhatPort} " &
-              &"-d:TestId={test.testId} " &
-              &"{logging} " &
-                "--verbosity:0 " &
-                "--hints:off " &
-                "-d:release " &
-                "-r " &
-              &"{testFile}"
-    except ValueError as parent:
-      raiseTestManagerError "bad command --\n" &
-                              ", apiPort: " & $apiPort &
-                              ", discPort: " & $discPort &
-                              ", logging: " & logging &
-                              ", testFile: " & testFile &
-                              ", error: " & parent.msg,
-                              parent
+  withLock(test.manager.codexPortLock):
+    # Increase the port by 100 to allow each test to run 100 codex nodes
+    # (clients, SPs, validators) giving a good chance the port will be free. We
+    # cannot rely on `nextFreePort` in multinodes entirely as there could be a
+    # concurrency issue where the port is determined free in mulitiple tests and
+    # then there is a clash during the run.
+    let apiPort = await nextFreePort(test.manager.lastCodexApiPort + 100)
+    test.manager.lastCodexApiPort = apiPort
+    let discPort = await nextFreePort(test.manager.lastCodexDiscPort + 100)
+    test.manager.lastCodexDiscPort = discPort
+
+    withLock(test.manager.hardhatPortLock):
+      try:
+        return  "nim c " &
+                &"-d:CodexApiPort={apiPort} " &
+                &"-d:CodexDiscPort={discPort} " &
+                &"{strHardhatPort} " &
+                &"-d:TestId={test.testId} " &
+                &"{logging} " &
+                  "--verbosity:0 " &
+                  "--hints:off " &
+                  "-d:release " &
+                  "-r " &
+                &"{testFile}"
+      except ValueError as parent:
+        raiseTestManagerError "bad command --\n" &
+                                ", apiPort: " & $apiPort &
+                                ", discPort: " & $discPort &
+                                ", logging: " & logging &
+                                ", testFile: " & testFile &
+                                ", error: " & parent.msg,
+                                parent
 proc setup(
   test: IntegrationTest): Future[?Hardhat] {.async: (raises: [CancelledError, TestManagerError]).} =
 
