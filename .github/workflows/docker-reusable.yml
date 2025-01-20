@@ -98,7 +98,7 @@ jobs:
           - target:
               os: linux
               arch: arm64
-            builder: buildjet-8vcpu-ubuntu-2204-arm
+            builder: ubuntu-22.04-arm
 
     name: Build ${{ matrix.target.os }}/${{ matrix.target.arch }}
     runs-on: ${{ matrix.builder }}
