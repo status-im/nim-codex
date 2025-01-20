@@ -39,6 +39,11 @@ proc run() {.async.} =
   # also be output if a test uses a multinodesuite, requires CodexConfig.debug
   # to be enabled
   const debugCodexNodes = true
+  # Shows test status updates at time intervals. Useful for running locally with
+  # active terminal interaction. Set to false for unattended runs, eg CI.
+  const showContinuousStatusUpdates = true
+  # Timeout duration for EACH integration test file.
+  const testTimeout = 60.minutes
 
   when debugTestHarness and enabledLogLevel != LogLevel.TRACE:
     styledEcho bgWhite, fgBlack, styleBright, "\n\n  ",
@@ -63,7 +68,8 @@ More integration test harness logs available by running with
     debugTestHarness,
     debugHardhat,
     debugCodexNodes,
-    testTimeout = 60.minutes)
+    showContinuousStatusUpdates,
+    testTimeout)
   try:
     trace "starting test manager"
     await manager.start()

@@ -34,6 +34,9 @@ type
     # can also be output if a test uses a multinodesuite, requires
     # CodexConfig.debug to be enabled
     debugCodexNodes: bool
+    # Shows test status updates at regular time intervals. Useful for running
+    # locally while attended. Set to false for unattended runs, eg CI.
+    showContinuousStatusUpdates: bool
     timeStart: ?Moment
     timeEnd: ?Moment
     codexPortLock: AsyncLock
@@ -99,6 +102,7 @@ proc new*(
   debugTestHarness = false,
   debugHardhat = false,
   debugCodexNodes = false,
+  showContinuousStatusUpdates = false,
   testTimeout = 60.minutes): TestManager =
 
   TestManager(
