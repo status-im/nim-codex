@@ -42,7 +42,7 @@ method run*(state: SaleSlotReserving, machine: Machine): Future[?State] {.async.
       trace "Reserving slot"
       await market.reserveSlot(data.requestId, data.slotIndex)
     except MarketError as e:
-      if e.msg.contains "Reservation not allowed":
+      if e.msg.contains "SlotReservations_ReservationNotAllowed":
         debug "Slot cannot be reserved, ignoring", error = e.msg
         return some State( SaleIgnored(reprocessSlot: false, returnBytes: true) )
       else:
