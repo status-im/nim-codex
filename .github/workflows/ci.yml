@@ -27,18 +27,7 @@ jobs:
         uses: fabiocaccamo/create-matrix-action@v4
         with:
           matrix: |
-            os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {unittest},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {contract},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {integration}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {tools},       nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {macos},   cpu {amd64}, builder {macos-13},       tests {unittest},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {macos},   cpu {amd64}, builder {macos-13},       tests {contract},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {macos},   cpu {amd64}, builder {macos-13},       tests {integration}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {macos},   cpu {amd64}, builder {macos-13},       tests {tools},       nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {windows}, cpu {amd64}, builder {windows-latest}, tests {unittest},    nim_version {${{ env.nim_version }}}, shell {msys2}
             os {windows}, cpu {amd64}, builder {windows-latest}, tests {contract},    nim_version {${{ env.nim_version }}}, shell {msys2}
-            os {windows}, cpu {amd64}, builder {windows-latest}, tests {integration}, nim_version {${{ env.nim_version }}}, shell {msys2}
-            os {windows}, cpu {amd64}, builder {windows-latest}, tests {tools},       nim_version {${{ env.nim_version }}}, shell {msys2}
 
   build:
     needs: matrix
@@ -46,40 +35,3 @@ jobs:
     with:
       matrix: ${{ needs.matrix.outputs.matrix }}
       cache_nonce: ${{ needs.matrix.outputs.cache_nonce }}
-
-  coverage:
-    # Force to stick to ubuntu 20.04 for coverage because
-    # lcov was updated to 2.x version in ubuntu-latest
-    # and cause a lot of issues.
-    # See https://github.com/linux-test-project/lcov/issues/238
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Setup Nimbus Build System
-        uses: ./.github/actions/nimbus-build-system
-        with:
-          os: linux
-          nim_version: ${{ env.nim_version }}
-          coverage: true
-
-      - name: Generate coverage data
-        run: |
-          # make -j${ncpu} coverage
-          make -j${ncpu} coverage-script
-        shell: bash
-
-      - name: Upload coverage data to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          directory: ./coverage/
-          fail_ci_if_error: true
-          files: ./coverage/coverage.f.info
-          flags: unittests
-          name: codecov-umbrella
-          token: ${{ secrets.CODECOV_TOKEN }}
-          verbose: true

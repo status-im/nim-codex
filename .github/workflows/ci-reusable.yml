@@ -34,6 +34,13 @@ jobs:
           submodules: recursive
           ref: ${{ github.event.pull_request.head.sha }}
 
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        if: matrix.os == 'linux' || matrix.os == 'macos'
+        with:
+          create-symlink: true
+          key: ${{ matrix.os }}-${{ matrix.builder }}-${{ matrix.cpu }}-${{ matrix.tests }}-${{ matrix.nim_version }}
+
       - name: Setup Nimbus Build System
         uses: ./.github/actions/nimbus-build-system
         with:
