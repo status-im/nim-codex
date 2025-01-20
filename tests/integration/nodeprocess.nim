@@ -134,14 +134,7 @@ method stop*(node: NodeProcess, expectedErrCode: int = -1) {.base, async.} =
         error "failed to terminate process", errCode = $errCode
 
       trace "waiting for node process to exit"
-      var backoff = 8
-      while node.process.running().valueOr false:
-        backoff = min(backoff*2, 1024) # Exponential backoff
-        await sleepAsync(backoff)
-
-      let exitCode = node.process.peekExitCode().valueOr:
-        fatal "could not get exit code from process", error
-        return
+      let exitCode = await node.process.waitForExit(3.seconds)
 
       if exitCode > 0 and
          exitCode != 143 and # 143 = SIGTERM (initiated above)
