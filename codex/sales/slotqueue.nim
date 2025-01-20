@@ -69,8 +69,7 @@ const DefaultMaxWorkers = 3
 const DefaultMaxSize = 128'u16
 
 proc profitability(item: SlotQueueItem): UInt256 =
-  StorageAsk(collateralPerByte: item.collateralPerByte,
-             duration: item.duration,
+  StorageAsk(duration: item.duration,
              pricePerBytePerSecond: item.pricePerBytePerSecond,
              slotSize: item.slotSize).pricePerSlot
 

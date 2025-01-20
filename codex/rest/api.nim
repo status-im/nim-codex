@@ -524,8 +524,8 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
         if duration =? restAv.duration:
           availability.duration = duration
 
-        if minPricePerByte =? restAv.minPricePerByte:
-          availability.minPricePerByte = minPricePerByte
+        if minPricePerBytePerSecond =? restAv.minPricePerBytePerSecond:
+          availability.minPricePerBytePerSecond = minPricePerBytePerSecond
 
         if totalRemainingCollateral =? restAv.totalRemainingCollateral:
           availability.totalRemainingCollateral = totalRemainingCollateral

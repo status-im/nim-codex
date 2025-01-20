@@ -38,10 +38,10 @@ marketplacesuite "Marketplace":
     let id = client.requestStorage(
       cid,
       duration=20*60.u256,
-      reward=400.u256,
+      pricePerBytePerSecond=1.u256,
       proofProbability=3.u256,
       expiry=10*60,
-      collateral=200.u256,
+      collateralPerByte=1.u256,
       nodes = 3,
       tolerance = 1).get
 
@@ -63,7 +63,7 @@ marketplacesuite "Marketplace":
     let marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
     let tokenAddress = await marketplace.token()
     let token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
-    let reward = 400.u256
+    let pricePerBytePerSecond = 1.u256
     let duration = 20*60.u256
     let nodes = 3'u
 
@@ -76,10 +76,10 @@ marketplacesuite "Marketplace":
     let id = client.requestStorage(
       cid,
       duration=duration,
-      reward=reward,
+      pricePerBytePerSecond=pricePerBytePerSecond,
       proofProbability=3.u256,
       expiry=10*60,
-      collateral=200.u256,
+      collateralPerByte=1.u256,
       nodes = nodes,
       tolerance = 1).get
 
@@ -95,7 +95,11 @@ marketplacesuite "Marketplace":
     await ethProvider.advanceTime(duration)
 
     # Checking that the hosting node received reward for at least the time between <expiry;end>
-    check eventually (await token.balanceOf(hostAccount)) - startBalanceHost >= (duration-5*60)*reward*nodes.u256
+    # MC2: TODO: find out the slot size based on CID
+    const slotSize = 1.u256
+    const pricePerSlotPerSecond = pricePerBytePerSecond * slotSize
+    check eventually (await token.balanceOf(hostAccount)) - startBalanceHost >= 
+      (duration-5*60)*pricePerSlotPerSecond*nodes.u256
 
     # Checking that client node receives some funds back that were not used for the host nodes
     check eventually(
@@ -124,9 +128,9 @@ marketplacesuite "Marketplace payouts":
           # .withLogTopics("node", "marketplace", "sales", "reservations", "node", "proving", "clock")
           .some,
   ):
-    let reward = 400.u256
+    let pricePerBytePerSecond = 1.u256
     let duration = 20.periods
-    let collateral = 200.u256
+    let collateralPerByte = 1.u256
     let expiry = 10.periods
     let data = await RandomChunker.example(blocks=8)
     let client = clients()[0]
@@ -137,13 +141,14 @@ marketplacesuite "Marketplace payouts":
     let startBalanceClient = await token.balanceOf(client.ethAccount)
 
     # provider makes storage available
+    let totalAvailabilitySize = (data.len div 2).u256
     discard providerApi.postAvailability(
       # make availability size small enough that we can't fill all the slots,
       # thus causing a cancellation
-      totalSize=(data.len div 2).u256,
+      totalSize=totalAvailabilitySize,
       duration=duration.u256,
-      minPrice=reward,
-      maxCollateral=collateral)
+      minPricePerBytePerSecond=pricePerBytePerSecond,
+      totalRemainingCollateral=collateralPerByte * totalAvailabilitySize)
 
     let cid = clientApi.upload(data).get
 
@@ -158,9 +163,9 @@ marketplacesuite "Marketplace payouts":
     let id = await clientApi.requestStorage(
       cid,
       duration=duration,
-      reward=reward,
+      pricePerBytePerSecond=pricePerBytePerSecond,
       expiry=expiry,
-      collateral=collateral,
+      collateralPerByte=collateralPerByte,
       nodes=3,
       tolerance=1
     )
@@ -175,10 +180,14 @@ marketplacesuite "Marketplace payouts":
 
     await advanceToNextPeriod()
 
+    # MC2: TODO: find out the slot size based on CID
+    const slotSize = 1.u256
+    const pricePerSlotPerSecond = pricePerBytePerSecond * slotSize
+
     check eventually (
       let endBalanceProvider = (await token.balanceOf(provider.ethAccount));
       endBalanceProvider > startBalanceProvider and
-      endBalanceProvider < startBalanceProvider + expiry.u256*reward
+      endBalanceProvider < startBalanceProvider + expiry.u256*pricePerSlotPerSecond
     )
     check eventually(
       (

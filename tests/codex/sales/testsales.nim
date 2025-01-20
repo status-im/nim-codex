@@ -43,8 +43,8 @@ asyncchecksuite "Sales - start":
         slots: 4,
         slotSize: 100.u256,
         duration: 60.u256,
-        reward: 10.u256,
-        collateral: 200.u256,
+        pricePerBytePerSecond: 1.u256,
+        collateralPerByte: 1.u256,
       ),
       content: StorageContent(
         cid: "some cid"
@@ -124,6 +124,10 @@ asyncchecksuite "Sales":
     repoTmp = TempLevelDb.new()
     metaTmp = TempLevelDb.new()
 
+  var totalAvailabilitySize: UInt256
+  var minPricePerBytePerSecond: UInt256
+  var requestedCollateralPerByte: UInt256
+  var totalCollateral: UInt256
   var availability: Availability
   var request: StorageRequest
   var sales: Sales
@@ -135,20 +139,24 @@ asyncchecksuite "Sales":
   var itemsProcessed: seq[SlotQueueItem]
 
   setup:
+    totalAvailabilitySize = 100.u256
+    minPricePerBytePerSecond = 1.u256
+    requestedCollateralPerByte = 1.u256
+    totalCollateral = requestedCollateralPerByte * totalAvailabilitySize
     availability = Availability(
-      totalSize: 100.u256,
-      freeSize: 100.u256,
+      totalSize: totalAvailabilitySize,
+      freeSize: totalAvailabilitySize,
       duration: 60.u256,
-      minPrice: 600.u256,
-      maxCollateral: 400.u256
+      minPricePerBytePerSecond: minPricePerBytePerSecond,
+      totalRemainingCollateral: totalCollateral,
     )
     request = StorageRequest(
       ask: StorageAsk(
         slots: 4,
         slotSize: 100.u256,
         duration: 60.u256,
-        reward: 10.u256,
-        collateral: 200.u256,
+        pricePerBytePerSecond: minPricePerBytePerSecond,
+        collateralPerByte: 1.u256,
       ),
       content: StorageContent(
         cid: "some cid"
@@ -210,8 +218,8 @@ asyncchecksuite "Sales":
     let a = waitFor reservations.createAvailability(
       availability.totalSize,
       availability.duration,
-      availability.minPrice,
-      availability.maxCollateral
+      availability.minPricePerBytePerSecond,
+      availability.totalRemainingCollateral
     )
     availability = a.get # update id
 
@@ -230,7 +238,7 @@ asyncchecksuite "Sales":
       done.complete()
 
     var request1 = StorageRequest.example
-    request1.ask.collateral = request.ask.collateral + 1
+    request1.ask.collateralPerByte = request.ask.collateralPerByte + 1
     createAvailability()
     # saturate queue
     while queue.len < queue.size - 1:
@@ -381,14 +389,14 @@ asyncchecksuite "Sales":
     check wasIgnored()
 
   test "ignores request when reward is too low":
-    availability.minPrice = request.ask.pricePerSlot + 1
+    availability.minPricePerBytePerSecond = request.ask.pricePerBytePerSecond + 1
     createAvailability()
     await market.requestStorage(request)
     check wasIgnored()
 
   test "ignores request when asked collateral is too high":
     var tooBigCollateral = request
-    tooBigCollateral.ask.collateral = availability.maxCollateral + 1
+    tooBigCollateral.ask.collateralPerByte = requestedCollateralPerByte + 1
     createAvailability()
     await market.requestStorage(tooBigCollateral)
     check wasIgnored()
@@ -604,7 +612,8 @@ asyncchecksuite "Sales":
       availability.id,
       100.u256,
       RequestId.example,
-      UInt256.example)
+      UInt256.example,
+      1.u256)
     check (await reservations.all(Reservation)).get.len == 1
     await sales.load()
     check (await reservations.all(Reservation)).get.len == 0

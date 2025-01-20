@@ -36,7 +36,7 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
     slotIndex = data.slotIndex
 
   let slotState = await market.slotState(slotId(data.requestId, data.slotIndex))
-  let requestedCollateral = request.ask.collateralPerByte * request.ask.slotSize
+  let requestedCollateral = request.ask.collateralPerSlot
   var collateral: UInt256
 
   if slotState == SlotState.Repair:

@@ -22,9 +22,9 @@ marketplacesuite "Bug #821 - node crashes during erasure coding":
           # .withLogTopics("node", "marketplace", "sales", "reservations", "node", "proving", "clock")
           .some,
   ):
-    let reward = 400.u256
+    let pricePerBytePerSecond = 1.u256
     let duration = 20.periods
-    let collateral = 200.u256
+    let collateralPerByte = 1.u256
     let expiry = 10.periods
     let data = await RandomChunker.example(blocks=8)
     let client = clients()[0]
@@ -43,9 +43,9 @@ marketplacesuite "Bug #821 - node crashes during erasure coding":
     let id = await clientApi.requestStorage(
       cid,
       duration=duration,
-      reward=reward,
+      pricePerBytePerSecond=pricePerBytePerSecond,
       expiry=expiry,
-      collateral=collateral,
+      collateralPerByte=collateralPerByte,
       nodes=3,
       tolerance=1
     )

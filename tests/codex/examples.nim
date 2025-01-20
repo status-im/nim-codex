@@ -59,12 +59,14 @@ proc example*(_: type MultiHash, mcodec = Sha256HashCodec): MultiHash =
   MultiHash.digest($mcodec, bytes).tryGet()
 
 proc example*(_: type Availability): Availability =
+  let totalSize = uint16.example.u256
+  let assumedCollateralPerByte = 1.u256
   Availability.init(
-    totalSize = uint16.example.u256,
+    totalSize = totalSize,
     freeSize = uint16.example.u256,
     duration = uint16.example.u256,
-    minPrice = uint64.example.u256,
-    maxCollateral = uint16.example.u256
+    minPricePerBytePerSecond = 1.u256,
+    totalRemainingCollateral = totalSize * assumedCollateralPerByte
   )
 
 proc example*(_: type Reservation): Reservation =

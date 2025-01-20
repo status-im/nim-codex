@@ -30,7 +30,8 @@ method createReservation*(
   availabilityId: AvailabilityId,
   slotSize: UInt256,
   requestId: RequestId,
-  slotIndex: UInt256): Future[?!Reservation] {.async.} =
+  slotIndex: UInt256,
+  collateralPerByte: UInt256): Future[?!Reservation] {.async.} =
     if self.createReservationThrowBytesOutOfBoundsError:
       let error = newException(
         BytesOutOfBoundsError,
@@ -40,5 +41,5 @@ method createReservation*(
     elif error =? self.createReservationThrowError:
       return failure(error)
 
-    return await procCall createReservation(Reservations(self), availabilityId, slotSize, requestId, slotIndex)
-
+    return await procCall createReservation(Reservations(self), availabilityId,
+      slotSize, requestId, slotIndex, collateralPerByte)

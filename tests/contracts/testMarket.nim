@@ -32,7 +32,7 @@ ethersuite "On-Chain Market":
   proc expectedPayout(
       r: StorageRequest, startTimestamp: UInt256, endTimestamp: UInt256
   ): UInt256 =
-    return (endTimestamp - startTimestamp) * r.ask.totalPrice
+    return (endTimestamp - startTimestamp) * r.ask.pricePerSlotPerSecond
 
   proc switchAccount(account: Signer) =
     marketplace = marketplace.connect(account)

@@ -402,7 +402,7 @@ proc setupRequest(
     duration              = duration
     nodes                 = nodes
     tolerance             = tolerance
-    pricePerBytePerSecond = pricePerByteSecond
+    pricePerBytePerSecond = pricePerBytePerSecond
     proofProbability      = proofProbability
     collateralPerByte     = collateralPerByte
     expiry                = expiry
@@ -480,15 +480,15 @@ proc requestStorage*(
   ##
 
   logScope:
-    cid               = cid
-    duration          = duration
-    nodes             = nodes
-    tolerance         = tolerance
-    pricePerByte      = pricePerByte
-    proofProbability  = proofProbability
-    collateralPerByte = collateralPerByte
-    expiry            = expiry.truncate(int64)
-    now               = self.clock.now
+    cid                   = cid
+    duration              = duration
+    nodes                 = nodes
+    tolerance             = tolerance
+    pricePerBytePerSecond = pricePerBytePerSecond
+    proofProbability      = proofProbability
+    collateralPerByte     = collateralPerByte
+    expiry                = expiry.truncate(int64)
+    now                   = self.clock.now
 
   trace "Received a request for storage!"
 
@@ -503,7 +503,7 @@ proc requestStorage*(
       proofProbability,
       nodes,
       tolerance,
-      pricePerByte,
+      pricePerBytePerSecond,
       collateralPerByte,
       expiry)), err:
     trace "Unable to setup request"

@@ -50,7 +50,7 @@ components:
       type: string
       description: Address of Ethereum address
 
-    PricePerByte:
+    PricePerBytePerSecond:
       type: string
       description: The amount of tokens paid per byte per second per slot to hosts the client is willing to pay
 
@@ -157,12 +157,12 @@ components:
           description: Total size of availability's storage in bytes as decimal string
         duration:
           $ref: "#/components/schemas/Duration"
-        minPrice:
+        minPricePerBytePerSecond:
           type: string
-          description: Minimal price paid (in amount of tokens) for the whole hosted request's slot for the request's duration as decimal string
-        maxCollateral:
+          description: Minimal price per byte per second paid (in amount of tokens) for the hosted request's slot for the request's duration as decimal string
+        totalRemainingCollateral:
           type: string
-          description: Maximum collateral user is willing to pay per filled Slot (in amount of tokens) as decimal string
+          description: Total remaining collateral (in amount of tokens) that can still be used for matching requests
 
     SalesAvailabilityREAD:
       allOf:
@@ -252,7 +252,7 @@ components:
         duration:
           $ref: "#/components/schemas/Duration"
         pricePerBytePerSecond:
-          $ref: "#/components/schemas/PricePerByte"
+          $ref: "#/components/schemas/PricePerBytePerSecond"
         proofProbability:
           $ref: "#/components/schemas/ProofProbability"
         nodes:
@@ -285,7 +285,7 @@ components:
         proofProbability:
           $ref: "#/components/schemas/ProofProbability"
         pricePerBytePerSecond:
-          $ref: "#/components/schemas/PricePerByteSecond"
+          $ref: "#/components/schemas/PricePerBytePerSecond"
         maxSlotLoss:
           type: integer
           description: Max slots that can be lost without data considered to be lost

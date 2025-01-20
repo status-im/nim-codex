@@ -22,7 +22,7 @@ asyncchecksuite "validation":
   let validationGroups = ValidationGroups(8).some
   let slot = Slot.example
   let proof = Groth16Proof.example
-  let collateral = slot.request.ask.collateral
+  let collateral = slot.request.ask.collateralPerSlot
 
   var market: MockMarket
   var clock: MockClock

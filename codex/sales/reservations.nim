@@ -7,23 +7,23 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 ##
-##                                                             +--------------------------------------+
-##                                                             |            RESERVATION               |
-## +--------------------------------------------+              |--------------------------------------|
-## |            AVAILABILITY                    |              | ReservationId  | id             | PK |
-## |--------------------------------------------|              |--------------------------------------|
-## | AvailabilityId   | id                | PK  |<-||-------o<-| AvailabilityId | availabilityId | FK |
-## |--------------------------------------------|              |--------------------------------------|
-## | UInt256          | totalSize         |     |              | UInt256        | size           |    |
-## |--------------------------------------------|              |--------------------------------------|
-## | UInt256          | freeSize          |     |              | UInt256        | slotIndex      |    |
-## |--------------------------------------------|              +--------------------------------------+
-## | UInt256          | duration          |     |
-## |--------------------------------------------|
-## | UInt256          | minPricePerByte   |     |
-## |--------------------------------------------|
-## | UInt256          | totalRemainingCollateral|     |
-## +--------------------------------------------+
+##                                                                    +--------------------------------------+
+##                                                                    |            RESERVATION               |
+## +---------------------------------------------------+              |--------------------------------------|
+## |            AVAILABILITY                           |              | ReservationId  | id             | PK |
+## |---------------------------------------------------|              |--------------------------------------|
+## | AvailabilityId   | id                       | PK  |<-||-------o<-| AvailabilityId | availabilityId | FK |
+## |---------------------------------------------------|              |--------------------------------------|
+## | UInt256          | totalSize                |     |              | UInt256        | size           |    |
+## |---------------------------------------------------|              |--------------------------------------|
+## | UInt256          | freeSize                 |     |              | UInt256        | slotIndex      |    |
+## |---------------------------------------------------|              +--------------------------------------+
+## | UInt256          | duration                 |     |
+## |---------------------------------------------------|
+## | UInt256          | minPricePerBytePerSecond |     |
+## |---------------------------------------------------|
+## | UInt256          | totalRemainingCollateral |     |
+## +---------------------------------------------------+
 
 import pkg/upraises
 push: {.upraises: [].}
@@ -180,7 +180,7 @@ func key*(availability: Availability): ?!Key =
   return availability.id.key
 
 func maxCollateralPerByte*(availability: Availability): UInt256 =
-  return availability.totalRemainingCollateral.div(availability.freeSize)
+  return availability.totalRemainingCollateral div availability.freeSize
 
 func key*(reservation: Reservation): ?!Key =
   return key(reservation.id, reservation.availabilityId)
@@ -378,14 +378,14 @@ proc createAvailability*(
   self: Reservations,
   size: UInt256,
   duration: UInt256,
-  minPricePerByte: UInt256,
+  minPricePerBytePerSecond: UInt256,
   totalRemainingCollateral: UInt256): Future[?!Availability] {.async.} =
 
-  trace "creating availability", size, duration, minPricePerByte,
+  trace "creating availability", size, duration, minPricePerBytePerSecond,
     totalRemainingCollateral
 
   let availability = Availability.init(
-    size, size, duration, minPricePerByte, totalRemainingCollateral
+    size, size, duration, minPricePerBytePerSecond, totalRemainingCollateral
   )
   let bytes = availability.freeSize.truncate(uint)
 
